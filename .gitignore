@@ -1,0 +1,55 @@
+# ─────────────────────────────────────────────────────────────
+# AuditAI · .gitignore
+# ─────────────────────────────────────────────────────────────
+
+# 🔴 DATOS SENSIBLES — NUNCA versionar (D17 / AGENTS.md)
+# Contienen credenciales (CLAVE SII, Previred) y PII (RUT, email, Whatsapp).
+backups/
+*.bak
+
+# Secretos y entorno
+.env
+.env.*
+*.env
+secrets.*
+**/NOTION_TOKEN*
+
+# ─── Python (Fase 2 en adelante) ───
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+env/
+.python-version
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Cachés de herramientas (uv, Ruff, mypy, pytest)
+.ruff_cache/
+.mypy_cache/
+.pytest_cache/
+.coverage
+htmlcov/
+.uv/
+
+# ─── Editores / IDE ───
+.vscode/
+.idea/
+*.swp
+
+# ─── Sistema operativo ───
+# Windows
+Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+# macOS
+.DS_Store
+
+# ─── Temporales ───
+*.log
+*.tmp
+scratch/
+tmp/

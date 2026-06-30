@@ -1,0 +1,10 @@
+# Normaliza saltos de línea a LF dentro del repo (evita warnings CRLF en Windows)
+* text=auto eol=lf
+
+# Binarios: no tocar saltos de línea
+*.pdf  binary
+*.xlsx binary
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.gif  binary

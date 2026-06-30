@@ -1,0 +1,6 @@
+# DESCRIPCION del ARCHIVO PRUEBA1.csv
+
+"Prueba1.csv": En esta hoja esta el cuadro en el cual se ingresan los valores relacionados al IVA debito y creditos y otros impuestos el cual son relacionados con el giro de la empresa  y asi calcular si tiene iva a pagar o tiene un saldo de iva remanente. Este matriz se divide en 6 diferentes tempaticas:
+ - primera parte, denominada "documentos emitidos": se calcula todo lo relacionado con la venta de bienes o servicios de la empresa, esto incluye todos los documentos legales.
+- La segunda parte " incluye todo lo relacionado al impuesto sobre compras de vienes o servicios. La tercera parte solo la venta incluye el saldo remantente que tiene la empresa. La cuarta parte toma el valor final de la primera parte y le resta los saldos finales de la segunda y tercera parte, esto da un resultado el cual si es positivo significa que tiene que pagar impuesto y si da negativo significa que mantiene un saldo de IVA credito remanente. La quinta parte denominada "Otros impuestos y o retenciones" agrega otros impuestos obligatorios" . Sexta parte toma los valores agregados en la quinta parte y los suma a la cuarta parte siempre y cuanto la cuarta parte sea un valor positivo, el no ser positivo no se considerará en la suma, dejando asi solo la suma de la quinta parte.
+
