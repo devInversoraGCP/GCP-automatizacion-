@@ -1,0 +1,24 @@
+Asunto: Asesoría Honorario
+
+Estimado/a {{nombre_cliente}}:
+
+Le escribimos para informarle el resultado de su declaración de IVA
+(Formulario 29) del período {{periodo}}.
+
+{{titulo_resultado}}: {{monto}}
+{{mensaje_resultado}}
+{{linea_fecha_limite}}
+{{linea_info_adicional}}
+{{linea_honorarios}}
+
+Si tiene dudas o necesita el detalle que respalda este monto, responda este
+mismo correo y con gusto le ayudamos.
+
+Saludos cordiales,
+{{asesor}}
+GCP · Asesoría Contable
+
+—
+Este correo y su contenido son confidenciales y están dirigidos exclusivamente
+a {{nombre_cliente}}. El monto informado corresponde al período {{periodo}} y
+puede variar si se ingresan documentos posteriores.

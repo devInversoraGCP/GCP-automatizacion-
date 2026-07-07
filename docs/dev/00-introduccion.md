@@ -19,7 +19,7 @@ Cada mes, un contador o asesor debe declarar el F29 de cada empresa que administ
 
 Es un proceso **repetitivo, basado en reglas fijas y con datos estructurados** — exactamente el perfil de tarea que se puede automatizar. El riesgo de hacerlo a mano es doble: tiempo perdido y errores que cuestan dinero (pagar de más) o multas (declarar mal).
 
-El conocimiento del cálculo ya existe y está validado: vive en las fórmulas de la planilla [`PRUEBA1.xlsx`](../../PRUEBA1.xlsx) (hoja `CLIENTE1`) y está descrito en [`CONTEXT.md`](../../CONTEXT.md). AuditAI lo formaliza en código y le suma la capa de auditoría.
+La **fuente de verdad de qué se calcula** es el **Formulario 29 oficial del SII** ([`F29.pdf`](../../F29.pdf)): su ~140 códigos son el universo completo de variables, de las que cada cliente usa las que su caso requiere (ver [D24](05-decisiones-y-preguntas.md)). La planilla [`PRUEBA1.xlsx`](../../PRUEBA1.xlsx) (hoja `CLIENTE1`) **no es la autoridad del cálculo**: es el **resumen simplificado** que la asesoría envía al cliente final, y nos sirve como **caso real validado** (*golden test*) y como formato de salida. AuditAI formaliza el F29 en código y le suma la capa de auditoría.
 
 ## Alcance
 

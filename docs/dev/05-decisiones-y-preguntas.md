@@ -2,7 +2,7 @@
 
 > Registro de las decisiones que dan forma al proyecto (formato ADR-lite: decisión + motivo) y de las preguntas que aún hay que resolver. Mantener vivo este documento evita rediscutir lo ya decidido y mantiene visible lo pendiente.
 >
-> **Última actualización:** 30-jun-2026, incorporando la red de seguridad montada y ejecutada (D15), las fuentes auxiliares identificadas (D16), la aclaración sobre datos sensibles (D17, matiz de la regla de oro #2) y la **secuencialidad de la Fase 1 (D18):** Frente A (base de datos) al 100% antes que Frente B (reglas).
+> **Última actualización:** 01-jul-2026, incorporando las 4 decisiones que desbloquean la ejecución del volcado del Frente A: mapeo de credenciales Previred (D19), alcance del volcado con Fase C (D20), precedencia de fuentes auxiliares sobre la sandbox (D21) y sin exclusión de registros nuevos por status (D22). Previamente: red de seguridad (D15), fuentes auxiliares (D16), datos sensibles (D17) y secuencialidad de la Fase 1 (D18).
 
 ## Decisiones de diseño (ADR-lite)
 
@@ -120,15 +120,68 @@
 **Criterio de término del Frente A (gate):** base completa (sin huecos en campos clave), sin duplicados, validada (Pandera/Pydantic) y verificada contra las fuentes; data faltante recuperada y trazable (log de auditoría); completitud re-medida. Detalle: [`12-fase1-plan-detallado.md`](12-fase1-plan-detallado.md).
 **Implicación operativa:** el catálogo oficial de documentos del SII (Frente B) capturado durante la investigación queda **archivado como adelanto**, pero el trabajo activo del Frente B **no avanza** hasta cerrar el gate del Frente A.
 
+### D19 · Mapeo de credenciales Previred: RRHH → GCD (3 campos nuevos + status) — ✅ Confirmada
+**Decisión:** las columnas `USUARIO`/`CLAVE` de `RRHH JUNIO 2026` son el login real de Previred. Se mapean a dos columnas nuevas en la sandbox: **`USUARIO-Previred`** y **`CLAVE-Previred`** (ambas *text*). Además se crea la relación **`RRHH Origen`** (relation → `RRHH JUNIO 2026`) para que los rollups `USUARIO-Previred`/`CLAVE-Previred` se poblen sin exponer las credenciales al agente. La columna `Previred` existente en GCD (antes *text*, usada como cajón de sastre sin estructura: mezcla de `NA`/`SI`/notas/cuenta bancaria/URLs) se **transforma a tipo `status`**, igual que su símil en RRHH (`Not started` / `no aplica` / `transf. a GCP` / `Subidas` / `DNP` / `Pagadas`). La columna `DTGO` de RRHH existe pero **queda sin mapear** (no identificada por el creador; verificar más adelante).
+**Motivo:** separar la credencial (usuario/clave) del estado de gestión evita mezclar datos sensibles con metadata de proceso, y refleja exactamente el modelo que ya usa RRHH.
+**Nota del creador:** "USUARIO Y CLAVE de RRHH son los login de previred… la columna previred dejarla idéntica que su símil en la tabla de RRHH, que es tipo estado." Sobre los valores viejos de `Previred`: "esos datos son viejos, no importan la verdad, reconstrúyela desde 0."
+**Estado:** ✅ **Ejecutado en la sandbox** (01-jul-2026): columnas `USUARIO-Previred`/`CLAVE-Previred`/`RRHH Origen` creadas; `Previred` transformada a status (valores viejos descartados a pedido explícito, sin rescate). Esquema de la sandbox pasa de 22 a **27 columnas** tras D23 (ver [`08`](08-notion-general-customers-data.md)).
+**Pendiente:** volcar los valores reales de usuario/clave (~14-16 clientes que cruzan por RUT con RRHH) — se hace en la ejecución del volcado (§A1.3 de [`12`](12-fase1-plan-detallado.md)).
+
+### D20 · Volcado del Frente A incluye Fase C: agregar clientes nuevos — ✅ Confirmada
+**Decisión:** además de limpiar/enriquecer los 171 clientes existentes (Fase A+B), se ejecuta también la **Fase C**: agregar a la sandbox los **168 clientes nuevos de Contable Mayo** + **2 de RRHH** (detectados por RUT válido, ausentes en GCD). La sandbox pasará de 171 a **~341 registros**.
+**Motivo:** completar la centralización de una sola vez; GCD debe ser la fuente única de verdad de todos los clientes activos, no solo los que ya estaban cargados.
+**Nota del creador:** "Fase A+B+C completa."
+**Implicación:** varios de los 168 nuevos llegan incompletos (167/168 con `CLAVE SII`, pero solo 5/168 con `email`) — quedarán con huecos que se completan en rondas futuras.
+
+### D21 · Precedencia de fuentes: Contable Mayo/RRHH siempre predominan sobre la sandbox — ✅ Confirmada
+**Decisión:** ante cualquier conflicto de valor entre la sandbox y las fuentes auxiliares (`Contable Mayo`, `RRHH JUNIO 2026`) para un campo que ellas aportan (`RUT`, `CLAVE SII`, `email`, `Previred`, `Adviser Accounting`, `Adviser RR.HH`), **gana el valor de la fuente auxiliar** y se sobreescribe la sandbox. Esto **reemplaza**, como regla general, la regla por defecto documentada en D15/[`09`](09-seguridad-y-respaldo.md) de "no sobrescribir campos ya poblados, salvo decisión caso a caso": ahora sobrescribir ante conflicto es la norma, no la excepción.
+**Motivo:** Contable Mayo y RRHH son las fuentes donde vive la operación diaria real; son más confiables y más actuales que una GCD que "se dejó estar".
+**Nota del creador:** "los valores reales siempre serán los de Contable Mayo y RRHH Junio 2026 y de confianza, estos predominan al resto." Confirmado como regla **general para todos los campos**, no solo para las 77+13 inconsistencias de advisers que motivaron la pregunta original.
+**Salvaguarda que se mantiene:** el protocolo de D15 (backup fresco + dry-run mostrando antes→después + confirmación + log de auditoría) sigue vigente íntegro; lo único que cambia es qué valor gana ante un conflicto, no el proceso de escritura seguro.
+
+### D22 · Sin exclusión por status/etiqueta al agregar registros nuevos — ✅ Confirmada
+**Decisión:** los 168 registros nuevos de Contable Mayo se agregan **todos**, sin filtrar por `Status` ni por etiqueta — incluidos los 99 en estado `Done` y demás estados que podrían sugerir clientes históricos/cerrados.
+**Motivo:** consecuencia directa de D20 (Fase C completa); se prioriza tener el universo completo en la sandbox y depurar después si hace falta, en vez de decidir exclusiones a priori sin revisión caso a caso.
+**Nota del creador:** confirmado al elegir "Fase A+B+C completa" sobre la opción selectiva que habría requerido definir un criterio de corte.
+
+### D23 · Trazabilidad de origen: columna `Origen` + relación a fuente — ✅ Confirmada
+**Decisión:** cada fila de la sandbox debe indicar de qué fuente proviene. Se crean dos columnas nuevas:
+- **`Origen`** (select): valores `Original`, `Contable Mayo`, `RRHH JUNIO 2026`.
+- **`Origen Contable Mayo`** (relation → base `Contable Mayo`): enlace a la página fuente para los registros agregados desde Contable Mayo. La relación `RRHH Origen` (existente desde D19) cumple la misma función para RRHH.
+**Motivo:** permitir auditoría humana rápida: saber de dónde salió cada cliente y navegar a la página fuente sin adivinar. Especialmente útil tras agregar 163 registros nuevos.
+**Estado:** ✅ **Ejecutado en la sandbox** (01-jul-2026): `Origen` y `Origen Contable Mayo` creadas y pobladas para los 334 registros (`Original`: 171, `Contable Mayo`: 161, `RRHH JUNIO 2026`: 2). Relación a Contable Mayo poblada en 161/161 casos aplicables.
+
+### D24 · Fuente de verdad del cálculo: el `F29.pdf`, no el `PRUEBA1.xlsx` — ✅ Confirmada
+**Decisión (aclarada por el creador, 02-jul-2026):** la **fuente de verdad madre** de qué se calcula es el **Formulario 29 oficial del SII** (`F29.pdf`), no la planilla Excel.
+- **`F29.pdf` = planilla madre.** Contiene el **universo completo de variables/códigos** (~140 casillas) que pueden entrar en una declaración. **Cuáles aplican depende del caso de cada cliente** (IVA, PPM, retenciones, remanente, etc.). Es lo que el motor debe automatizar: producir, por cliente, los códigos que le corresponden.
+- **`PRUEBA1.xlsx` (hoja `CLIENTE1`) = entregable simplificado al cliente**, el resumen amigable que la asesoría envía por correo a su cliente final. **NO es la autoridad del cálculo.** Conserva dos usos legítimos: (1) es un **caso real ya validado contra el SII** → sirve de *golden test* ($3, remanente −$158.117), y (2) muestra el **formato de salida** esperado por el cliente.
+**Motivo:** evitar que el motor (o un LLM futuro) tome el Excel simplificado como autoridad y omita variables. El Excel es una vista derivada; el F29 es la estructura y las reglas completas.
+**Nota del creador:** "la planilla madre de cálculos que debemos automatizar es `F29.pdf`… aquí están todas las variables que se deben calcular o no para cada cliente, depende del caso. `PRUEBA1.xlsx` es el resumen que se le envía al cliente por comodidad, no es la fuente de verdad madre."
+**Implicación operativa (Frente B):** el diccionario de códigos del F29 (tarea 1.4 de [`11`](11-checklist-maestro.md)) y la especificación de las 6 partes se construyen **desde el F29 oficial**, mapeando cada código → significado → de qué documento/regla se alimenta → **cuándo aplica** (lógica condicional por caso). `PRUEBA1.xlsx` se usa solo para verificar (golden test) y para diseñar el formato de salida al cliente.
+
+### D25 · Autenticación al SII por certificado digital (no por navegador) — ✅ Confirmada
+**Decisión (creador, 07-jul-2026):** la extracción de datos del SII se hará por la **vía oficial máquina-a-máquina** — **certificado digital** (flujo semilla→firma→token) contra los servicios API del SII — **no** automatizando el login de Clave Tributaria en un navegador. **Meta explícita: 100% automático en un backend en la nube 24/7.** Análisis y fuentes en [`22-via-oficial-certificado-digital-api-sii.md`](22-via-oficial-certificado-digital-api-sii.md).
+**Motivo:** el spike ([`21`](21-resultado-spike-f29.md)) demostró que el login por navegador choca con el **anti-bot F5 Shape** del SII (irresoluble de forma robusta, peor aún desde IP de datacenter). La vía del certificado **evita F5 por completo**: es HTTP + firma criptográfica, sin navegador, nativa de nube. Es la que usa todo el ecosistema DTE chileno (LibreDTE, etc.).
+**Gate de negocio — ✅ RESUELTO (07-jul-2026):** el creador confirmó que **GCP tiene certificado digital propio del SII** y que **los clientes ya delegaron en GCP como representante electrónico**. Por tanto se usa el **modelo B** (un solo certificado de GCP opera por todos los clientes vía delegación); no hace falta recolectar un certificado por cliente.
+**Implicación:** la credencial operativa pasa a ser el **certificado `.pfx`/`.p12` de GCP** (+ su clave), guardado en un **gestor de secretos** en la nube (nunca en el repo ni en Notion). La `CLAVE SII` por cliente deja de ser necesaria para la extracción. La `tasa PPM` (115) se guarda como config por cliente en Notion; el remanente (504) lo arrastra el motor. Ver [`22`](22-via-oficial-certificado-digital-api-sii.md) §2.
+**Pendiente (no bloquea el diseño):**
+- 🧑‍💼 **Confirmar con GCP el formato del certificado** — ¿archivo `.pfx`/`.p12` (ideal para nube) o token físico/eToken (requiere puente)? No está instalado en la máquina del creador (verificado 07-jul). Lo sabe GCP.
+- 🔬 **Verificar en ambiente de certificación (`maullin`)** los endpoints exactos del RCV/BHE y que el token sirva como cookie en `www4` (ver [`22`](22-via-oficial-certificado-digital-api-sii.md) §7). Se puede prototipar con un certificado de prueba **sin** el real.
+
 ## Preguntas abiertas (lo que aún falta definir)
 
-1. ~~**Estructura real de "General Customers Data" (D11/D14):** ¿qué hojas/propiedades tiene, qué datos faltan, cómo se relacionan?~~ → **resuelto** vía D14 (esquema de 22 columnas mapeado en [`08`](08-notion-general-customers-data.md)). Pendiente el **solape exacto** de "listos para SII" (RUT + CLAVE SII), que quedó pendiente por rate-limit Notion 429.
+1. ~~**Estructura real de "General Customers Data" (D11/D14):** ¿qué hojas/propiedades tiene, qué datos faltan, cómo se relacionan?~~ → **resuelto** vía D14 (esquema de 22 columnas mapeado en [`08`](08-notion-general-customers-data.md)).
+1. ~~**Solape exacto de "listos para SII" (RUT + CLAVE SII):** ¿cuántos de los 171 (y luego 334) clientes están listos para automatización SII?~~ → **resuelto**: 158/171 iniciales; **322/334** post-Fase C.
 2. **Algoritmo completo de la automatización (D12):** faltan los "pasos más" intermedios y la estructura de la tabla de credenciales (columnas, persona vs. empresa para el login).
 3. **Manejo seguro de credenciales (D12):** ¿cómo se almacenan/usan los RUT y Clave Única de clientes (cifrado, gestor de secretos, permisos)? Ver [`07-flujo-de-datos.md`](07-flujo-de-datos.md).
 4. **Tecnología de la BD especializada — Etapa 2 (D11):** ¿**Supabase**, **PostgreSQL** u otra? Se decide cuando la data ya esté centralizada en Notion.
 5. **Esquema del Excel del SII (D7):** columnas/encabezados reales del XLSX, para fijar el parser. Hace falta una **muestra real**.
 6. **Esquema de las 3 fuentes auxiliares (D16):** pendiente mapear las propiedades de Contable Mayo, RRHH Junio 2026 y Tickets - Servicios (vía `query-data-source` con `page_size=1` por base).
 7. **Solape cliente a cliente** entre cada fuente auxiliar y la sandbox: ¿qué porcentaje de los 171 está presente en cada base auxiliar?
+8. **🧑‍💼 Para Carlos — 8 casos del match RRHH JUNIO ↔ base central** (surgidos al integrar `IMPUESTO ÚNICO`/`MONTO IMPOSICIONES|`, ver [`18`](18-integracion-impuesto-unico-imposiciones.md); el usuario no tiene la información, 05-jul-2026):
+   - **3 ambiguos** (¿a cuál ficha corresponde la fila de RRHH?): `ABURTO KRAMP` (¿"Aburto Kramp" o "Consultora Aburto KRAMP"?) · `MARISIO JEREZ Y CIA` (¿= "MARISIO JEREZ INVERSIONES LTDA"?) · `OLIVERO PARTENS` (¿"OLIVERO PARTNERS INVESTMENT" u "OLIVERO PARTNERS SPA"?).
+   - **5 sin ficha en la base central** (¿se crean como clientes nuevos?): `Hector Hugo Valenzuela- ASESORA` · `SERVICIOS INTEGRALES MJ` · `CONST. UMBRAL` · `BLUELETRIC` · `AGUIRRE SPA` (⚠️ tiene ambos valores cargados en RRHH).
+   - ~~`TEACREDITO RENT`~~ → **resuelto (06-jul-2026)**: el usuario confirmó que es el mismo registro que el cliente `Teacredito rent` de la base; relación `RRHH Origen` enlazada (log `backups/general-customers-data/2026-07-06_link-rrhh-origen-teacredito.md`).
 
 > A medida que estas preguntas se respondan, conviértelas en decisiones (D18, D19, …) en este mismo documento.
 

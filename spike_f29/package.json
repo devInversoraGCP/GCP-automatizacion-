@@ -1,0 +1,17 @@
+{
+  "name": "spike_f29",
+  "version": "1.0.0",
+  "description": "> **Prototipo (spike)** — adelanta la Etapa B2 (\"muestras reales\") como prueba de concepto. > No es el motor definitivo ni cierra el gate del Frente A (D18).",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "puppeteer": "^25.3.0",
+    "puppeteer-extra": "^3.3.6",
+    "puppeteer-extra-plugin-stealth": "^2.11.2"
+  }
+}

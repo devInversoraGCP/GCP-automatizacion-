@@ -12,8 +12,9 @@
 | **IVA débito fiscal** | IVA cobrado en las **ventas**. Es lo que la empresa debe al fisco por vender. |
 | **IVA crédito fiscal** | IVA pagado en las **compras**. Se descuenta del débito. |
 | **IVA determinado** | Débito − Crédito (− remanente). Positivo ⇒ se paga; negativo ⇒ saldo a favor. |
-| **Remanente de crédito fiscal** | Saldo de crédito a favor que sobra y se **arrastra** al mes siguiente (código 77 en el caso actual). |
-| **PPM** | Pago Provisional Mensual: anticipo del impuesto a la renta, % sobre las ventas netas (código 62). |
+| **Remanente de crédito fiscal** | Saldo de crédito a favor que se **arrastra** entre meses. Dos casillas: **504** = el que **entra** desde el mes anterior (se lee de la **propuesta del F29**, ya reajustado por UTM; si no aparece ⇒ 0) · **77** = el que **sale** al mes siguiente. |
+| **PPM** | Pago Provisional Mensual: anticipo del impuesto a la renta (casilla 62). `PPM = BI × tasa`; la **tasa es por contribuyente** y se lee de la casilla **115** de la propuesta del F29. |
+| **BI del PPM** | Base imponible del PPM: **Σ(«Monto Neto» + «Monto Exento»)** de la pestaña VENTA del RCV, restando las notas de crédito. |
 | **Retención** | Monto que la empresa retiene por cuenta de un tercero y entera al fisco. |
 | **Retención de honorarios** | Retención sobre boletas de honorarios de profesionales (Ley 21.133, código 151). |
 | **Retención de impuesto único** | Retención del impuesto único a los trabajadores (código 48). |
@@ -23,7 +24,7 @@
 | **RCV** | Registro de Compras y Ventas: el repositorio del SII con los documentos electrónicos; base de su propuesta de F29. |
 | **DTE** | Documento Tributario Electrónico (facturas, notas, boletas electrónicas). |
 | **Factura** | Documento principal de una venta o compra afecta a IVA. |
-| **NC — Nota de Crédito** | Documento que rebaja o anula una operación previa. |
+| **NC — Nota de Crédito** | Documento que rebaja o anula una operación previa. **Resta en ambos lados:** en ventas rebaja el débito (P1) y en compras rebaja el crédito (P2). |
 | **ND — Nota de Débito** | Documento que aumenta el valor de una operación previa. |
 | **DIN** | Declaración de Ingreso: documento de importación de bienes. |
 | **Comprobante de pago electrónico** | Comprobante de transacciones pagadas por medios electrónicos; genera débito en el caso `CLIENTE1`. |

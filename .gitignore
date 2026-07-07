@@ -14,6 +14,17 @@ backups/
 secrets.*
 **/NOTION_TOKEN*
 
+# 🆕 Automatización Notion + correo F29 (doc 23)
+# Credenciales SMTP de los asesores de GCP y volcados de la API
+notion_automation/asesores_smtp.json
+notion_automation/data/
+# Logs del backend local (pueden contener estructura del payload con PII)
+backend.log
+backend.err
+auditai.log
+# Binario de ngrok (no pertenece al repo)
+ngrok/
+
 # ─── Python (Fase 2 en adelante) ───
 __pycache__/
 *.py[cod]
@@ -53,3 +64,14 @@ $RECYCLE.BIN/
 *.tmp
 scratch/
 tmp/
+
+# ─── Spike F29 (prototipo robot SII) ───
+# Descargas del SII y capturas: contienen PII (RUTs de contrapartes) — NUNCA versionar
+spike_f29/data/
+spike_f29/capturas/
+# Snapshots del Playwright MCP (pueden contener PII del SII)
+.playwright-mcp/
+# Dependencias de Node del spike (robot SII)
+node_modules/
+# Generador de credenciales del spike (puede contener credenciales hardcodeadas)
+spike_f29/_gen_creds.py

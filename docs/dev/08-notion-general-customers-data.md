@@ -25,25 +25,36 @@
 
 ## Fuentes auxiliares para completar data faltante (ver [`10`](10-fuentes-auxiliares-notion.md))
 
-La data faltante (20 sin `CLAVE SII`, 10 sin `RUT`, ~100 sin `email`) se recupera desde 3 bases activas del mismo workspace: **Contable Mayo**, **RRHH JUNIO 2026** y **Tickets - Servicios**. Volcado siempre hacia la **sandbox** (D16/D15), con dry-run + confirmación del usuario.
+La data faltante se recupera desde las fuentes auxiliares hacia la **sandbox** (D16/D15), con dry-run + confirmación del usuario. Según auditoría de completitud (30-jun-2026): 20 sin `CLAVE SII`, 12 con `RUT` vacío/inválido, 100 sin `email`, 140 sin `Previred`, 12 sin `Adviser Accounting`, 141 sin `Adviser RR.HH`. **Tickets - Servicios queda descartada** como fuente de GCD.
 
-## Esquema: 22 columnas
+## Esquema: 22 columnas (original) · 30 en la sandbox (post-D19/D23 + `Email por revisar` + rollups RRHH)
+
+> 🆕 **02-jul-2026:** se agregaron 2 rollups sobre la relación `RRHH Origen` → `RRHH JUNIO 2026`: **`IMPUESTO ÚNICO`** y **`MONTO IMPOSICIONES|`** (insumo de la casilla 48 del F29). Relación poblada en **36 filas** (18 pre-existentes + 18 matches seguros). Detalle y pendientes: [`18-integracion-impuesto-unico-imposiciones.md`](18-integracion-impuesto-unico-imposiciones.md).
+
+> ⚠️ **Diverge desde D19/D23 (01-jul-2026):** el esquema de abajo es el del **original** (22 columnas, intocado). La **sandbox** tiene 5 columnas adicionales:
+> - `USUARIO-Previred` 🆕 + `CLAVE-Previred` 🆕 + `RRHH Origen` 🆕 (D19)
+> - `Origen` 🆕 + `Origen Contable Mayo` 🆕 (D23)
+> - `Previred` cambió de *text* a *status* (D19)
+>
+> Ver detalle en D19/D23 de [`05-decisiones-y-preguntas.md`](05-decisiones-y-preguntas.md). Autorización de escritura plena sobre la sandbox: ver [`AGENTS.md`](../../AGENTS.md).
 
 **🔴 Credenciales / sensibles (nunca exponer su valor):**
-| Columna | Tipo |
-|---|---|
-| `CLAVE SII` | text — clave del SII |
-| `Previred` | text — credencial Previred |
-| `RUT` | text — PII |
-| `RUT RL` | text — RUT representante legal (PII) |
-| `email` | email — PII |
-| `Whatsapp` | text — PII |
+| Columna | Tipo (original) | Tipo (sandbox) |
+|---|---|---|
+| `CLAVE SII` | text — clave del SII | igual |
+| `Previred` | text — credencial Previred (cajón de sastre sin estructura) | **status** (D19) — mismas opciones que RRHH: `Not started` / `no aplica` / `transf. a GCP` / `Subidas` / `DNP` / `Pagadas` |
+| `USUARIO-Previred` | — (no existe) | **🆕 text** (D19) — login Previred, recuperado de RRHH (`USUARIO`) |
+| `CLAVE-Previred` | — (no existe) | **🆕 text** (D19) — clave Previred, recuperada de RRHH (`CLAVE`) |
+| `RUT` | text — PII | igual |
+| `RUT RL` | text — RUT representante legal (PII) | igual |
+| `email` | email — PII | igual |
+| `Whatsapp` | text — PII | igual |
 
 **🏢 Identificación / segmentación:**
 | Columna | Tipo |
 |---|---|
 | `w` | title (nombre del cliente) |
-| `userDefined:ID` | auto_increment_id |
+| `ID` | unique_id (clave estable para escrituras) |
 | `Nº` | select (165 opciones) |
 | `CRM` | multi_select (157 opciones) |
 | `Rubro` | multi_select (36) |
@@ -67,6 +78,13 @@ La data faltante (20 sin `CLAVE SII`, 10 sin `RUT`, ~100 sin `email`) se recuper
 | `Column` | select (2) |
 | `Texto` | text |
 
+**🔍 Trazabilidad / origen (D23):**
+| Columna | Tipo | Descripción |
+|---|---|---|
+| `Origen` | select (`Original` · `Contable Mayo` · `RRHH JUNIO 2026`) | Indica de qué fuente proviene cada fila. |
+| `Origen Contable Mayo` | relation → `Contable Mayo` | Enlace a la página fuente para los registros agregados desde Contable Mayo. |
+| `RRHH Origen` | relation → `RRHH JUNIO 2026` | Enlace a la página fuente para registros con origen RRHH. |
+
 ## Relevancia para el proyecto
 
 - **Automatización SII (D12):** `RUT` + `CLAVE SII` son exactamente las credenciales para iniciar sesión en el SII y descargar el XLSX. `RUT RL` distingue persona/representante.
@@ -77,24 +95,36 @@ La data faltante (20 sin `CLAVE SII`, 10 sin `RUT`, ~100 sin `email`) se recuper
 - `notion-fetch` con el ID o la collection URL → esquema (respuesta grande: ~92K chars, conviene parsear localmente).
 - `notion-query-data-sources` (SQL) usando `collection://690945e4-220a-48c3-a888-7fe9ae242d55` como tabla. Requiere plan Business + Notion AI. **Excluir siempre** `CLAVE SII`/`Previred` de cualquier SELECT que se vaya a mostrar.
 
-## Completitud (medida en solo lectura · jun-2026)
+## Completitud (medida en solo lectura · post-decisiones Frente A, 02-jul-2026)
 
-- **Total de clientes:** **171**
-- Sin `RUT`: **10** (~6%)
-- Sin `CLAVE SII` 🔑: **20** (~12%) — no automatizables al SII hasta completarlos
-- Sin `email`: **100** (~58%)
-- **Listos para automatización SII** (tienen `RUT` + `CLAVE SII`): **~141–151** (entre 20 y 30 con credenciales incompletas según solape; el número exacto quedó pendiente por *rate-limit* de Notion 429).
+Base actualizada tras el volcado de la Fase C ([`13`](13-fase-c-volcado-nuevos-registros.md)) y las decisiones de cierre del Frente A ([`14`](14-construccion-dataset-y-anomalias.md) §4). Cambios del 02-jul: XIT recibió RUT+Clave (de Contable Febrero); 3 clientes sin datos (`Sergio ??`, `Patricia`, `Zsabesky Servicios`) fueron **movidos** a la página `🗑️ Descartados AuditAI`; se agregó la columna checkbox **`Email por revisar`** (28 columnas en la sandbox) con 19 registros marcados.
 
-Confirma lo reportado por el cliente: la base está incompleta / "se dejó estar".
+- **Total de clientes:** **331** (antes 334; −3 movidos a Descartados)
+- Sin `RUT` (vacío): **1** (solo `Steven` ID 48, RUT pendiente) — antes 5 (XIT resuelto + 3 movidos)
+- `RUT` con DV inválido: **0**
+- Sin `CLAVE SII` 🔑: **7** (~2,1%) — *(antes 8; −1: Escuela de Voces Manuela rescatada de Contable Febrero, 02-jul tarde, ver [`15`](15-barrido-bases-contables-mensuales.md))*
+- Sin `email`: **246** (~73,7%)
+- Sin `Previred` (status real ≠ Not started): **329** (~98,5%)
+- Sin `Adviser Accounting`: **5** (~1,5%)
+- Sin `Adviser RR.HH`: **301** (~90,1%)
+- Con `Origen` poblado: **331** (100%)
+- Con checkbox `Email por revisar` marcado (email inválido a completar después): **19**
+- Con `Origen Contable Mayo` poblado (donde aplica): **161/161** (100%)
+- **Listos para automatización SII** (tienen `RUT` válido + `CLAVE SII`): **324** (~97,9%) — *(+1 tras barrido Febrero: Escuela de Voces Manuela, 02-jul tarde; ver [`15`](15-barrido-bases-contables-mensuales.md)). Quedan 6 sin clave no recuperables de Notion → escalamiento al usuario.*
+
+> ⚠️ `USUARIO-Previred` y `CLAVE-Previred` son **rollups** de la relación `RRHH Origen`; solo se consideran poblados cuando el rollup tiene valor. Post-Fase C hay **17** registros con estos datos.
 
 ## Pendiente
 
-- Mapear el **esquema de las 3 fuentes auxiliares** (Contable Mayo, RRHH Junio 2026, Tickets - Servicios) para saber qué columnas aportan (ver [`10`](10-fuentes-auxiliares-notion.md)).
-- Cruzar las fuentes auxiliares con la sandbox y volcar la **data faltante** (dry-run + confirmación) — D16.
-- Obtener el número exacto de "listos para SII" (reintentar la consulta de solape tras el rate-limit Notion 429).
-- Identificar **qué 20 clientes** no tienen `CLAVE SII` (prioridad para recuperar la base).
+- ✅ Mapear el **esquema de las 3 fuentes auxiliares** — resuelto en [`12`](12-fase1-plan-detallado.md) §A1.
+- ✅ Cruzar las fuentes auxiliares con la sandbox — resuelto en [`12`](12-fase1-plan-detallado.md) §A1b.
+- ✅ **Volcar la data faltante** hacia la sandbox — ejecutado el 01-jul-2026 (Fase A+B+C). Ver [`13`](13-fase-c-volcado-nuevos-registros.md).
+- ✅ Número exacto de "listos para SII": **322** post-Fase C.
+- ✅ Agregar **trazabilidad de origen** (`Origen` select + `Origen Contable Mayo` relation) — ejecutado el 01-jul-2026; ver [`13`](13-fase-c-volcado-nuevos-registros.md) y [`14`](14-construccion-dataset-y-anomalias.md).
+- ⏳ Resolver 5 clientes sin `RUT` y el duplicado `SOCIAL UP SPV I/II` (consulta al cliente).
+- ✅ Validar esquema completo con Pandera/Pydantic (gate de cierre Frente A) → ejecutado; ver [`14`](14-construccion-dataset-y-anomalias.md).
+- ✅ 18–19 emails inválidos → **etiquetados** con checkbox `Email por revisar` (02-jul); se completarán después (secundario).
 - Confirmar significado de columnas ambiguas (`Column`, `Texto`, `Nº`).
-- Definir qué subconjunto se centraliza/normaliza primero.
 
 ---
 

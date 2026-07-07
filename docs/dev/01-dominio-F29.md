@@ -1,6 +1,8 @@
 # 01 · El dominio: Formulario 29 e IVA chileno (para desarrolladores)
 
 > Documento núcleo. Su objetivo es que un desarrollador **sin conocimiento de impuestos chilenos** pueda entender qué calcula AuditAI y por qué, usando el caso real [`CLIENTE1`](../../PRUEBA1.xlsx) como ejemplo trabajado de principio a fin.
+>
+> ⚠️ **Fuente de verdad (D24):** la autoridad de **qué** se calcula es el **Formulario 29 oficial** ([`F29.pdf`](../../F29.pdf), ~140 códigos; qué aplica depende del caso). El Excel `PRUEBA1.xlsx`/`CLIENTE1` es un **caso real validado** (*golden test*) y el **resumen simplificado** que se envía al cliente final — útil como ejemplo y formato de salida, **no** como autoridad del cálculo.
 
 ## 1. El contexto: SII y Formulario 29
 
@@ -20,7 +22,7 @@ El IVA (Impuesto al Valor Agregado) en Chile tiene una **tasa del 19%**. La idea
 | **Remanente de crédito** | Saldo a favor de meses anteriores que se **arrastra** | Reduce el IVA a pagar de este mes |
 
 Otros tributos que también van en el F29:
-- **PPM** (Pago Provisional Mensual): un anticipo del impuesto a la renta, calculado como un porcentaje de las ventas netas.
+- **PPM** (Pago Provisional Mensual): un anticipo del impuesto a la renta, calculado como un porcentaje de la **base imponible de ventas** (monto neto **+ monto exento**; las notas de crédito restan). La **tasa es propia de cada contribuyente** y se lee de la casilla **115** de la propuesta del F29 (ver [`17`](17-especificacion-literal-calculo-f29.md) §3.6).
 - **Retenciones**: montos que la empresa retiene por cuenta de terceros — por ejemplo, **retención de honorarios** (boletas de profesionales) y **retención de impuesto único** (a trabajadores).
 
 ## 3. Las 6 partes del cálculo (la lógica central)
@@ -64,8 +66,10 @@ P4 · IVA determinado = P1 + P2 + P3
                                                             se arrastra como remanente
 
 P5 · Otros impuestos
-     PPM: base = ventas netas = 462 / 0,19 = $2.432
-          tasa = 0,125%  →  2.432 × 0,00125 ≈  $3
+     PPM: base imponible = Monto Neto + Monto Exento
+          de las ventas del mes ............... $2.432
+          tasa (casilla 115, por cliente) = 0,125%
+          →  2.432 × 0,00125 ≈  $3
      Retención honorarios (14,5%) ............  $0
      Retención impuesto único ...............  $0
 
@@ -87,6 +91,8 @@ Los totales internos deben traducirse a los códigos del formulario oficial. La 
 | **48** | Retención impuesto único a trabajadores | 0 |
 | **151** | Retención Ley 21.133 (honorarios) | 0 |
 | **77** | Remanente de crédito fiscal | $158.117 |
+
+> ⚠️ **Precisión (feedback GCP, jul-2026):** la planilla rotula el remanente como `77`, pero en el F29 oficial son **dos casillas distintas**: la **504** es el remanente del mes anterior que **entra** al cálculo (se lee de la **propuesta del F29** del SII, ya reajustado por UTM; si la casilla no aparece, no hay remanente), y la **77** es el remanente que **sale** hacia el mes siguiente cuando el IVA determinado queda a favor. Detalle en [`17`](17-especificacion-literal-calculo-f29.md) §3.4.
 
 Además, en el F29 oficial ([`F29.pdf`](../../F29.pdf)) aparecen los códigos de totales de IVA que el motor deberá poblar, por ejemplo **538** (Total Débitos) y **537** (Total Créditos).
 

@@ -18,14 +18,18 @@ Todas **activas** (`last_edited` = 30-jun-2026) y bajo el mismo workspace de `In
 | 2 | **RRHH JUNIO 2026** | `38712147-b3ea-80f9-9484-e0ad99c94a26` | `9c512147-b3ea-8256-a570-871254c13b3d` | 22-jun-2026 | 30-jun-2026 |
 | 3 | **Tickets - Servicios** | `16912147-b3ea-82bc-a491-814729bcca4c` | `9d312147-b3ea-83bf-b111-877c7b24db75` | 02-jun-2026 | 30-jun-2026 |
 
-### 1 · Contable Mayo
-Base de operación **contable** del período mayo. Fuente candidata para completar: `RUT`, `CLAVE SII`, `Adviser Accounting`, fechas, contacto y datos de facturación presentes en su operación mensual.
+> ✅ **Esquemas verificados en vivo (30-jun-2026).** El mapeo real **corrige las hipótesis** de abajo. Detalle y tabla de aporte: [`12-fase1-plan-detallado.md`](12-fase1-plan-detallado.md) §A1.
 
-### 2 · RRHH JUNIO 2026
-Base de operación **remuneraciones / RR.HH.** del período junio. Fuente candidata para completar: `Adviser RR.HH`, `email`, `Whatsapp` y referencias de personas (RUT RL).
+### 1 · Contable Mayo — ✅ fuente principal
+Base de operación **contable** mensual. **Confirmada** como fuente principal: aporta `Rut`→`RUT`, `Clave SII`→`CLAVE SII`, `Email`→`email`, `Adviser Accounting` y `CRM`. Llave de cruce: `Rut` (respaldo: `Customers` = nombre).
 
-### 3 · Tickets - Servicios
-Dashboard transversal de **gestión de servicios contables**. Fuente candidata para recuperar el vínculo cliente → responsable, estado del servicio y referencias cruzadas (utiles para los 20 sin `CLAVE SII` y los 10 sin `RUT`).
+### 2 · RRHH JUNIO 2026 — ⚠️ parcial *(hipótesis corregida)*
+Base de **remuneraciones / RR.HH.** Aporta `RUT` (title), `CLIENTE` (nombre) y credenciales `CLAVE`/`USUARIO`/`DTGO` (probablemente Previred/DT — **verificar**, no confirmado SII). ❌ **NO** tiene `email` ni `Whatsapp` (la hipótesis original era errónea). Nota: su columna `Previred` es un **estado**, no la credencial.
+
+### 3 · Tickets - Servicios — ❌ descartada como fuente de la base *(hipótesis corregida)*
+Es un **tablero de tareas/servicios** (`Tarea`, `Tipo`, `Estado`, `Asignado`, `Descripción`, `Fecha prometida`). **No** tiene RUT, credenciales ni email, así que **no sirve** para completar la base de clientes (la hipótesis de que ayudaría con los 20 sin `CLAVE SII` / 10 sin `RUT` era errónea).
+
+> ⚠️ **`Whatsapp` no aparece en ninguna de las 3 fuentes** → no recuperable desde aquí. Y **`email` solo está en Contable Mayo**.
 
 ## Cómo se relacionan con General Customers Data
 

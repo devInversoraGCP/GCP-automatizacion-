@@ -39,10 +39,11 @@ flowchart LR
 
 > ⛔ **Secuencial, no en paralelo (D18):** el **Frente A (base de datos)** se completa al 100% y se verifica **antes** de iniciar el **Frente B (reglas)**. La base de datos es la prioridad. Detalle en [`dev/12-fase1-plan-detallado.md`](dev/12-fase1-plan-detallado.md).
 
-*Frente A — PRIMERO · Centralizar la data (Etapa 1 · Notion):*
-- [ ] Mapear el esquema de las 3 fuentes auxiliares (Contable Mayo, RRHH Junio 2026, Tickets - Servicios).
-- [ ] Cruzarlas con la sandbox y volcar la **data faltante** (dry-run + confirmación; nunca al original).
-- [ ] Validar, deduplicar y verificar → **gate:** base final y robusta antes de pasar al Frente B.
+*Frente A — PRIMERO · Centralizar la data (Etapa 1 · Notion) — 🟡 casi cerrado (02-jul-2026):*
+- [x] Mapear el esquema de las 3 fuentes auxiliares (Contable Mayo, RRHH Junio 2026, Tickets - Servicios).
+- [x] Cruzarlas con la sandbox y volcar la **data faltante** (Fase A+B+C ejecutada; base 171 → 331; ver [`dev/13`](dev/13-fase-c-volcado-nuevos-registros.md), [`dev/14`](dev/14-construccion-dataset-y-anomalias.md)).
+- [x] Validar (Pandera/Pydantic), deduplicar y **resolver las 4 decisiones de cierre** (02-jul).
+- [ ] **Gate — único pendiente:** rescatar el `RUT` de `Steven` (barrido de bases mensuales [`dev/15`](dev/15-barrido-bases-contables-mensuales.md)) → luego base final y robusta, y arranca el Frente B.
 
 *Frente B — DESPUÉS (solo al cerrar el Frente A) · Formalizar las reglas:*
 - [ ] Documentar las 6 partes como reglas (entradas, fórmula, salida) — ya esbozado en `ARQUITECTURA.md`.

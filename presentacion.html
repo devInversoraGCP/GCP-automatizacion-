@@ -41,19 +41,19 @@
   h1,h2,h3{line-height:1.18;letter-spacing:-.01em}
   .wrap{max-width:1080px;margin:0 auto;padding:0 22px}
   .eyebrow{display:inline-block;font-size:.78rem;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--teal);margin-bottom:14px}
-  section{padding:78px 0}
+  section{padding:78px 0;scroll-margin-top:76px}
   .muted{color:var(--muted)}
   a:focus-visible,button:focus-visible,input:focus-visible{outline:3px solid var(--blue);outline-offset:3px;border-radius:6px}
 
   /* NAV */
   nav{position:sticky;top:0;z-index:50;background:rgba(11,31,58,.92);backdrop-filter:blur(10px);border-bottom:1px solid rgba(255,255,255,.08)}
-  nav .wrap{display:flex;align-items:center;justify-content:space-between;padding-top:14px;padding-bottom:14px}
-  .brand{display:flex;align-items:center;gap:10px;color:#fff;font-weight:800;letter-spacing:-.02em;font-size:1.15rem}
+  nav .wrap{display:flex;align-items:center;justify-content:space-between;gap:18px;padding-top:12px;padding-bottom:12px}
+  .brand{display:flex;align-items:center;gap:10px;color:#fff;font-weight:800;letter-spacing:-.02em;font-size:1.15rem;flex:none}
   .brand .dot{width:30px;height:30px;border-radius:9px;background:linear-gradient(135deg,var(--teal),var(--blue));display:grid;place-items:center;font-size:1rem}
-  .navlinks{display:flex;gap:22px}
-  .navlinks a{color:#c7d4e6;text-decoration:none;font-size:.92rem;font-weight:500;transition:color .2s}
+  .navlinks{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:8px 16px}
+  .navlinks a{color:#c7d4e6;text-decoration:none;font-size:.9rem;font-weight:500;transition:color .2s;white-space:nowrap}
   .navlinks a:hover{color:#fff}
-  @media(max-width:900px){.navlinks{display:none}}
+  @media(max-width:940px){.navlinks{display:none}}
 
   /* HERO */
   .hero{background:radial-gradient(1200px 500px at 80% -10%,rgba(0,194,168,.25),transparent),linear-gradient(160deg,var(--navy),var(--navy-2));color:#fff;position:relative;overflow:hidden}
@@ -72,7 +72,7 @@
 
   /* SECTION TITLES */
   .stitle{font-size:clamp(1.6rem,3.4vw,2.3rem);font-weight:800;max-width:24ch}
-  .ssub{color:var(--muted);font-size:1.06rem;max-width:62ch;margin-top:14px}
+  .ssub{color:var(--muted);font-size:1.06rem;max-width:64ch;margin-top:14px}
 
   /* GRIDS / cards */
   .grid{display:grid;gap:20px}
@@ -86,6 +86,15 @@
   .card .num{position:absolute;top:18px;right:20px;font-size:.8rem;font-weight:800;color:var(--teal);letter-spacing:.08em}
   .card.rel{position:relative}
 
+  /* TABLE inside cards */
+  .dt{width:100%;border-collapse:collapse;margin-top:12px;font-size:.95rem}
+  .dt td{padding:9px 0}
+  .dt tr{border-bottom:1px solid var(--line)}
+  .dt tr:last-child{border-bottom:none}
+  .dt td:first-child{color:var(--muted)}
+  .dt td:last-child{text-align:right;font-weight:700;font-variant-numeric:tabular-nums}
+  .dt .pct{font-weight:500;color:var(--muted)}
+
   /* PIPELINE */
   .pipe{background:linear-gradient(180deg,#fff,#f0f4fb)}
   .steps{display:grid;grid-template-columns:repeat(7,1fr);gap:10px;margin-top:42px}
@@ -97,20 +106,6 @@
   .step h4{font-size:.92rem;margin-bottom:4px}
   .step p{font-size:.78rem;color:var(--muted);line-height:1.4}
   .step.audit{border:2px solid var(--teal);box-shadow:0 10px 26px rgba(0,194,168,.18)}
-
-  /* TWO-STAGE */
-  .stages{display:grid;grid-template-columns:1fr auto 1fr;gap:22px;align-items:stretch;margin-top:40px}
-  @media(max-width:820px){.stages{grid-template-columns:1fr}}
-  .stage{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:28px;box-shadow:var(--shadow-sm);position:relative}
-  .stage.now{border:2px solid var(--teal)}
-  .stage .chip{display:inline-block;font-size:.72rem;font-weight:800;letter-spacing:.06em;text-transform:uppercase;padding:4px 11px;border-radius:20px;margin-bottom:14px}
-  .stage.now .chip{background:var(--teal-soft);color:#067a6a}
-  .stage.next .chip{background:#eef1f6;color:var(--muted)}
-  .stage h3{font-size:1.22rem;margin-bottom:8px}
-  .stage p{color:var(--muted);font-size:.98rem}
-  .stage .e{font-size:2rem;margin-bottom:12px;display:block}
-  .stage-arrow{display:grid;place-items:center;font-size:1.8rem;color:var(--teal)}
-  @media(max-width:820px){.stage-arrow{transform:rotate(90deg)}}
 
   /* CALCULATOR */
   .calc-section{background:linear-gradient(160deg,var(--navy),var(--navy-2));color:#fff}
@@ -136,6 +131,33 @@
   .reset:hover{background:rgba(255,255,255,.1);color:#fff}
   .tag{display:inline-block;background:rgba(0,194,168,.18);color:var(--teal);font-size:.72rem;font-weight:700;padding:3px 9px;border-radius:20px;letter-spacing:.04em;margin-left:8px;vertical-align:middle}
 
+  /* CONSULTAS — tarjetas didácticas de pregunta/respuesta */
+  .qhow{display:flex;gap:14px;align-items:flex-start;background:#eaf1ff;border:1px solid #d4e2fb;border-radius:14px;padding:18px 20px;margin-top:30px}
+  .qhow .e{font-size:1.5rem;line-height:1}
+  .qhow p{font-size:.95rem;color:var(--ink)}
+  .qcard{background:var(--card);border:1px solid var(--line);border-radius:18px;box-shadow:var(--shadow-sm);margin-top:22px;overflow:hidden}
+  .qcard-h{display:flex;align-items:center;gap:14px;padding:16px 24px;background:#f6f8fc;border-bottom:1px solid var(--line);flex-wrap:wrap}
+  .qcard-h .qn{flex:none;width:38px;height:38px;border-radius:50%;background:linear-gradient(135deg,var(--teal),var(--blue));color:#06121f;font-weight:800;font-size:1.05rem;display:grid;place-items:center}
+  .qcard-h h3{font-size:1.05rem;flex:1;min-width:220px}
+  .qcard-b{padding:20px 24px}
+  .qcard-b>p{color:var(--muted);font-size:.95rem;line-height:1.65}
+  .qpill{flex:none;font-size:.72rem;font-weight:700;padding:4px 11px;border-radius:20px;white-space:nowrap}
+  .qpill.block{background:#fdecec;color:#c0392b}
+  .qpill.partial{background:#fff4d9;color:#9a7400}
+  .qpill.clean{background:#eef1f6;color:var(--muted)}
+  .qask{margin:16px 0 4px;background:var(--teal-soft);border-left:4px solid var(--teal);border-radius:10px;padding:14px 18px;font-size:1.03rem;font-weight:600;color:var(--ink)}
+  .qask .qq{display:block;font-size:.7rem;font-weight:800;letter-spacing:.09em;text-transform:uppercase;color:#067a6a;margin-bottom:4px}
+  .qopts{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:14px}
+  .qopts.q3{grid-template-columns:repeat(3,1fr)}
+  @media(max-width:680px){.qopts,.qopts.q3{grid-template-columns:1fr}}
+  .qopt{display:flex;gap:12px;align-items:flex-start;border:1.5px solid var(--line);border-radius:12px;padding:13px 15px;background:#fff}
+  .qopt .ql{flex:none;width:26px;height:26px;border-radius:8px;background:var(--navy);color:#fff;font-weight:800;font-size:.88rem;display:grid;place-items:center}
+  .qopt p{font-size:.9rem;color:var(--ink);line-height:1.5}
+  .qopt p small{display:block;color:var(--muted);margin-top:3px;font-size:.8rem;font-weight:400}
+  .qwhy{margin-top:14px;font-size:.86rem;color:var(--muted);background:#f6f8fc;border-radius:10px;padding:12px 16px}
+  .qform{font-family:'SF Mono',Monaco,Consolas,monospace;background:#0B1F3A;color:#cfe0f4;border-radius:12px;padding:18px 20px;font-size:.85rem;line-height:2;overflow-x:auto;margin-top:14px}
+  .qform b{color:#9ff0c4}
+
   /* SECURITY */
   .secure{background:linear-gradient(180deg,#f0f4fb,#fff)}
   .secure .ico{background:#e6f0ff}
@@ -151,6 +173,12 @@
   .stat{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:26px;text-align:center;box-shadow:var(--shadow-sm)}
   .stat .big{font-size:2.2rem;font-weight:800;background:linear-gradient(135deg,var(--teal),var(--blue));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;line-height:1.1}
   .stat .lbl{color:var(--muted);font-size:.92rem;margin-top:8px}
+  .phases-band{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:22px}
+  @media(max-width:820px){.phases-band{grid-template-columns:1fr}}
+  .pband{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px 20px;box-shadow:var(--shadow-sm)}
+  .pband .pk{font-size:.72rem;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--teal);margin-bottom:6px}
+  .pband b{font-size:1.05rem}
+  .pband p{color:var(--muted);font-size:.9rem;margin-top:4px}
 
   /* ROADMAP */
   .timeline{margin-top:44px;position:relative;padding-left:34px}
@@ -166,36 +194,6 @@
   .st-done{background:#e3f7ec;color:var(--good)}
   .st-now{background:#fff4d9;color:#9a7400}
   .st-next{background:#eef1f6;color:var(--muted)}
-
-  /* FASE 1 (foco actual) — detalle por sub-fases */
-  .focus{background:linear-gradient(180deg,#fff,#f0f4fb)}
-  .f1-why{display:flex;gap:16px;align-items:flex-start;background:linear-gradient(160deg,var(--navy),var(--navy-2));color:#dce8fb;border-radius:18px;padding:22px 26px;margin-top:30px;box-shadow:var(--shadow-sm)}
-  .f1-why .e{font-size:1.9rem;line-height:1}
-  .f1-why b{color:#fff}
-  .f1-grid{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-top:26px}
-  @media(max-width:880px){.f1-grid{grid-template-columns:1fr}}
-  .f1-col{background:var(--card);border:1px solid var(--line);border-radius:20px;padding:26px;box-shadow:var(--shadow-sm)}
-  .f1-col.primary{border:2px solid var(--teal)}
-  .f1-ch{display:inline-block;font-size:.72rem;font-weight:800;letter-spacing:.05em;text-transform:uppercase;padding:4px 11px;border-radius:20px;margin-bottom:10px}
-  .f1-col.primary .f1-ch{background:var(--teal-soft);color:#067a6a}
-  .f1-col.second .f1-ch{background:#eaf1ff;color:#2f5bbf}
-  .f1-col h3{font-size:1.18rem;margin-bottom:4px}
-  .f1-col .lead2{font-size:.92rem;color:var(--muted);margin-bottom:6px}
-  .f1-steps{position:relative;margin-top:16px}
-  .f1-steps:before{content:"";position:absolute;left:15px;top:18px;bottom:18px;width:2px;background:linear-gradient(var(--teal),var(--blue))}
-  .f1-step{position:relative;display:grid;grid-template-columns:32px 1fr;gap:14px;padding:11px 0;align-items:start}
-  .f1-n{width:32px;height:32px;border-radius:50%;display:grid;place-items:center;font-weight:800;font-size:.82rem;background:#fff;border:2px solid var(--teal);color:#067a6a;z-index:1}
-  .f1-step.is-done .f1-n{background:var(--good);border-color:var(--good);color:#fff}
-  .f1-tt{font-size:.98rem;font-weight:700;display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:2px}
-  .f1-step p{font-size:.88rem;color:var(--muted);line-height:1.45}
-  .f1-pill{font-size:.66rem;font-weight:800;padding:2px 8px;border-radius:20px;white-space:nowrap;letter-spacing:.02em}
-  .f1-col.second{opacity:.96}
-  .f1-lock{display:flex;gap:8px;align-items:center;font-size:.8rem;font-weight:700;color:#9a7400;background:#fff4d9;border:1px solid #f3dca0;border-radius:10px;padding:9px 12px;margin-bottom:14px}
-  .f1-done-when{margin-top:16px;font-size:.84rem;color:#0a5b51;background:rgba(0,194,168,.1);border:1px solid rgba(0,194,168,.4);border-radius:12px;padding:12px 14px}
-  .f1-gate{display:flex;gap:12px;align-items:center;justify-content:center;text-align:center;flex-wrap:wrap;background:#fff;border:2px dashed var(--teal);border-radius:16px;padding:18px 22px;margin-top:24px;font-weight:600;color:var(--ink)}
-  .f1-gate .e{font-size:1.5rem}
-  .rigor{display:flex;gap:10px;flex-wrap:wrap;margin-top:30px;justify-content:center}
-  .rigor span{background:#fff;border:1px solid var(--line);border-radius:20px;padding:8px 16px;font-size:.86rem;font-weight:600;color:var(--ink);box-shadow:var(--shadow-sm)}
 
   /* CHECKLIST */
   .checklist{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:40px}
@@ -260,19 +258,22 @@
 </head>
 <body>
 
+<!-- ÍNDICE / NAV — cada enlace lleva al mismo título de sección -->
 <nav>
   <div class="wrap">
     <div class="brand"><span class="dot" aria-hidden="true">🧮</span> AuditAI</div>
     <div class="navlinks">
-      <a href="#problema">El problema</a>
-      <a href="#como">Cómo funciona</a>
-      <a href="#demo">Demo en vivo</a>
+      <a href="#objetivo">Objetivo</a>
+      <a href="#como-funciona">Cómo funciona</a>
       <a href="#seguridad">Seguridad</a>
       <a href="#avance">Avance</a>
-      <a href="#fase1">Fase actual</a>
-      <a href="#ruta">Hoja de ruta</a>
+      <a href="#dataset">Dataset</a>
+      <a href="#decisiones">Consultas</a>
+      <a href="#el-calculo">El cálculo</a>
+      <a href="#hoja-de-ruta">Hoja de ruta</a>
       <a href="#checklist">Checklist</a>
-      <a href="#contacto">Siguientes pasos</a>
+      <a href="#demo">Demo</a>
+      <a href="#beneficios">Beneficios</a>
     </div>
   </div>
 </nav>
@@ -284,42 +285,44 @@
     <h1>Tu declaración de IVA, en piloto automático.</h1>
     <p class="lead">AuditAI <b>centraliza los datos de cada cliente</b>, calcula el <b>Formulario 29</b> y lo <b>audita contra la propuesta del SII</b> — detectando errores antes de que te cuesten dinero o una multa, y con tus datos siempre protegidos.</p>
     <div class="cta">
-      <a class="btn btn-primary" href="#demo">▶ Probar la demo en vivo</a>
-      <a class="btn btn-ghost" href="#como">Ver cómo funciona</a>
+      <a class="btn btn-primary" href="#avance">▶ Ver el avance</a>
+      <a class="btn btn-ghost" href="#como-funciona">Cómo funciona</a>
     </div>
     <div class="badges">
-      <div><b>171</b> clientes en la base central</div>
+      <div><b>331</b> clientes en la base central</div>
+      <div><b>97,9%</b> listos para automatización SII</div>
       <div><b>6</b> reglas del IVA automatizadas</div>
-      <div><b>~140</b> códigos del F29 cubiertos</div>
       <div><b>100%</b> verificable y auditable</div>
     </div>
-    <p class="disclaimer">Presentación de proyecto: combina lo ya construido (base de clientes, lógica validada con un caso real y red de seguridad) con la visión del producto completo. La hoja de ruta más abajo distingue qué está listo y qué viene.</p>
+    <p class="disclaimer">Presentación de proyecto: combina lo ya construido (base de clientes, lógica validada con un caso real y red de seguridad) con la visión del producto completo. Cada sección de arriba tiene el mismo nombre en el menú y en su título, para que sea fácil de seguir.</p>
   </div>
 </header>
 
-<!-- PROBLEMA -->
-<section id="problema">
+<!-- 1 · OBJETIVO -->
+<section id="objetivo">
   <div class="wrap">
     <div class="reveal">
-      <span class="eyebrow">El problema</span>
-      <h2 class="stitle">Declarar impuestos cada mes es repetitivo, manual y fácil de equivocar.</h2>
-      <p class="ssub">Hoy, armar el Formulario 29 de cada cliente significa copiar cifras a mano entre planillas y el portal del SII. Un dígito mal puesto puede significar pagar de más… o una multa.</p>
+      <span class="eyebrow">Qué buscamos</span>
+      <h2 class="stitle">Objetivo</h2>
+      <p class="ssub">Automatizar el IVA de punta a punta, con toda tu data en un solo lugar. Hoy, armar el Formulario 29 de cada cliente significa copiar cifras a mano entre planillas y el portal del SII: horas de trabajo repetitivo donde un dígito mal puesto cuesta dinero o una multa. AuditAI persigue <b>cuatro metas concretas</b>.</p>
     </div>
-    <div class="grid g3" style="margin-top:38px">
-      <div class="card reveal"><div class="ico" aria-hidden="true">⏳</div><h3>Horas perdidas</h3><p>Cada cliente, cada mes: el mismo trabajo manual de cuadrar ventas, compras y remanentes.</p></div>
-      <div class="card reveal"><div class="ico" aria-hidden="true">⚠️</div><h3>Errores humanos</h3><p>Un código equivocado o un remanente no arrastrado se traduce en pagos incorrectos y riesgo de multa.</p></div>
-      <div class="card reveal"><div class="ico" aria-hidden="true">🔍</div><h3>Difícil de auditar</h3><p>Cuando el número no cuadra con el SII, encontrar el documento culpable es buscar una aguja en un pajar.</p></div>
+    <div class="grid g2" style="margin-top:38px">
+      <div class="card reveal"><div class="ico" aria-hidden="true">🗄️</div><h3>1 · Centralizar la data</h3><p>Reunir la información de todos tus clientes en una sola base confiable —el activo de una asesoría data-driven—. <b>Ya avanzado: 331 clientes centralizados.</b></p></div>
+      <div class="card reveal"><div class="ico" aria-hidden="true">⚙️</div><h3>2 · Calcular el F29 solo</h3><p>Reproducir las 6 reglas del IVA con precisión matemática y traducirlas a los códigos oficiales del Formulario 29. Sin planillas manuales.</p></div>
+      <div class="card reveal"><div class="ico" aria-hidden="true">🛡️</div><h3>3 · Auditar contra el SII</h3><p>Comparar automáticamente nuestro cálculo con la propuesta del SII y señalar cada diferencia: en qué código y de qué documento viene.</p></div>
+      <div class="card reveal"><div class="ico" aria-hidden="true">💡</div><h3>4 · Explicar con IA</h3><p>Traducir cada discrepancia a lenguaje simple y detectar movimientos fuera de lo normal. La IA explica; el cálculo siempre es verificable.</p></div>
     </div>
+    <p class="note reveal">🎯 <b>Principio rector:</b> el monto del impuesto lo determinan reglas matemáticas verificables, nunca la IA. Así el resultado es siempre reproducible y auditable.</p>
   </div>
 </section>
 
-<!-- SOLUCION / COMO FUNCIONA -->
-<section id="como" class="pipe">
+<!-- 2 · CÓMO FUNCIONA -->
+<section id="como-funciona" class="pipe">
   <div class="wrap">
     <div class="reveal">
-      <span class="eyebrow">La solución</span>
-      <h2 class="stitle">Un flujo de trabajo que se ejecuta solo, de punta a punta.</h2>
-      <p class="ssub">Desde el registro central de clientes, AuditAI <b>obtiene los datos del SII</b>, los <b>centraliza</b> y los lleva hasta un Formulario 29 verificado. Tú supervisas; la máquina hace lo repetitivo.</p>
+      <span class="eyebrow">El flujo, paso a paso</span>
+      <h2 class="stitle">Cómo funciona</h2>
+      <p class="ssub">Un flujo que se ejecuta solo, de punta a punta. Desde el registro central de clientes, AuditAI obtiene los datos del SII, los centraliza y los lleva hasta un Formulario 29 verificado. Tú supervisas; la máquina hace lo repetitivo.</p>
     </div>
     <div class="steps">
       <div class="step reveal"><div class="n">1</div><div class="e" aria-hidden="true">🗂️</div><h4>Notion</h4><p>Registro central de clientes</p></div>
@@ -334,91 +337,13 @@
   </div>
 </section>
 
-<!-- ESTRATEGIA: CENTRALIZACION EN 2 ETAPAS -->
-<section id="estrategia">
-  <div class="wrap">
-    <div class="reveal">
-      <span class="eyebrow">La estrategia</span>
-      <h2 class="stitle">Data centralizada, en dos etapas seguras.</h2>
-      <p class="ssub">El corazón de una asesoría data-driven es tener toda la información en un solo lugar. Lo construimos por pasos, empezando donde tu data ya vive.</p>
-    </div>
-    <div class="stages">
-      <div class="stage now reveal">
-        <span class="e" aria-hidden="true">🗂️</span>
-        <span class="chip">Etapa 1 · Hoy</span>
-        <h3>Notion como base central</h3>
-        <p>Recuperamos y completamos la base “General Customers Data” —donde ya guardas, ingresas y consultas tu información— para volverla la fuente única de la verdad de tus clientes.</p>
-      </div>
-      <div class="stage-arrow reveal" aria-hidden="true">→</div>
-      <div class="stage next reveal">
-        <span class="e" aria-hidden="true">🗄️</span>
-        <span class="chip">Etapa 2 · Después</span>
-        <h3>Base de datos especializada</h3>
-        <p>Cuando todo esté centralizado y la integración sea automática, migramos a una base de datos más potente y profunda, sin rehacer el trabajo gracias al diseño previsto desde hoy.</p>
-      </div>
-    </div>
-    <p class="note reveal">🔁 Trabajar primero sobre Notion entrega valor de inmediato y reduce fricción; la base especializada se justifica recién cuando la información ya está reunida y ordenada.</p>
-  </div>
-</section>
-
-<!-- DEMO INTERACTIVA -->
-<section id="demo" class="calc-section">
-  <div class="wrap">
-    <div class="reveal">
-      <span class="eyebrow" style="color:var(--teal)">Demo en vivo <span class="tag">Caso real: Cliente 1 · Abril</span></span>
-      <h2 class="stitle">Mueve los valores y mira el impuesto recalcularse al instante.</h2>
-      <p class="ssub">Así de simple es la lógica que AuditAI ejecuta. Empezamos con los datos reales del caso de prueba. Cámbialos y observa cuándo se <b>paga IVA</b> y cuándo queda un <b>saldo a favor</b>.</p>
-    </div>
-    <div class="calc">
-      <!-- INPUTS -->
-      <div class="panel reveal">
-        <h3>🎛️ Los datos del mes</h3>
-        <div class="field">
-          <label for="debito">IVA de tus <b>ventas</b> (débito) <b id="vDebito">$462</b></label>
-          <input type="range" id="debito" min="0" max="1000000" step="1000" value="462" aria-label="IVA de tus ventas (débito fiscal)">
-        </div>
-        <div class="field">
-          <label for="credito">IVA de tus <b>compras</b> (crédito) <b id="vCredito">$260.143</b></label>
-          <input type="range" id="credito" min="0" max="1000000" step="1000" value="260143" aria-label="IVA de tus compras (crédito fiscal)">
-        </div>
-        <div class="field">
-          <label for="remanente"><b>Remanente</b> a favor del mes anterior <b id="vRemanente">$158.117</b></label>
-          <input type="range" id="remanente" min="0" max="1000000" step="1000" value="158117" aria-label="Remanente a favor del mes anterior">
-        </div>
-        <div class="field">
-          <label for="otros">Otros impuestos (<b>PPM</b>, honorarios…) <b id="vOtros">$3</b></label>
-          <input type="range" id="otros" min="0" max="50000" step="1" value="3" aria-label="Otros impuestos: PPM, retenciones de honorarios">
-        </div>
-        <button class="reset" id="reset">↺ Volver al caso real (Cliente 1)</button>
-      </div>
-      <!-- OUTPUTS -->
-      <div class="panel reveal" aria-live="polite">
-        <h3>📈 El resultado, calculado en vivo</h3>
-        <div class="result-row"><span>① Débito fiscal (ventas)</span><b id="oDebito">$462</b></div>
-        <div class="result-row"><span>② − Crédito fiscal (compras)</span><b id="oCredito">−$260.143</b></div>
-        <div class="result-row"><span>③ − Remanente anterior</span><b id="oRemanente">−$158.117</b></div>
-        <div class="result-row"><span>④ = IVA determinado</span><b id="oIva">−$417.798</b></div>
-        <div class="result-row"><span>⑤ + Otros impuestos</span><b id="oOtros">$3</b></div>
-        <div class="verdict good" id="verdict">
-          <span style="font-size:1.6rem" aria-hidden="true">✅</span>
-          <div>
-            <div id="verdictText">No pagas IVA: tienes saldo a favor. Solo se paga el resto.</div>
-            <div>Total a pagar este mes: <span class="big" id="oTotal">$3</span></div>
-          </div>
-        </div>
-      </div>
-    </div>
-    <p class="note reveal" style="color:#9fb6d4">📌 Regla clave que AuditAI nunca olvida: si el IVA determinado (④) es negativo, ese saldo a favor se <b>guarda para el próximo mes</b> — pero los otros impuestos (⑤) <b>se pagan igual</b>. Es el error manual más común, y aquí está automatizado.</p>
-  </div>
-</section>
-
-<!-- SEGURIDAD DE DATOS -->
+<!-- 3 · SEGURIDAD -->
 <section id="seguridad" class="secure">
   <div class="wrap">
     <div class="reveal">
-      <span class="eyebrow">Tus datos, intocables</span>
-      <h2 class="stitle">Manejamos tu información como lo que es: sagrada.</h2>
-      <p class="ssub">Antes de tocar un solo dato montamos una red de seguridad de tres capas. Nada se modifica sin respaldo, sin copia y sin tu confirmación.</p>
+      <span class="eyebrow">Tus datos, protegidos</span>
+      <h2 class="stitle">Seguridad</h2>
+      <p class="ssub">Manejamos tu información como lo que es: sagrada. Antes de tocar un solo dato montamos una red de seguridad de tres capas. Nada se modifica sin respaldo, sin copia y sin tu confirmación.</p>
     </div>
     <div class="grid g3" style="margin-top:38px">
       <div class="card rel reveal"><span class="num">CAPA 1</span><div class="ico" aria-hidden="true">📑</div><h3>Se trabaja sobre una copia</h3><p>Todo el desarrollo y las pruebas ocurren en una copia fiel de tu base. La base original <b>nunca</b> se toca directamente.</p></div>
@@ -432,96 +357,788 @@
   </div>
 </section>
 
-<!-- AVANCE REAL / METRICAS -->
+<!-- 4 · AVANCE -->
 <section id="avance">
   <div class="wrap">
     <div class="reveal">
-      <span class="eyebrow">¿Dónde estamos hoy?</span>
-      <h2 class="stitle">No es una idea en una servilleta: la base ya está en pie.</h2>
-      <p class="ssub">Esto es lo que ya está construido y verificado a la fecha. Cifras reales del proyecto, no proyecciones.</p>
+      <span class="eyebrow">Dónde estamos hoy</span>
+      <h2 class="stitle">Avance</h2>
+      <p class="ssub">No es una idea en una servilleta: la base ya está en pie. Estas son cifras reales del proyecto a la fecha, no proyecciones.</p>
     </div>
     <div class="stats">
-      <div class="stat reveal"><div class="big">171</div><div class="lbl">clientes mapeados en la base central</div></div>
-      <div class="stat reveal"><div class="big">3</div><div class="lbl">capas de seguridad ya operativas</div></div>
+      <div class="stat reveal"><div class="big">331</div><div class="lbl">clientes en la base central</div></div>
+      <div class="stat reveal"><div class="big">330</div><div class="lbl">RUTs válidos (99,7%)</div></div>
+      <div class="stat reveal"><div class="big">324</div><div class="lbl">listos para automatización SII (97,9%)</div></div>
       <div class="stat reveal"><div class="big">$3</div><div class="lbl">resultado del caso real, reproducido al peso</div></div>
-      <div class="stat reveal"><div class="big">6</div><div class="lbl">reglas del IVA documentadas y validadas</div></div>
     </div>
-    <p class="note reveal">✅ <b>Listo:</b> base de clientes conectada y mapeada, lógica de cálculo validada contra la propuesta del SII en un caso real, y red de seguridad montada. <b>En curso:</b> completar la información faltante de la base y construir el motor de cálculo automático.</p>
+    <div class="phases-band">
+      <div class="pband reveal"><div class="pk">Fase A · Limpieza</div><b>7 RUTs corregidos</b><p>Se validó cada RUT dígito a dígito y se corrigieron los errores de tipeo reales.</p></div>
+      <div class="pband reveal"><div class="pk">Fase B · Enriquecimiento</div><b>151 datos completados</b><p>Claves del SII, correos y responsables recuperados en los 171 clientes existentes.</p></div>
+      <div class="pband reveal"><div class="pk">Fase C · Ampliación</div><b>+163 clientes nuevos</b><p>Detectados en las fuentes auxiliares y agregados (171 → 334). Hoy <b>331</b> tras retirar 3 descartados por el cliente.</p></div>
+      <div class="pband reveal" style="grid-column:1 / -1"><div class="pk">Barrido Febrero · 02-jul</div><b>1 clave rescatada + enriquecimiento completado</b><p>Se enumeró todo el workspace: solo existen <b>Mayo</b> y <b>Febrero</b>. Febrero (224 filas) se barrrió completo por RUT — rescató la <b>Clave SII de Escuela de Voces Manuela</b> (listos: 323 → 324). Los <b>7 casos restantes</b> (6 claves + RUT de Steven) no están en ninguna base de Notion → <b>escalados a tu responsable</b> para que los aporte.</p></div>
+    </div>
+    <p class="note reveal">✅ <b>Listo:</b> base conectada, mapeada y ampliada; lógica de cálculo validada contra la propuesta del SII en un caso real; red de seguridad montada; control de calidad automático sobre el 100% de la base; las <b>4 decisiones de cierre ya resueltas</b>; y el <b>barrido de bases mensuales ejecutado</b> (Febrero barrido por completo). Cada fila tiene su columna de <b>origen</b> y enlace a la fuente. <b>Pendiente:</b> 7 datos que tu responsable (principalmente Carlos Cereceda) debe aportar — no existen en Notion. Con eso cerramos el Frente A y arrancamos el motor de cálculo.</p>
   </div>
 </section>
 
-<!-- FASE ACTUAL (FASE 1) · detalle por sub-fases -->
-<section id="fase1" class="focus">
+<!-- 5 · DATASET -->
+<section id="dataset" style="background:linear-gradient(180deg,#f0f4fb,#fff)">
   <div class="wrap">
     <div class="reveal">
-      <span class="eyebrow">Fase actual · en foco</span>
-      <h2 class="stitle">Fase 1 al detalle: primero, tu base de datos.</h2>
-      <p class="ssub">Aquí ponemos el <b>100% del esfuerzo, en orden</b>: primero construimos y dejamos <b>robusta</b> tu base de datos central. Solo cuando esté <b>terminada y verificada</b> pasamos a las reglas del impuesto. Nada a medias, una cosa a la vez.</p>
+      <span class="eyebrow">La base, en números</span>
+      <h2 class="stitle">Dataset</h2>
+      <p class="ssub">Así quedó tu base central de clientes tras la Fase 1: limpieza, enriquecimiento y carga de los clientes nuevos. Todas las cifras salen de una lectura real de la base, campo por campo.</p>
     </div>
-
-    <div class="f1-why reveal">
-      <span class="e" aria-hidden="true">⭐</span>
-      <p>Por qué primero la base de datos: es el <b>activo que sostiene todo lo demás</b>. Preferimos dejarla <b>completa, robusta y verificada</b> antes de tocar las reglas — con todo el potencial puesto donde más importa, en vez de avanzar dos cosas a medias.</p>
-    </div>
-
-    <div class="f1-grid">
-      <!-- PASO 1 · FRENTE A -->
-      <div class="f1-col primary reveal">
-        <span class="f1-ch">Paso 1 · Ahora · prioridad total</span>
-        <h3>🗂️ Construir y fortalecer tu base de datos</h3>
-        <p class="lead2">Reunir, ordenar y completar toda la información de tus clientes en un solo lugar confiable.</p>
-        <div class="f1-steps">
-          <div class="f1-step"><div class="f1-n">1</div><div><div class="f1-tt">Localizar la información dispersa <span class="f1-pill st-now">En foco</span></div><p>Reunimos los datos que hoy viven repartidos en otras hojas: contabilidad, remuneraciones y tickets de servicio.</p></div></div>
-          <div class="f1-step"><div class="f1-n">2</div><div><div class="f1-tt">Identificar a cada cliente sin error <span class="f1-pill st-next">Por hacer</span></div><p>El RUT es la huella única: lo validamos dígito a dígito para que ningún dato quede mal asignado. El nombre sirve de respaldo.</p></div></div>
-          <div class="f1-step"><div class="f1-n">3</div><div><div class="f1-tt">Emparejar los registros <span class="f1-pill st-next">Por hacer</span></div><p>Cruzamos cada cliente entre las distintas hojas. Los casos dudosos se apartan para revisión humana — nunca se adivinan.</p></div></div>
-          <div class="f1-step"><div class="f1-n">4</div><div><div class="f1-tt">Completar solo lo que falta <span class="f1-pill st-next">Por hacer</span></div><p>Te mostramos una vista previa de qué va a cambiar; tú confirmas y recién ahí se escribe. Lo que ya estaba, no se toca, y cada cambio queda registrado.</p></div></div>
-          <div class="f1-step"><div class="f1-n">5</div><div><div class="f1-tt">Conexión robusta y a prueba de futuro <span class="f1-pill st-next">Por hacer</span></div><p>Construida para migrar mañana a una base de datos más potente sin rehacer el trabajo, y respetando los límites del sistema.</p></div></div>
-          <div class="f1-step"><div class="f1-n">6</div><div><div class="f1-tt">Control de calidad del dato <span class="f1-pill st-next">Por hacer</span></div><p>Cada dato se valida antes de entrar (formato de RUT, correo, clave). Lo que no cumple se marca para revisarlo.</p></div></div>
-        </div>
-        <div class="f1-done-when">✅ <b>Terminado cuando:</b> la base esté completa, sin duplicados, validada y verificada contra las fuentes. Recién ahí avanzamos.</div>
+    <div class="grid g2" style="margin-top:34px">
+      <div class="card reveal">
+        <h3>📊 Volumen y origen de cada fila</h3>
+        <table class="dt">
+          <tr><td>Total de clientes</td><td>331</td></tr>
+          <tr><td>Origen: base original</td><td>168</td></tr>
+          <tr><td>Origen: Contable Mayo</td><td style="color:var(--good)">+161</td></tr>
+          <tr><td>Origen: RRHH Junio 2026</td><td style="color:var(--good)">+2</td></tr>
+          <tr><td>Con columna “Origen” + enlace a la fuente</td><td style="color:var(--good)">331 <span class="pct">(100%)</span></td></tr>
+        </table>
       </div>
-
-      <!-- PASO 2 · FRENTE B -->
-      <div class="f1-col second reveal">
-        <span class="f1-ch">Paso 2 · Después</span>
-        <h3>📐 Dejar el cálculo listo para automatizar</h3>
-        <div class="f1-lock"><span aria-hidden="true">⏳</span> Comienza solo cuando el Paso 1 esté 100% terminado y verificado.</div>
-        <p class="lead2">Traducir las reglas del Formulario 29 a una especificación exacta, basada en fuentes oficiales.</p>
-        <div class="f1-steps">
-          <div class="f1-step is-done"><div class="f1-n" aria-hidden="true">✓</div><div><div class="f1-tt">Catálogo oficial de documentos del SII <span class="f1-pill st-done">Adelanto listo</span></div><p>Facturas, notas de crédito y débito, boletas e importaciones — cada una con su código oficial del SII, ya capturado en la investigación.</p></div></div>
-          <div class="f1-step"><div class="f1-n">2</div><div><div class="f1-tt">Diccionario de los códigos del F29 <span class="f1-pill st-next">Después</span></div><p>Qué significa cada casilla del formulario y de qué documento se alimenta, contrastado con el SII. Hay códigos parecidos que significan cosas distintas: los mantenemos bien separados.</p></div></div>
-          <div class="f1-step"><div class="f1-n">3</div><div><div class="f1-tt">Las 6 reglas del IVA, al detalle <span class="f1-pill st-next">Después</span></div><p>Débito, crédito, remanente, IVA determinado, otros impuestos y el total — escritas para programarlas tal cual, sin ambigüedad.</p></div></div>
-          <div class="f1-step"><div class="f1-n">4</div><div><div class="f1-tt">Estructura de los libros del SII <span class="f1-pill st-next">Después</span></div><p>Qué campos trae cada documento (folio, fecha, montos) para poder leerlos automáticamente, sin tipear nada a mano.</p></div></div>
-          <div class="f1-step"><div class="f1-n">5</div><div><div class="f1-tt">Tasas vigentes parametrizadas <span class="f1-pill st-next">Después</span></div><p>IVA 19%, PPM y honorarios quedan en configuración, para adaptarse al instante si cambia la ley.</p></div></div>
-        </div>
+      <div class="card reveal">
+        <h3>🔑 Listos para el SII</h3>
+        <table class="dt">
+          <tr><td>RUTs válidos (módulo 11)</td><td>330 <span class="pct">(99,7%)</span></td></tr>
+          <tr><td>Con CLAVE SII</td><td>324 <span class="pct">(97,9%)</span></td></tr>
+          <tr><td><b>Listos para automatización SII</b></td><td style="color:var(--good)">324 <span class="pct">(97,9%)</span></td></tr>
+        </table>
+        <p style="font-size:.86rem;color:var(--muted);margin-top:10px">“Listo” = tiene RUT válido + Clave SII, lo mínimo para que el robot entre al SII y descargue el archivo.</p>
+      </div>
+      <div class="card reveal">
+        <h3>📝 Completitud campo por campo</h3>
+        <table class="dt">
+          <tr><td>Nombre del cliente</td><td>331 <span class="pct">(100%)</span></td></tr>
+          <tr><td>RUT</td><td>330 <span class="pct">(99,7%)</span></td></tr>
+          <tr><td>CLAVE SII</td><td>324 <span class="pct">(97,9%)</span></td></tr>
+          <tr><td>Responsable contable (Adviser)</td><td>326 <span class="pct">(98,5%)</span></td></tr>
+          <tr><td>CRM</td><td>125 <span class="pct">(37,8%)</span></td></tr>
+          <tr><td>Email</td><td>88 <span class="pct">(26,6%)</span></td></tr>
+          <tr><td>Responsable RR.HH.</td><td>33 <span class="pct">(10,0%)</span></td></tr>
+          <tr><td>Usuario/clave Previred</td><td>17 <span class="pct">(5,1%)</span></td></tr>
+        </table>
+      </div>
+      <div class="card reveal" style="border-top:4px solid var(--good)">
+        <h3>✅ Barrido Febrero + casos resueltos</h3>
+        <table class="dt">
+          <tr><td>Clave SII rescatada de Febrero</td><td style="color:var(--good)">1 <span class="pct">(Escuela de Voces Manuela)</span></td></tr>
+          <tr><td>Clientes sin RUT</td><td style="color:var(--good)">1 <span class="pct">(solo Steven)</span></td></tr>
+          <tr><td>Clientes descartados y retirados</td><td>3</td></tr>
+          <tr><td>Duplicado SOCIAL UP</td><td>se mantiene</td></tr>
+          <tr><td>Emails inválidos etiquetados</td><td>19</td></tr>
+          <tr><td><b>Escalados a tu responsable</b></td><td style="color:var(--warn)">7 <span class="pct">(6 claves + RUT Steven)</span></td></tr>
+        </table>
+        <p style="font-size:.86rem;color:var(--muted);margin-top:10px">El barrido de Febrero (única base mensual además de Mayo) se ejecutó completo. Los 7 casos restantes <b>no existen en ninguna base de Notion</b>: solo tu responsable (principalmente Carlos Cereceda) puede aportarlos.</p>
       </div>
     </div>
-
-    <div class="f1-gate reveal">
-      <span class="e" aria-hidden="true">🎯</span>
-      <div>Recién cuando la base de datos esté <b>terminada, robusta y verificada</b> → arranca el <b>Paso 2</b> (las reglas). Primero lo primero.</div>
-    </div>
-
-    <div class="rigor reveal">
-      <span>📚 Basado en fuentes oficiales del SII</span>
-      <span>🛡️ El trabajo de datos se hace sobre una copia segura</span>
-      <span>🔎 Cada dato, trazable a su origen</span>
-    </div>
-    <p class="note reveal" style="text-align:center">Con la base terminada, las reglas y luego el motor de cálculo se construyen sobre terreno firme.</p>
+    <p class="note reveal" style="text-align:center;margin-top:26px">📋 Detalle técnico completo, el control de calidad de los datos y las opciones para resolver los casos pendientes en la documentación del proyecto (<code>docs/dev/14-construccion-dataset-y-anomalias.md</code>).</p>
   </div>
 </section>
 
-<!-- ROADMAP -->
-<section id="ruta" class="pipe">
+<!-- 6 · CONSULTAS PENDIENTES PARA CARLOS -->
+<section id="decisiones" style="background:#fff">
   <div class="wrap">
     <div class="reveal">
-      <span class="eyebrow">Hoja de ruta</span>
-      <h2 class="stitle">De prueba de concepto a herramienta diaria, en pasos seguros.</h2>
-      <p class="ssub">Cada fase entrega algo que funciona y se puede mostrar. Avanzamos solo cuando lo anterior está verificado.</p>
+      <span class="eyebrow">Para revisar con Carlos Cereceda</span>
+      <h2 class="stitle">Consultas pendientes</h2>
+      <p class="ssub">La base de clientes ya está construida y verificada. Para dejarla <b>100% lista</b> faltan <b>6 respuestas</b> que buscamos en todas las planillas disponibles y <b>no están escritas en ninguna parte</b>: solo tú o tu equipo las conocen. Cada consulta sigue el mismo formato — <b>qué pasa · la pregunta · opciones de respuesta</b> — y contestarlas todas toma unos <b>10 minutos</b>.</p>
+    </div>
+
+    <!-- CÓMO RESPONDER -->
+    <div class="qhow reveal">
+      <span class="e" aria-hidden="true">✍️</span>
+      <p><b>Cómo responder:</b> en cada consulta, elige una letra (<b>A</b> o <b>B</b>) por cada punto. Puedes marcar las casillas sobre este documento impreso, o copiar el <b>formulario de respuesta rápida</b> que está al final de la sección y enviarlo respondido por correo o WhatsApp. <b>Importante:</b> las Claves del SII <b>nunca</b> se escriben en este documento ni en el formulario — se entregan aparte, por el canal seguro que acordemos.</p>
+    </div>
+
+    <!-- ÍNDICE DE LAS 6 CONSULTAS -->
+    <div class="card reveal" style="margin-top:18px">
+      <h3>🗺️ Las 6 consultas, en un vistazo</h3>
+      <table class="dt">
+        <tr><td><b>1</b> · Claves del SII de 6 clientes</td><td style="text-align:left;font-weight:600;color:#c0392b">🔴 Urgente — sin la clave no podemos automatizar a esos 6</td></tr>
+        <tr><td><b>2</b> · ¿Quién es «Steven»?</td><td style="text-align:left;font-weight:600;color:#c0392b">🔴 Urgente — es el único cliente sin RUT</td></tr>
+        <tr><td><b>3</b> · ¿«Sandra Jerez Boss» es otra persona?</td><td style="text-align:left;font-weight:500;color:var(--muted)">🟡 Solo orden interno — no bloquea nada</td></tr>
+        <tr><td><b>4</b> · Apellido del gestor de KYRA SpA</td><td style="text-align:left;font-weight:500;color:var(--muted)">🟡 Solo orden interno — no bloquea nada</td></tr>
+        <tr><td><b>5</b> · 3 nombres de RR.HH. con doble coincidencia</td><td style="text-align:left;font-weight:600;color:#9a7400">🟠 Afecta solo el impuesto único de esos 3 clientes</td></tr>
+        <tr><td><b>6</b> · 5 empresas de RR.HH. sin ficha de cliente</td><td style="text-align:left;font-weight:600;color:#9a7400">🟠 Afecta solo el impuesto único de esas 5 empresas</td></tr>
+      </table>
+    </div>
+
+    <!-- CONSULTA 1 · 6 clientes sin CLAVE SII -->
+    <div class="qcard reveal" style="margin-top:26px">
+      <div class="qcard-h">
+        <span class="qn">1</span>
+        <h3>🔑 Nos faltan las Claves del SII de 6 clientes</h3>
+        <span class="qpill block">🔴 Urgente · bloquea a estos 6</span>
+      </div>
+      <div class="qcard-b">
+        <p><b>Qué pasa.</b> Para trabajar solo, el sistema entra al sitio del SII con el RUT y la <b>Clave del SII</b> de cada cliente — la misma clave que hoy se usa para declarar a mano. Ya la tenemos para <b>324 de los 330</b> clientes con RUT. A estos 6 les buscamos la clave en todas las planillas (contables de mayo y febrero, y RR.HH.) y <b>no está anotada en ninguna</b>.</p>
+        <div class="qask"><span class="qq">La pregunta</span>Para cada uno de estos 6 clientes: ¿nos haces llegar su Clave del SII, o lo dejamos fuera de la automatización por ahora?</div>
+        <div class="qopts">
+          <div class="qopt"><span class="ql">A</span><p><b>Les consigo la clave</b><small>Nos la haces llegar por el canal seguro que acordemos (nunca por este documento) y el cliente queda automatizado.</small></p></div>
+          <div class="qopt"><span class="ql">B</span><p><b>Dejarlo fuera por ahora</b><small>El cliente sigue en la base, pero su declaración no se automatiza hasta tener la clave.</small></p></div>
+        </div>
+        <table class="dt" style="margin-top:16px">
+          <thead><tr style="border-bottom:2px solid var(--line)"><td style="color:var(--ink);font-weight:700">Cliente</td><td style="color:var(--ink);font-weight:700;text-align:left">Quién lo atiende</td><td style="color:var(--ink);font-weight:700;text-align:right">Tu respuesta</td></tr></thead>
+          <tr><td><b>INVERSORA GCP</b></td><td>Carlos Cereceda</td><td>☐ A &nbsp;·&nbsp; ☐ B</td></tr>
+          <tr><td><b>JAVIERA COMPAN</b></td><td>— (figura como asesora, no como empresa: ¿es cliente facturable?)</td><td>☐ A &nbsp;·&nbsp; ☐ B</td></tr>
+          <tr><td><b>Servicios Oporto</b></td><td>Carlos Cereceda</td><td>☐ A &nbsp;·&nbsp; ☐ B</td></tr>
+          <tr><td><b>Kahi</b></td><td>Sebastián Robles</td><td>☐ A &nbsp;·&nbsp; ☐ B</td></tr>
+          <tr><td><b>IMAGINE MATTERS SPA</b></td><td>Andrea González</td><td>☐ A &nbsp;·&nbsp; ☐ B</td></tr>
+          <tr><td><b>Vitalia Ventures SpA</b></td><td>Carlos Cereceda</td><td>☐ A &nbsp;·&nbsp; ☐ B</td></tr>
+        </table>
+        <div class="qwhy">💡 <b>Qué cambia con tu respuesta:</b> con las 6 claves, los clientes listos para automatización pasan de <b>324 a 330</b> — el 100% de los que tienen RUT. Es el último dato que falta para cerrar la base.</div>
+      </div>
+    </div>
+
+    <!-- CONSULTA 2 · Steven sin RUT -->
+    <div class="qcard reveal">
+      <div class="qcard-h">
+        <span class="qn">2</span>
+        <h3>🆔 ¿Quién es «Steven»? Es el único cliente sin RUT</h3>
+        <span class="qpill block">🔴 Urgente · único sin RUT</span>
+      </div>
+      <div class="qcard-b">
+        <p><b>Qué pasa.</b> En la base hay una ficha que dice solamente <b>«Steven»</b> — sin apellido, sin RUT y sin Clave SII. Figura como cliente tuyo (Carlos Cereceda), del grupo <b>«27 bis»</b>. Lo buscamos en todas las planillas y no aparece en ninguna. (Ojo: existe un «Stiven Cartagena», pero es <b>otro</b> cliente, que ya está correcto en la base.) De los 331 clientes, es el <b>único</b> al que no pudimos ponerle RUT.</p>
+        <div class="qask"><span class="qq">La pregunta</span>¿Quién es Steven? ¿Es un cliente vigente, o lo retiramos de la base?</div>
+        <div class="qopts">
+          <div class="qopt"><span class="ql">A</span><p><b>Es cliente vigente</b><small>Nos das su nombre completo y su RUT (y la Clave SII, si la tienes) y completamos su ficha.</small></p></div>
+          <div class="qopt"><span class="ql">B</span><p><b>No es cliente / está de más</b><small>Lo retiramos de la base. Queda guardada una copia, así que es totalmente reversible.</small></p></div>
+        </div>
+        <div class="qwhy">💡 <b>Qué cambia con tu respuesta:</b> resuelto Steven, el 100% de la base queda con RUT válido — requisito para cerrar esta etapa y arrancar el motor de cálculo.</div>
+      </div>
+    </div>
+
+    <!-- CONSULTA 3 · Sandra Jerez Boss -->
+    <div class="qcard reveal">
+      <div class="qcard-h">
+        <span class="qn">3</span>
+        <h3>👥 ¿«Sandra Jerez Boss» es una persona distinta de «Sandra Jerez»?</h3>
+        <span class="qpill clean">🟡 Solo orden interno</span>
+      </div>
+      <div class="qcard-b">
+        <p><b>Qué pasa.</b> En las planillas, cada cliente tiene anotado quién lo gestiona comercialmente (su <b>gestor</b>). Al comparar la planilla contable de <b>mayo</b> con la de <b>febrero</b>, encontramos que los mismos <b>7 clientes</b> tienen anotado un nombre de gestora que no coincide:</p>
+        <table class="dt" style="margin-top:10px">
+          <tr><td>La planilla de mayo dice</td><td>«Sandra Jerez» (junto a Giovanni Marisio)</td></tr>
+          <tr><td>La planilla de febrero dice</td><td>«Sandra Jerez <b>Boss</b>»</td></tr>
+        </table>
+        <p style="margin-top:12px">Los 7 clientes afectados son: <b>Sandra Jerez · Dahia Jerez · Giovanni Marisio · Teacredito rent · MARISIO JEREZ INVERSIONES LTDA · JCRent SpA (Renta Car) · Sozial SpA</b>.</p>
+        <div class="qask"><span class="qq">La pregunta</span>¿«Sandra Jerez Boss» es otra persona (por ejemplo, la jefa o supervisora de Sandra), o es la misma Sandra Jerez escrita de otra forma?</div>
+        <div class="qopts">
+          <div class="qopt"><span class="ql">A</span><p><b>Es otra persona</b><small>La anotamos también como gestora de esos 7 clientes.</small></p></div>
+          <div class="qopt"><span class="ql">B</span><p><b>Es la misma persona</b><small>No cambiamos nada y descartamos el nombre duplicado.</small></p></div>
+        </div>
+        <div class="qwhy">💡 <b>Qué cambia con tu respuesta:</b> nada en los cálculos ni en el SII — es solo para que el registro de gestores quede limpio y sin nombres duplicados. <i>(Detalle por si la buscas: «Sandra Jerez Boss» solo existe dentro de un menú desplegable de la planilla de febrero, y el buscador de Notion no revisa esos menús — por eso no aparece al buscarla.)</i></div>
+      </div>
+    </div>
+
+    <!-- CONSULTA 4 · KYRA SpA gestor -->
+    <div class="qcard reveal">
+      <div class="qcard-h">
+        <span class="qn">4</span>
+        <h3>🧩 El gestor de KYRA SpA: ¿«Subiare» o «Kusuvak»?</h3>
+        <span class="qpill clean">🟡 Solo orden interno</span>
+      </div>
+      <div class="qcard-b">
+        <p><b>Qué pasa.</b> Mismo caso que la consulta 3, pero para un solo cliente: <b>KYRA SpA</b> tiene anotado a su gestor con el mismo nombre pero <b>distinto apellido</b> según la planilla que se mire. Casi seguro, una de las dos tiene un error de tipeo.</p>
+        <table class="dt" style="margin-top:10px">
+          <tr><td>La planilla de mayo dice</td><td>Benjamin <b>Subiare</b></td></tr>
+          <tr><td>La planilla de febrero dice</td><td>Benjamin <b>Kusuvak</b></td></tr>
+        </table>
+        <div class="qask"><span class="qq">La pregunta</span>¿Cuál es el apellido correcto del gestor de KYRA SpA?</div>
+        <div class="qopts q3">
+          <div class="qopt"><span class="ql">A</span><p><b>Subiare</b><small>Lo que dice mayo — se mantiene tal cual.</small></p></div>
+          <div class="qopt"><span class="ql">B</span><p><b>Kusuvak</b><small>Lo que dice febrero — corregimos la ficha.</small></p></div>
+          <div class="qopt"><span class="ql">C</span><p><b>Ninguno de los dos</b><small>Nos indicas el nombre correcto.</small></p></div>
+        </div>
+        <div class="qwhy">💡 <b>Qué cambia con tu respuesta:</b> nada en los cálculos — solo corregimos un posible error de tipeo antes de que se siga copiando de planilla en planilla.</div>
+      </div>
+    </div>
+
+    <!-- CONSULTA 5 · RRHH ambiguos -->
+    <div class="qcard reveal">
+      <div class="qcard-h">
+        <span class="qn">5</span>
+        <h3>🔗 3 nombres de la planilla de RR.HH. calzan con dos clientes a la vez</h3>
+        <span class="qpill partial">🟠 Afecta el impuesto único de estos 3</span>
+      </div>
+      <div class="qcard-b">
+        <p><b>Qué pasa.</b> De la planilla <b>RR.HH. de junio</b> sale el <b>impuesto único</b> de los trabajadores — un dato que va en la declaración (F29) de cada cliente. Para usarla, cada fila de esa planilla debe quedar conectada con su cliente en la base central. <b>42 filas ya están conectadas sin dudas</b> (verificadas una a una). Pero estos 3 nombres, escritos de forma abreviada, calzan con <b>dos clientes distintos</b> de la base — y preferimos preguntarte antes que adivinar.</p>
+        <div class="qask"><span class="qq">La pregunta</span>¿A cuál cliente corresponde cada uno de estos 3 nombres?</div>
+        <table class="dt" style="margin-top:6px">
+          <thead><tr style="border-bottom:2px solid var(--line)"><td style="color:var(--ink);font-weight:700">En RR.HH. dice…</td><td style="color:var(--ink);font-weight:700;text-align:left">Opción A</td><td style="color:var(--ink);font-weight:700;text-align:left">Opción B</td><td style="color:var(--ink);font-weight:700;text-align:right">Tu respuesta</td></tr></thead>
+          <tr><td><b>ABURTO KRAMP</b></td><td>Aburto Kramp</td><td>Consultora Aburto KRAMP</td><td>☐ A &nbsp;·&nbsp; ☐ B</td></tr>
+          <tr><td><b>MARISIO JEREZ Y CIA</b></td><td>MARISIO JEREZ INVERSIONES LTDA</td><td>Otra empresa (¿cuál?)</td><td>☐ A &nbsp;·&nbsp; ☐ B</td></tr>
+          <tr><td><b>OLIVERO PARTENS</b></td><td>OLIVERO PARTNERS INVESTMENT</td><td>OLIVERO PARTNERS SPA</td><td>☐ A &nbsp;·&nbsp; ☐ B</td></tr>
+        </table>
+        <div class="qwhy">💡 <b>Qué cambia con tu respuesta:</b> mientras estas 3 filas no estén conectadas, el impuesto único de esos clientes no se puede declarar automáticamente. Los otros 42 ya quedaron listos.</div>
+      </div>
+    </div>
+
+    <!-- CONSULTA 6 · RRHH sin ficha -->
+    <div class="qcard reveal">
+      <div class="qcard-h">
+        <span class="qn">6</span>
+        <h3>🆕 5 empresas aparecen en RR.HH. pero no existen en la base de clientes</h3>
+        <span class="qpill partial">🟠 Afecta el impuesto único de estas 5</span>
+      </div>
+      <div class="qcard-b">
+        <p><b>Qué pasa.</b> Estas 5 empresas figuran en la planilla <b>RR.HH. de junio</b> — algunas incluso con montos de impuesto único o imposiciones ya anotados — pero <b>no tienen ficha</b> en la base central de clientes. Sin ficha, no hay dónde guardar sus datos ni desde dónde declarar su impuesto único.</p>
+        <div class="qask"><span class="qq">La pregunta</span>Para cada una: ¿es un cliente vigente que debemos crear en la base, o no corresponde?</div>
+        <div class="qopts">
+          <div class="qopt"><span class="ql">A</span><p><b>Sí, es cliente → crear su ficha</b><small>Ideal si nos das también su RUT y Clave SII, para dejarla completa desde el día uno.</small></p></div>
+          <div class="qopt"><span class="ql">B</span><p><b>No corresponde</b><small>No se crea; su fila de RR.HH. queda registrada como fuera de alcance.</small></p></div>
+        </div>
+        <table class="dt" style="margin-top:16px">
+          <thead><tr style="border-bottom:2px solid var(--line)"><td style="color:var(--ink);font-weight:700">En RR.HH. dice…</td><td style="color:var(--ink);font-weight:700;text-align:right">Tu respuesta</td></tr></thead>
+          <tr><td><b>CONST. UMBRAL</b> <span class="pct">· ya trae monto de imposiciones</span></td><td>☐ A &nbsp;·&nbsp; ☐ B</td></tr>
+          <tr><td><b>AGUIRRE SPA</b> <span class="pct">· ya trae impuesto único e imposiciones</span></td><td>☐ A &nbsp;·&nbsp; ☐ B</td></tr>
+          <tr><td><b>Hector Hugo Valenzuela — ASESORA</b> <span class="pct">· ya trae imposiciones</span></td><td>☐ A &nbsp;·&nbsp; ☐ B</td></tr>
+          <tr><td><b>SERVICIOS INTEGRALES MJ</b></td><td>☐ A &nbsp;·&nbsp; ☐ B</td></tr>
+          <tr><td><b>BLUELETRIC</b></td><td>☐ A &nbsp;·&nbsp; ☐ B</td></tr>
+        </table>
+        <div class="qwhy">💡 <b>Qué cambia con tu respuesta:</b> las que confirmes se crean como clientes nuevos y su impuesto único queda conectado de inmediato; las que no, se dejan documentadas y fuera del sistema.</div>
+      </div>
+    </div>
+
+    <!-- FORMULARIO DE RESPUESTA RÁPIDA -->
+    <div class="card reveal" style="margin-top:26px">
+      <h3>📨 Formulario de respuesta rápida</h3>
+      <p style="color:var(--muted);font-size:.95rem;margin-top:6px">Para no hacerte perder tiempo: copia este bloque en un correo o WhatsApp y completa cada espacio con la letra que elijas (A o B). Con eso nos basta. Las Claves del SII van aparte, por el canal seguro.</p>
+      <div class="qform">
+<b>Consulta 1 · Claves SII</b> — Inversora GCP: __ · Javiera Compan: __ · Servicios Oporto: __ · Kahi: __ · Imagine Matters: __ · Vitalia Ventures: __<br>
+<b>Consulta 2 · Steven</b> — Respuesta: __ &nbsp;(si es A → nombre completo y RUT: ______________)<br>
+<b>Consulta 3 · Sandra Jerez Boss</b> — Respuesta: __<br>
+<b>Consulta 4 · Gestor de KYRA SpA</b> — Respuesta: __<br>
+<b>Consulta 5 · RR.HH. con doble match</b> — Aburto Kramp: __ · Marisio Jerez y Cía: __ · Olivero Partens: __<br>
+<b>Consulta 6 · RR.HH. sin ficha</b> — Const. Umbral: __ · Aguirre SPA: __ · H. H. Valenzuela: __ · Servicios Integrales MJ: __ · Blueletric: __
+      </div>
+    </div>
+
+    <div class="secure-note reveal" style="margin-top:30px;border-left-color:var(--good)">
+      <span class="e" aria-hidden="true">🟢</span>
+      <p><b>Qué pasa cuando respondas.</b> Con las consultas <b>1 y 2</b> resueltas, la base queda al <b>100% lista para el SII</b> y arranca la construcción del <b>motor de cálculo automático</b>. Las consultas <b>3 y 4</b> son solo de orden interno, y las <b>5 y 6</b> se necesitan únicamente para declarar el impuesto único de esos clientes puntuales — ninguna frena el arranque. Cada cambio se aplica como siempre: con respaldo previo y registro de auditoría.</p>
+    </div>
+  </div>
+</section>
+
+<!-- 7 · EL CÁLCULO (plan Frente B) -->
+<section id="el-calculo">
+  <div class="wrap">
+    <div class="reveal">
+      <span class="eyebrow">El problema matemático · y su solución</span>
+      <h2 class="stitle">El cálculo</h2>
+      <p class="ssub">El Formulario 29 es, en el fondo, un <b>problema matemático con reglas fijas</b>: seis operaciones sobre tres conjuntos de datos, más una regla condicional que decide el total final. Aquí lo presentamos como lo que es — una función determinista, verificable y reproducible al peso. <b>Nada se calcula aún</b>; esto es el plan para que lo valides antes de construirlo.</p>
+    </div>
+
+    <!-- 1. EL PROBLEMA -->
+    <div class="card reveal" style="margin-top:40px;border-left:4px solid var(--navy)">
+      <h3 style="margin-bottom:12px">📐 El problema, en una frase</h3>
+      <p style="color:var(--muted);font-size:1rem;line-height:1.7">Dado el <b>IVA de las ventas</b>, el <b>IVA de las compras</b> y el <b>remanente del mes anterior</b> de una empresa, calcular <b>cuánto impuesto debe pagar este mes</b> — y traducirlo a los <b>~140 códigos oficiales</b> del Formulario 29 del SII.</p>
+      <p style="color:var(--muted);font-size:1rem;line-height:1.7;margin-top:8px">Parece una resta simple, pero hay <b>una regla condicional</b> que cambia todo según el signo del resultado — y ahí es donde se equivocan las planillas manuales.</p>
+    </div>
+
+    <!-- VISTAZO DE 10 SEGUNDOS -->
+    <div class="reveal" style="margin-top:30px;display:flex;flex-wrap:wrap;align-items:center;gap:8px;justify-content:center">
+      <span style="background:var(--teal-soft);color:#067a6a;font-weight:700;font-size:.85rem;padding:8px 13px;border-radius:20px">① IVA ventas</span>
+      <span style="color:var(--muted);font-weight:700">−</span>
+      <span style="background:var(--teal-soft);color:#067a6a;font-weight:700;font-size:.85rem;padding:8px 13px;border-radius:20px">② IVA compras</span>
+      <span style="color:var(--muted);font-weight:700">−</span>
+      <span style="background:var(--teal-soft);color:#067a6a;font-weight:700;font-size:.85rem;padding:8px 13px;border-radius:20px">③ Remanente</span>
+      <span style="color:var(--muted);font-weight:700">=</span>
+      <span style="background:#eaf1ff;color:#2f5bbf;font-weight:700;font-size:.85rem;padding:8px 13px;border-radius:20px">④ IVA determinado</span>
+      <span style="color:var(--muted);font-weight:700">+</span>
+      <span style="background:var(--teal-soft);color:#067a6a;font-weight:700;font-size:.85rem;padding:8px 13px;border-radius:20px">⑤ Otros impuestos</span>
+      <span style="color:var(--muted);font-weight:700">=</span>
+      <span style="background:#fff4d9;color:#9a7400;font-weight:800;font-size:.85rem;padding:8px 13px;border-radius:20px">⑥ Total a pagar</span>
+    </div>
+    <p class="note reveal" style="text-align:center">👆 Todo el cálculo en un vistazo. Abajo, cada paso en detalle — con su fórmula, su fuente de datos y el caso real.</p>
+
+    <!-- 2. LAS VARIABLES -->
+    <h3 style="margin-top:44px;font-size:1.2rem">📥 Las variables de entrada — de dónde sale cada dato</h3>
+    <p style="color:var(--muted);font-size:.96rem;margin-top:8px;margin-bottom:18px">Toda la función se alimenta de <b>tres fuentes de datos</b>. Cada una aporta variables específicas:</p>
+    <div class="grid g3" style="margin-top:8px">
+      <div class="card reveal"><div class="ico" aria-hidden="true">🧾</div><h3>SII · Compras y ventas</h3><p>Aporta el <b>IVA débito</b> (lo cobrado en ventas) y el <b>IVA crédito</b> (lo pagado en compras) del período. Es la entrada principal.</p></div>
+      <div class="card reveal"><div class="ico" aria-hidden="true">💼</div><h3>SII · Boletas de honorarios</h3><p>Aporta los <b>honorarios</b> y su <b>retención</b> (Ley 21.133). La retención del F29 sale de las boletas <b>recibidas</b> (lo que la empresa retuvo); las <b>emitidas</b> aplican si el cliente es el profesional.</p></div>
+      <div class="card reveal"><div class="ico" aria-hidden="true">🗂️</div><h3>Notion · Remuneraciones</h3><p>El <b>único dato fuera del SII</b>: la <b>retención de impuesto único</b> a trabajadores, que vive en tu base de RR.HH.</p></div>
+    </div>
+
+    <!-- 3. LAS 6 PARTES COMO FÓRMULAS -->
+    <h3 style="margin-top:44px;font-size:1.2rem">🧮 Las 6 partes — la función, paso a paso</h3>
+    <p style="color:var(--muted);font-size:.96rem;margin-top:8px;margin-bottom:18px">El cálculo se divide en <b>seis operaciones secuenciales</b>. Cada una toma las anteriores como entrada. Lo mostramos con el <b>caso real "Cliente 1" (abril)</b> — un caso ya validado contra la propuesta del SII, que sirve como <b>prueba de fuego</b> del motor.</p>
+
+    <!-- Fórmula P1 -->
+    <div class="card reveal" style="margin-top:16px">
+      <div style="display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap">
+        <div style="flex:none;width:44px;height:44px;border-radius:12px;background:var(--teal-soft);display:grid;place-items:center;font-weight:800;color:var(--teal);font-size:1.1rem">P1</div>
+        <div style="flex:1;min-width:240px">
+          <h3 style="margin-bottom:4px">Débito fiscal — IVA de las ventas</h3>
+          <p style="color:var(--muted);font-size:.93rem;margin-bottom:10px">Se suman los montos de IVA de <b>todos los documentos de venta</b> (facturas y comprobantes electrónicos); las <b>notas de crédito</b> (anulaciones y devoluciones) <b>se restan</b>. Es lo que la empresa <b>cobró</b> a sus clientes y debe al fisco.</p>
+          <div style="font-family:'SF Mono',Monaco,Consolas,monospace;background:#0B1F3A;color:#9ff0c4;padding:14px 18px;border-radius:10px;font-size:.92rem;overflow-x:auto">P1 = Σ IVA(documento) &nbsp;para cada documento emitido</div>
+          <p style="font-size:.82rem;color:var(--muted);margin-top:8px">⟶ <b>Propiedad:</b> en la práctica P1 ≥ 0. Las notas de crédito (anulaciones) rebajan dentro de la suma, pero rara vez superan las ventas del mes.</p>
+        </div>
+        <div style="flex:none;min-width:160px;text-align:right">
+          <div style="font-size:.78rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Cliente 1 · abril</div>
+          <div style="font-size:1.5rem;font-weight:800;color:var(--good);font-variant-numeric:tabular-nums">$462</div>
+          <div style="font-size:.8rem;color:var(--muted)">3 comprobantes electrónicos</div>
+        </div>
+      </div>
+      <div style="margin-top:14px;padding:12px 16px;background:#f6f8fc;border-left:3px solid var(--blue);border-radius:8px">
+        <div style="font-size:.78rem;font-weight:700;color:var(--blue);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">📚 Fuente de datos — de dónde sale esta variable</div>
+        <p style="font-size:.88rem;color:var(--muted);line-height:1.6"><b>SII · Registro de Compras y Ventas (RCV).</b> El motor entra al SII con las credenciales del cliente y sigue la ruta real: <b>Servicios online → Impuestos mensuales → Registro de Compras y Ventas</b>. Abre el <a href="https://www4.sii.cl/consdcvinternetui/#/index" target="_blank" rel="noopener" style="color:var(--blue);font-weight:600">RCV</a>, fija el <b>período = el mes anterior al actual</b> (p. ej. para declarar en julio 2026, el período es <b>junio 2026</b>) y presiona <b>Consultar</b>. Luego entra a la pestaña <b>«VENTA»</b> y suma la columna <b>«Monto IVA»</b> de <b>todas las filas</b>: ese total es P1. Cada fila es un documento (factura electrónica, comprobante de pago electrónico —el del caso Cliente 1—, nota de débito; las notas de crédito restan). El valor es exactamente el que registró el SII — <b>no se inventa ni se redondea a mano</b>.</p>
+      </div>
+    </div>
+
+    <!-- Fórmula P2 -->
+    <div class="card reveal" style="margin-top:12px">
+      <div style="display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap">
+        <div style="flex:none;width:44px;height:44px;border-radius:12px;background:var(--teal-soft);display:grid;place-items:center;font-weight:800;color:var(--teal);font-size:1.1rem">P2</div>
+        <div style="flex:1;min-width:240px">
+          <h3 style="margin-bottom:4px">Crédito fiscal — IVA de las compras</h3>
+          <p style="color:var(--muted);font-size:.93rem;margin-bottom:10px">Se suman los montos de IVA de <b>todos los documentos de compra recibidos</b> (facturas, notas de débito, DIN de importación); las <b>notas de crédito</b> (de proveedores) <b>se restan</b>. Es lo que la empresa <b>pagó</b> a sus proveedores y puede descontar. Va en <b>negativo</b>.</p>
+          <div style="font-family:'SF Mono',Monaco,Consolas,monospace;background:#0B1F3A;color:#9ff0c4;padding:14px 18px;border-radius:10px;font-size:.92rem;overflow-x:auto">P2 = −Σ IVA(documento) &nbsp;para cada documento recibido</div>
+          <p style="font-size:.82rem;color:var(--muted);margin-top:8px">⟶ <b>Propiedad:</b> P2 ≤ 0 siempre. El signo negativo es por convención contable: las compras <b>reducen</b> lo que se debe pagar al fisco.</p>
+        </div>
+        <div style="flex:none;min-width:160px;text-align:right">
+          <div style="font-size:.78rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Cliente 1 · abril</div>
+          <div style="font-size:1.5rem;font-weight:800;color:#e7a100;font-variant-numeric:tabular-nums">−$260.143</div>
+          <div style="font-size:.8rem;color:var(--muted)">11 facturas de compra</div>
+        </div>
+      </div>
+      <div style="margin-top:14px;padding:12px 16px;background:#f6f8fc;border-left:3px solid var(--blue);border-radius:8px">
+        <div style="font-size:.78rem;font-weight:700;color:var(--blue);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">📚 Fuente de datos — de dónde sale esta variable</div>
+        <p style="font-size:.88rem;color:var(--muted);line-height:1.6"><b>SII · Registro de Compras y Ventas (RCV).</b> Mismo camino que P1 (Servicios online → Impuestos mensuales → Registro de Compras y Ventas → abrir el RCV → período = el mes anterior al actual → <b>Consultar</b>), pero aquí se entra a la pestaña <b>«COMPRA»</b> y se suma la columna <b>«IVA Recuperable»</b> de <b>todas las filas</b> (las notas de crédito restan): ese total es P2. ⚠️ El SII separa el IVA <b>recuperable</b> —el que la empresa puede descontar, columna «IVA Recuperable»— del <b>no recuperable</b> (compras sin derecho a crédito); el motor toma <b>solo el recuperable</b>. Cada fila es un documento de compra, identificable por su tipo, folio y el RUT del proveedor.</p>
+      </div>
+    </div>
+
+    <!-- Fórmula P3 -->
+    <div class="card reveal" style="margin-top:12px">
+      <div style="display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap">
+        <div style="flex:none;width:44px;height:44px;border-radius:12px;background:var(--teal-soft);display:grid;place-items:center;font-weight:800;color:var(--teal);font-size:1.1rem">P3</div>
+        <div style="flex:1;min-width:240px">
+          <h3 style="margin-bottom:4px">Remanente — saldo a favor del mes anterior</h3>
+          <p style="color:var(--muted);font-size:.93rem;margin-bottom:10px">Si en meses anteriores las compras superaron a las ventas, quedó un <b>saldo a favor</b> que se <b>arrastra</b>. Se toma del valor que entrega el SII (reajustado por la UTM) y entra en <b>negativo</b>.</p>
+          <div style="font-family:'SF Mono',Monaco,Consolas,monospace;background:#0B1F3A;color:#9ff0c4;padding:14px 18px;border-radius:10px;font-size:.92rem;overflow-x:auto">P3 = −|remanente_anterior|</div>
+          <p style="font-size:.82rem;color:var(--muted);margin-top:8px">⟶ <b>Propiedad:</b> P3 ≤ 0 siempre. El <code style="background:#eef1f6;padding:1px 5px;border-radius:3px">|…|</code> (valor absoluto) garantiza que entra como negativo sin importar cómo venga en la fuente.</p>
+        </div>
+        <div style="flex:none;min-width:160px;text-align:right">
+          <div style="font-size:.78rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Cliente 1 · abril</div>
+          <div style="font-size:1.5rem;font-weight:800;color:#e7a100;font-variant-numeric:tabular-nums">−$158.117</div>
+          <div style="font-size:.8rem;color:var(--muted)">arrastrado de marzo</div>
+        </div>
+      </div>
+      <div style="margin-top:14px;padding:12px 16px;background:#f6f8fc;border-left:3px solid var(--blue);border-radius:8px">
+        <div style="font-size:.78rem;font-weight:700;color:var(--blue);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">📚 Fuente de datos — de dónde sale esta variable</div>
+        <p style="font-size:.88rem;color:var(--muted);line-height:1.6"><b>SII · propuesta del F29 del período que se declara</b>, casilla <b>504</b> = «Remanente Crédito Fiscal mes anterior». <b>Ruta:</b> Servicios online → Impuestos mensuales → <b>Declaración mensual (F29)</b> → <b>Declarar IVA (F29)</b> → dejar el mes que viene predeterminado y <b>Aceptar</b> → <b>Continuar</b> → marcar <b>«Confirmar que no hay información adicional a incorporar»</b> → <b>«Confirmar que no debo completar»</b> → el SII muestra la <b>propuesta</b>; se presiona <b>«Ingresar aquí»</b> y se abre el F29 propuesto, donde se lee la casilla <b>504</b>. ⚠️ La 504 <b>puede aparecer o no</b>: si trae valor, la empresa <b>arrastra remanente</b> (P3 = ese valor, en negativo); si no aparece, <b>no hay remanente</b> y P3 = 0. El SII ya lo entrega <b>reajustado por la UTM</b>, por eso se usa directo. <b>Control anti-anomalía (D9):</b> el motor guarda el historial mensual del remanente y marca para revisión humana cualquier salto brusco y atípico — <b>nunca</b> acepta el valor a ciegas.</p>
+      </div>
+    </div>
+
+    <!-- Fórmula P4 -->
+    <div class="card reveal" style="margin-top:12px;border:2px solid var(--teal)">
+      <div style="display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap">
+        <div style="flex:none;width:44px;height:44px;border-radius:12px;background:linear-gradient(135deg,var(--teal),var(--blue));display:grid;place-items:center;font-weight:800;color:#06121f;font-size:1.1rem">P4</div>
+        <div style="flex:1;min-width:240px">
+          <h3 style="margin-bottom:4px">IVA determinado — el resultado central</h3>
+          <p style="color:var(--muted);font-size:.93rem;margin-bottom:10px">Es la <b>suma de las tres partes anteriores</b>. Su <b>signo lo decide todo</b>: si sale <b>positivo</b>, hay <b>IVA que pagar</b> este mes; si sale <b>negativo</b>, queda un <b>remanente a tu favor</b> que se arrastra al <b>próximo mes</b>.</p>
+          <div style="font-family:'SF Mono',Monaco,Consolas,monospace;background:#0B1F3A;color:#9ff0c4;padding:14px 18px;border-radius:10px;font-size:.92rem;overflow-x:auto">P4 = P1 + P2 + P3 &nbsp;&nbsp;&nbsp;⟶ &nbsp;P4 &gt; 0: paga IVA · P4 ≤ 0: saldo a favor</div>
+          <p style="font-size:.82rem;color:var(--muted);margin-top:8px">⟶ <b>Propiedad:</b> P4 puede ser positivo o negativo. No hay restricción de signo — el signo es <b>precisamente la decisión</b> que dispara la regla condicional de P6.</p>
+        </div>
+        <div style="flex:none;min-width:160px;text-align:right">
+          <div style="font-size:.78rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Cliente 1 · abril</div>
+          <div style="font-size:1.5rem;font-weight:800;color:#e7a100;font-variant-numeric:tabular-nums">−$417.798</div>
+          <div style="font-size:.8rem;color:var(--muted)">$462 − $260.143 − $158.117</div>
+        </div>
+      </div>
+      <div style="margin-top:14px;padding:12px 16px;background:#f6f8fc;border-left:3px solid var(--blue);border-radius:8px">
+        <div style="font-size:.78rem;font-weight:700;color:var(--blue);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">📚 Fuente de datos — de dónde sale esta variable</div>
+        <p style="font-size:.88rem;color:var(--muted);line-height:1.55"><b>No es una entrada externa — es un cálculo puro.</b> P4 se obtiene sumando los tres valores ya calculados (P1, P2, P3). No se lee de ninguna fuente: es <b>aritmética exacta</b> en tipo <code style="background:#eef1f6;padding:1px 5px;border-radius:3px">Decimal</code> (nunca <code style="background:#eef1f6;padding:1px 5px;border-radius:3px">float</code>) con redondeo a peso entero al final. El resultado se mapea al código F29 <b>89</b> (IVA determinado, si &gt; 0) o al código <b>77</b> (remanente, si ≤ 0). <b>Verificable:</b> cualquier persona con una calculadora puede confirmar $462 − $260.143 − $158.117 = −$417.798.</p>
+      </div>
+    </div>
+
+    <!-- Fórmula P5 -->
+    <div class="card reveal" style="margin-top:12px">
+      <div style="display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap">
+        <div style="flex:none;width:44px;height:44px;border-radius:12px;background:var(--teal-soft);display:grid;place-items:center;font-weight:800;color:var(--teal);font-size:1.1rem">P5</div>
+        <div style="flex:1;min-width:240px">
+          <h3 style="margin-bottom:4px">Otros impuestos — PPM, honorarios, impuesto único</h3>
+          <p style="color:var(--muted);font-size:.93rem;margin-bottom:10px">Independiente del IVA. El <b>PPM</b> es un anticipo de la renta: <b>PPM = base imponible × tasa</b>, donde la <b>base imponible</b> es la suma de las ventas del mes (neto + exento) y la <b>tasa es propia de cada cliente</b>. Más las <b>retenciones de honorarios</b> y de <b>impuesto único</b> a trabajadores.</p>
+          <div style="font-family:'SF Mono',Monaco,Consolas,monospace;background:#0B1F3A;color:#9ff0c4;padding:14px 18px;border-radius:10px;font-size:.92rem;overflow-x:auto">P5 = PPM + ret_honorarios + ret_impuesto_único<br>PPM = BI × tasa &nbsp;&nbsp;(BI = Σ Monto Neto + Monto Exento de las ventas)</div>
+          <p style="font-size:.82rem;color:var(--muted);margin-top:8px">⟶ <b>Propiedad:</b> P5 ≥ 0 siempre. Cada componente es un monto retenido o anticipado, por definición no negativo.</p>
+        </div>
+        <div style="flex:none;min-width:160px;text-align:right">
+          <div style="font-size:.78rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Cliente 1 · abril</div>
+          <div style="font-size:1.5rem;font-weight:800;color:var(--good);font-variant-numeric:tabular-nums">$3</div>
+          <div style="font-size:.8rem;color:var(--muted)">base $2.432 × 0,125%</div>
+        </div>
+      </div>
+      <div style="margin-top:14px;padding:12px 16px;background:#f6f8fc;border-left:3px solid var(--blue);border-radius:8px">
+        <div style="font-size:.78rem;font-weight:700;color:var(--blue);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">📚 Fuente de datos — de dónde sale cada componente</div>
+        <p style="font-size:.88rem;color:var(--muted);line-height:1.6"><b>Base imponible del PPM:</b> en el mismo RCV de P1 (pestaña <b>«VENTA»</b>, período = mes anterior), se suman las columnas <b>«Monto Neto»</b> y <b>«Monto Exento»</b> de <b>todas las filas</b>; las notas de crédito <b>restan</b>. Esa sumatoria es la base imponible.</p>
+        <p style="font-size:.88rem;color:var(--muted);line-height:1.6;margin-top:6px"><b>Tasa del PPM (casilla 115):</b> <b>no todos los clientes tienen la misma tasa.</b> Se lee del <b>mismo F29 propuesto</b> donde se obtiene el remanente (P3): en la subsección <b>PPM</b>, columna <b>«Tasa»</b>, casilla <b>115</b>. Para Cliente 1 es <b>0,125%</b>. Con eso: <b>PPM (casilla 62) = base imponible × tasa</b>.</p>
+        <p style="font-size:.88rem;color:var(--muted);line-height:1.6;margin-top:6px"><b>Retención de honorarios (casilla 151, Ley 21.133):</b> Servicios online → <b>Boleta de honorarios electrónica</b> → Emitir boleta → <b>Consulta sobre la boleta electrónica</b> → <b>Consultar boletas recibidas</b> → consulta por <b>año</b>. En el <b>«Informe anual de boletas de honorarios electrónicas recibidas»</b>, se toma la <b>fila del mes anterior</b> (p. ej. junio 2026) y de ahí el valor de la columna <b>«Retención de terceros»</b>.</p>
+        <p style="font-size:.88rem;color:var(--muted);line-height:1.6;margin-top:6px"><b>Retención de impuesto único (casilla 48):</b> <b>solo de Notion · base RR.HH. del mes</b> (es el <b>único dato fuera del SII</b>): columnas <b>«IMPUESTO ÚNICO»</b> (monto a declarar) y <b>«MONTO IMPOSICIONES|»</b> (referencia). El motor no lo calcula: lo <b>transcribe</b> del registro del asesor de RR.HH.</p>
+      </div>
+    </div>
+
+    <!-- Fórmula P6 -->
+    <div class="card reveal" style="margin-top:12px;border:2px solid var(--warn)">
+      <div style="display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap">
+        <div style="flex:none;width:44px;height:44px;border-radius:12px;background:#fff4d9;display:grid;place-items:center;font-weight:800;color:#9a7400;font-size:1.1rem">P6</div>
+        <div style="flex:1;min-width:240px">
+          <h3 style="margin-bottom:4px">Total a pagar — la regla condicional ⚠️</h3>
+          <p style="color:var(--muted);font-size:.93rem;margin-bottom:10px">Es el <b>error manual más común</b> y la razón de ser de la auditoría. Si hay IVA que pagar (P4 &gt; 0), se suma a los otros impuestos. <b>Pero si hay saldo a favor (P4 ≤ 0), ese saldo NO reduce los otros impuestos</b> — se arrastra, y PPM y retenciones <b>se pagan igual</b>.</p>
+          <div style="font-family:'SF Mono',Monaco,Consolas,monospace;background:#0B1F3A;color:#ffd98a;padding:14px 18px;border-radius:10px;font-size:.92rem;overflow-x:auto">P6 = P4 + P5 &nbsp;&nbsp;si P4 &gt; 0<br>P6 = P5 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;si P4 ≤ 0 &nbsp;(remanente se arrastra)</div>
+          <p style="font-size:.82rem;color:var(--muted);margin-top:8px">⟶ <b>Propiedad:</b> P6 ≥ P5 siempre. Los otros impuestos <b>nunca se anulan</b> por tener saldo a favor de IVA. El remanente (|P4| cuando P4 ≤ 0) se guarda como <code style="background:#eef1f6;padding:1px 5px;border-radius:3px">remanente_siguiente</code> para el próximo mes.</p>
+        </div>
+        <div style="flex:none;min-width:160px;text-align:right">
+          <div style="font-size:.78rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Cliente 1 · abril</div>
+          <div style="font-size:1.5rem;font-weight:800;color:var(--good);font-variant-numeric:tabular-nums">$3</div>
+          <div style="font-size:.8rem;color:var(--muted)">P4 ≤ 0 ⟹ solo P5</div>
+        </div>
+      </div>
+      <div style="margin-top:14px;padding:12px 16px;background:#f6f8fc;border-left:3px solid var(--blue);border-radius:8px">
+        <div style="font-size:.78rem;font-weight:700;color:var(--blue);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">📚 Fuente de datos — de dónde sale esta variable</div>
+        <p style="font-size:.88rem;color:var(--muted);line-height:1.55"><b>No es una entrada externa — es un cálculo puro.</b> P6 combina P4 y P5 (ya calculados) con un <b>if/else explícito</b> sobre el signo de P4. No se lee de ninguna fuente. Es la <b>regla tributaria más fácil de equivocar a mano</b>: cuando hay saldo a favor, el instinto es restarlo de todo — pero la ley dice que PPM y retenciones se pagan igual. El motor la codifica como una función por casos, sin interpretación. El resultado se mapea al código F29 <b>91</b> ("total a pagar dentro del plazo").</p>
+      </div>
+    </div>
+
+    <!-- 3b. ESPECIFICACIÓN TÉCNICA COMPLETA DEL PROCEDIMIENTO -->
+    <h3 style="margin-top:44px;font-size:1.2rem">🧭 Especificación técnica del procedimiento — cada click, cada campo, cada salida</h3>
+    <p style="color:var(--muted);font-size:.96rem;margin-top:8px;margin-bottom:18px">Esta es la <b>receta operativa exacta</b> que el motor ejecuta por cada cliente, cada mes. Está escrita <b>paso a paso, click por click</b> para que los expertos de GCP puedan auditarla y dar feedback. <b>Regla de período:</b> siempre se declara el <b>mes anterior al actual</b> (declarando en julio 2026 ⇒ el período es <b>junio 2026</b>). <b>Regla de dinero:</b> toda la aritmética se hace en <code style="background:#eef1f6;padding:1px 5px;border-radius:3px">Decimal</code> (precisión exacta), nunca <code style="background:#eef1f6;padding:1px 5px;border-radius:3px">float</code>; el redondeo a peso entero se aplica <b>una sola vez al final</b>, con la regla del SII (≥ 0,5 al entero mayor, &lt; 0,5 al menor).</p>
+
+    <!-- PASO 0 -->
+    <div class="card reveal" style="margin-top:16px;border-left:4px solid var(--navy)">
+      <div style="display:flex;gap:14px;align-items:flex-start;flex-wrap:wrap">
+        <div style="flex:none;width:36px;height:36px;border-radius:10px;background:var(--navy);color:#fff;display:grid;place-items:center;font-weight:800;font-size:.95rem">0</div>
+        <div style="flex:1;min-width:220px">
+          <h3 style="margin-bottom:6px">Entrar al SII con la identidad del cliente</h3>
+          <p style="color:var(--muted);font-size:.9rem;line-height:1.6"><b>Objetivo:</b> autenticarse en el SII como el cliente cuyo F29 se va a calcular.</p>
+          <div style="margin-top:10px;background:#f6f8fc;border-radius:8px;padding:12px 14px;font-size:.88rem;color:var(--ink);line-height:1.7">
+            <b>0.1</b> · Leer la fila del cliente en la base central (Notion · <i>General Customers Data</i>) y obtener <b>RUT</b> + <b>Clave SII</b>. <span style="color:var(--muted)">🔒 Las credenciales nunca se imprimen, se loguean ni salen del entorno; se usan solo para el login y se descartan.</span><br>
+            <b>0.2</b> · Abrir <a href="https://www4.sii.cl/" target="_blank" rel="noopener" style="color:var(--blue);font-weight:600">https://www4.sii.cl/</a> en el navegador automatizado.<br>
+            <b>0.3</b> · Ingresar el <b>RUT</b> en el campo «RUT Usuario» y la <b>Clave SII</b> en el campo «Clave».<br>
+            <b>0.4</b> · Click en el botón <b>«Ingresar»</b>.<br>
+            <b>0.5</b> · Si el SII muestra la pantalla «Escoja cómo desea ingresar» (porque el RUT está autorizado a representar a otros), elegir <b>«Ingresar a mi información tributaria personal (Continuar)»</b>.<br>
+            <b>0.6</b> · Verificar que el nombre del contribuyente mostrado en la esquina coincide con el de la base central. <span style="color:var(--muted)">Si no coincide, abortar y marcar para revisión.</span>
+          </div>
+          <div style="margin-top:10px;font-size:.82rem;color:var(--muted)"><b>Salida:</b> sesión iniciada en el SII como el cliente. <b>Tipo de login:</b> persona (RUT + Clave SII) o empresa (con Clave Única) — el motor lo determina por el perfil del cliente.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- PASO 1 — RCV VENTA -->
+    <div class="card reveal" style="margin-top:12px;border-left:4px solid var(--teal)">
+      <div style="display:flex;gap:14px;align-items:flex-start;flex-wrap:wrap">
+        <div style="flex:none;width:36px;height:36px;border-radius:10px;background:var(--teal);color:#06121f;display:grid;place-items:center;font-weight:800;font-size:.95rem">1</div>
+        <div style="flex:1;min-width:220px">
+          <h3 style="margin-bottom:6px">RCV · pestaña «VENTA» → P1 (débito) + base imponible del PPM</h3>
+          <p style="color:var(--muted);font-size:.9rem;line-height:1.6"><b>Objetivo:</b> extraer el IVA de las ventas (<b>P1</b>) y la base imponible del PPM (<b>BI</b> = neto + exento) desde el Registro de Compras y Ventas.</p>
+          <div style="margin-top:10px;background:#f6f8fc;border-radius:8px;padding:12px 14px;font-size:.88rem;color:var(--ink);line-height:1.7">
+            <b>1.1</b> · Desde el menú principal, ir a <b>Servicios online → Impuestos mensuales → Registro de Compras y Ventas</b>.<br>
+            <b>1.2</b> · Se abre el <a href="https://www4.sii.cl/consdcvinternetui/#/index" target="_blank" rel="noopener" style="color:var(--blue);font-weight:600">RCV</a> (<code>https://www4.sii.cl/consdcvinternetui/#/index</code>).<br>
+            <b>1.3</b> · En el campo <b>«Período»</b>, seleccionar el <b>mes anterior al actual</b> en formato <b>AAAA-MM</b> (p. ej. <b>2026-06</b>).<br>
+            <b>1.4</b> · Click en el botón <b>«Consultar»</b>.<br>
+            <b>1.5</b> · Click en la pestaña <b>«VENTA»</b> (no «Información Electrónica de Ventas»).<br>
+            <b>1.6</b> · Se despliega una tabla con una fila por cada documento emitido. Para <b>cada fila</b>, leer las columnas:<br>
+            &nbsp;&nbsp;&nbsp;&nbsp;• <b>«TpoDoc»</b> (tipo de documento: 33 factura electrónica, 48 comprobante de pago electrónico, 61 nota de crédito, 56 nota de débito, …).<br>
+            &nbsp;&nbsp;&nbsp;&nbsp;• <b>«NroDoc»</b> (folio).<br>
+            &nbsp;&nbsp;&nbsp;&nbsp;• <b>«FchDoc»</b> (fecha).<br>
+            &nbsp;&nbsp;&nbsp;&nbsp;• <b>«Monto Neto»</b> → suma a <b>BI</b>.<br>
+            &nbsp;&nbsp;&nbsp;&nbsp;• <b>«Monto Exento»</b> → suma a <b>BI</b>.<br>
+            &nbsp;&nbsp;&nbsp;&nbsp;• <b>«Monto IVA»</b> → <b>depende del TpoDoc</b>: si es nota de crédito (61), <b>resta</b>; en caso contrario, <b>suma</b> a <b>P1</b>.<br>
+            <b>1.7</b> · <b>P1</b> = Σ «Monto IVA» con signo (notas de crédito restan). <b>BI</b> = Σ («Monto Neto» + «Monto Exento») con la misma regla de notas de crédito.<br>
+            <b>1.8</b> · Si la tabla tiene varias páginas, paginar y sumar todas las filas (no solo la primera página).
+          </div>
+          <div style="margin-top:10px;font-size:.82rem;color:var(--muted)"><b>Salida (Cliente 1 · abril):</b> <code>P1 = $462</code> (3 comprobantes electrónicos, TpoDoc 48) · <code>BI = $2.432</code>. <b>Casilla F29 destino:</b> P1 → <code>502</code> (débito) y <code>538</code> (total débitos); cantidad de documentos → <code>503</code>.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- PASO 2 — RCV COMPRA -->
+    <div class="card reveal" style="margin-top:12px;border-left:4px solid var(--teal)">
+      <div style="display:flex;gap:14px;align-items:flex-start;flex-wrap:wrap">
+        <div style="flex:none;width:36px;height:36px;border-radius:10px;background:var(--teal);color:#06121f;display:grid;place-items:center;font-weight:800;font-size:.95rem">2</div>
+        <div style="flex:1;min-width:220px">
+          <h3 style="margin-bottom:6px">RCV · pestaña «COMPRA» → P2 (crédito)</h3>
+          <p style="color:var(--muted);font-size:.9rem;line-height:1.6"><b>Objetivo:</b> extraer el IVA de las compras (<b>P2</b>) desde el mismo RCV, pestaña «COMPRA».</p>
+          <div style="margin-top:10px;background:#f6f8fc;border-radius:8px;padding:12px 14px;font-size:.88rem;color:var(--ink);line-height:1.7">
+            <b>2.1</b> · Sin salir del RCV (mismo período ya fijado en 1.3), click en la pestaña <b>«COMPRA»</b> (no «Información Electrónica de Compras»).<br>
+            <b>2.2</b> · Se despliega una tabla con una fila por cada documento de compra recibido. Para <b>cada fila</b>, leer las columnas:<br>
+            &nbsp;&nbsp;&nbsp;&nbsp;• <b>«TpoDoc»</b>, <b>«NroDoc»</b>, <b>«FchDoc»</b>, <b>«RUTDoc»</b> (RUT del proveedor).<br>
+            &nbsp;&nbsp;&nbsp;&nbsp;• <b>«IVA Recuperable»</b> → es el campo <code>MntIVA</code> recuperable; <b>este</b> es el que suma al crédito.<br>
+            &nbsp;&nbsp;&nbsp;&nbsp;• <b>«IVA no Recuperable»</b> (<code>MntIVANoRec</code> + <code>CodIVANoRec</code>) → <b>NO</b> suma al crédito; se ignora para P2.<br>
+            &nbsp;&nbsp;&nbsp;&nbsp;• <b>«IVA Uso Común»</b> (<code>IVAUsoComun</code>) → solo para casos de proporcionalidad (avanzado).<br>
+            <b>2.3</b> · <b>P2</b> = −Σ «IVA Recuperable», aplicando signo a las notas de crédito (TpoDoc 61): si es NC, <b>resta</b> del crédito (es decir, suma con signo opuesto). El resultado se expresa en <b>negativo</b>.<br>
+            <b>2.4</b> · Si hay filas de DIN (Declaración de Ingreso por importación, TpoDoc 914), su «IVA Recuperable» también suma a P2.<br>
+            <b>2.5</b> · Paginar y sumar todas las filas.
+          </div>
+          <div style="margin-top:10px;font-size:.82rem;color:var(--muted)"><b>Salida (Cliente 1 · abril):</b> <code>P2 = −$260.143</code> (11 facturas de compra). <b>Casilla F29 destino:</b> P2 → <code>520</code> (crédito) y <code>537</code> (total créditos); cantidad → <code>519</code>.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- PASO 3 — PROPUESTA F29 -->
+    <div class="card reveal" style="margin-top:12px;border-left:4px solid var(--blue)">
+      <div style="display:flex;gap:14px;align-items:flex-start;flex-wrap:wrap">
+        <div style="flex:none;width:36px;height:36px;border-radius:10px;background:var(--blue);color:#fff;display:grid;place-items:center;font-weight:800;font-size:.95rem">3</div>
+        <div style="flex:1;min-width:220px">
+          <h3 style="margin-bottom:6px">Propuesta del F29 → P3 (remanente) + tasa del PPM (casilla 115)</h3>
+          <p style="color:var(--muted);font-size:.9rem;line-height:1.6"><b>Objetivo:</b> leer de la propuesta del F29 que arma el SII dos valores: el <b>remanente del mes anterior</b> (P3) y la <b>tasa del PPM</b> del cliente.</p>
+          <div style="margin-top:10px;background:#f6f8fc;border-radius:8px;padding:12px 14px;font-size:.88rem;color:var(--ink);line-height:1.7">
+            <b>3.1</b> · Desde el menú principal, ir a <b>Servicios online → Impuestos mensuales → Declaración mensual (F29)</b>.<br>
+            <b>3.2</b> · Click en <b>«Declarar IVA (F29)»</b>.<br>
+            <b>3.3</b> · El SII predetermina el <b>período del mes que viene</b> (el que se va a declarar). Dejarlo así y click en <b>«Aceptar»</b>.<br>
+            <b>3.4</b> · Click en <b>«Continuar»</b>.<br>
+            <b>3.5</b> · Marcar el checkbox <b>«Confirmar que no hay información adicional a incorporar»</b> y click en <b>«Confirmar»</b>.<br>
+            <b>3.6</b> · Marcar el checkbox <b>«Confirmar que no debo completar»</b> y click en <b>«Confirmar»</b>.<br>
+            <b>3.7</b> · El SII muestra la <b>propuesta de F29</b>. Click en <b>«Ingresar aquí»</b>.<br>
+            <b>3.8</b> · Se abre el F29 propuesto. Buscar la casilla <b>504</b> = «Remanente Crédito Fiscal mes anterior». <b>Si la casilla 504 trae un valor</b>, ese es el remanente (ya <b>reajustado por la UTM</b> por el propio SII); <b>P3 = −|504|</b>. <b>Si la casilla 504 no aparece o viene vacía</b>, no hay remanente y <b>P3 = 0</b>.<br>
+            <b>3.9</b> · En la misma propuesta, ir a la subsección <b>PPM</b> y leer la casilla <b>115</b> = «Tasa» (porcentaje con un decimal). Esa es la <b>tasa del PPM del cliente</b>.<br>
+            <b>3.10</b> · <b>Control anti-anomalía (D9):</b> comparar el 504 con el historial mensual del cliente, reajustado por la variación de la UTM. Si el salto es brusco y atípico, <b>marcar para revisión humana</b> — nunca aceptar el valor a ciegas.
+          </div>
+          <div style="margin-top:10px;font-size:.82rem;color:var(--muted)"><b>Salida (Cliente 1 · abril):</b> <code>P3 = −$158.117</code> (casilla 504 = $158.117) · <code>tasa_PPM = 0,125%</code> (casilla 115). <b>Casilla F29 destino:</b> P3 → <code>504</code>; tasa → <code>115</code>.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- PASO 4 — BOLETAS DE HONORIOS -->
+    <div class="card reveal" style="margin-top:12px;border-left:4px solid var(--blue)">
+      <div style="display:flex;gap:14px;align-items:flex-start;flex-wrap:wrap">
+        <div style="flex:none;width:36px;height:36px;border-radius:10px;background:var(--blue);color:#fff;display:grid;place-items:center;font-weight:800;font-size:.95rem">4</div>
+        <div style="flex:1;min-width:220px">
+          <h3 style="margin-bottom:6px">Boletas de honorarios → retención de honorarios (casilla 151)</h3>
+          <p style="color:var(--muted);font-size:.9rem;line-height:1.6"><b>Objetivo:</b> obtener la retención de honorarios del mes, desde el informe anual de boletas recibidas (Ley 21.133). Solo aplica si el cliente <b>recibe</b> boletas de honorarios (paga a profesionales).</p>
+          <div style="margin-top:10px;background:#f6f8fc;border-radius:8px;padding:12px 14px;font-size:.88rem;color:var(--ink);line-height:1.7">
+            <b>4.1</b> · Desde el menú principal, ir a <b>Servicios online → Boleta de honorarios electrónica</b>.<br>
+            <b>4.2</b> · Click en <b>«Emitir boleta»</b> (es el acceso a las consultas).<br>
+            <b>4.3</b> · Click en <b>«Consulta sobre la boleta electrónica»</b>.<br>
+            <b>4.4</b> · Click en <b>«Consultar boletas recibidas»</b>.<br>
+            <b>4.5</b> · En el campo de modo de consulta, seleccionar <b>«Año»</b> e ingresar el año en curso (p. ej. <b>2026</b>).<br>
+            <b>4.6</b> · Se despliega el <b>«Informe anual de boletas de honorarios electrónicas recibidas»</b>: una tabla con <b>una fila por mes</b> y columnas: «Emisiones vigentes», «Emisiones anuladas», «Honorario bruto», <b>«Retención de terceros»</b>, «Total líquido».<br>
+            <b>4.7</b> · Localizar la <b>fila del mes anterior</b> (p. ej. <b>JUNIO</b>) y leer el valor de la columna <b>«Retención de terceros»</b>. Ese es <code>ret_honorarios</code>.<br>
+            <b>4.8</b> · Si el cliente no recibe boletas (no paga profesionales), <code>ret_honorarios = 0</code> y esta casilla no se llena.
+          </div>
+          <div style="margin-top:10px;font-size:.82rem;color:var(--muted)"><b>Salida (Cliente 1 · abril):</b> <code>ret_honorarios = $0</code> (sin boletas recibidas). <b>Casilla F29 destino:</b> <code>151</code>.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- PASO 5 — NOTION RRHH -->
+    <div class="card reveal" style="margin-top:12px;border-left:4px solid #7a5cff">
+      <div style="display:flex;gap:14px;align-items:flex-start;flex-wrap:wrap">
+        <div style="flex:none;width:36px;height:36px;border-radius:10px;background:#7a5cff;color:#fff;display:grid;place-items:center;font-weight:800;font-size:.95rem">5</div>
+        <div style="flex:1;min-width:220px">
+          <h3 style="margin-bottom:6px">Notion · RR.HH. del mes → retención de impuesto único (casilla 48)</h3>
+          <p style="color:var(--muted);font-size:.9rem;line-height:1.6"><b>Objetivo:</b> obtener la retención de impuesto único a los trabajadores. <b>Es el único dato que no sale del SII</b>: vive en la base de RR.HH. del asesor (Notion).</p>
+          <div style="margin-top:10px;background:#f6f8fc;border-radius:8px;padding:12px 14px;font-size:.88rem;color:var(--ink);line-height:1.7">
+            <b>5.1</b> · Abrir la base <b>RR.HH. &lt;MES&gt; 2026</b> en Notion (la del mes que se declara).<br>
+            <b>5.2</b> · Localizar la fila del cliente por <b>RUT</b> (cruce con la base central).<br>
+            <b>5.3</b> · Leer la columna <b>«IMPUESTO ÚNICO»</b> → ese es el monto a declarar (<code>ret_impuesto_unico</code>).<br>
+            <b>5.4</b> · Leer la columna <b>«MONTO IMPOSICIONES|»</b> → valor de referencia (no se declara, sirve para trazabilidad y control).<br>
+            <b>5.5</b> · El motor <b>no calcula</b> este valor: lo <b>transcribe</b> del registro del asesor de RR.HH. Si el cliente no tiene trabajadores, <code>ret_impuesto_unico = 0</code>.
+          </div>
+          <div style="margin-top:10px;font-size:.82rem;color:var(--muted)"><b>Salida (Cliente 1 · abril):</b> <code>ret_impuesto_unico = $0</code> (sin trabajadores). <b>Casilla F29 destino:</b> <code>48</code>.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- PASO 6 — CÁLCULO FINAL -->
+    <div class="card reveal" style="margin-top:12px;border:2px solid var(--teal)">
+      <div style="display:flex;gap:14px;align-items:flex-start;flex-wrap:wrap">
+        <div style="flex:none;width:36px;height:36px;border-radius:10px;background:linear-gradient(135deg,var(--teal),var(--blue));color:#06121f;display:grid;place-items:center;font-weight:800;font-size:.95rem">6</div>
+        <div style="flex:1;min-width:220px">
+          <h3 style="margin-bottom:6px">Cálculo final — P4, P5, P6 y mapeo a códigos F29</h3>
+          <p style="color:var(--muted);font-size:.9rem;line-height:1.6"><b>Objetivo:</b> con las 5 variables obtenidas (P1, P2, P3, BI, tasa_PPM, ret_honorarios, ret_impuesto_unico), calcular P4, P5 y P6, y mapearlos a los códigos del F29. <b>No se leen más fuentes</b>: es aritmética pura.</p>
+          <div style="margin-top:10px;background:#f6f8fc;border-radius:8px;padding:12px 14px;font-size:.88rem;color:var(--ink);line-height:1.7">
+            <b>6.1 · P4 (IVA determinado)</b> = P1 + P2 + P3, en <code>Decimal</code>.<br>
+            &nbsp;&nbsp;&nbsp;&nbsp;• Si <b>P4 &gt; 0</b> → mapear a casilla <b>89</b> (IVA a pagar). <code>77 = 0</code>.<br>
+            &nbsp;&nbsp;&nbsp;&nbsp;• Si <b>P4 ≤ 0</b> → mapear a casilla <b>77</b> = |P4| (remanente que se arrastra al próximo mes). <code>89 = 0</code>.<br>
+            <b>6.2 · PPM (casilla 62)</b> = redondear(<b>BI × tasa_PPM</b>) a peso entero, con la regla del SII (≥ 0,5 sube, &lt; 0,5 baja).<br>
+            <b>6.3 · P5 (otros impuestos)</b> = PPM + ret_honorarios + ret_impuesto_unico.<br>
+            &nbsp;&nbsp;&nbsp;&nbsp;• Subtotal de la sección D → casilla <b>595</b>.<br>
+            <b>6.4 · P6 (total a pagar)</b>:<br>
+            &nbsp;&nbsp;&nbsp;&nbsp;• Si <b>P4 &gt; 0</b>: <b>P6 = P4 + P5</b> → casilla <b>91</b> («total a pagar en plazo legal»).<br>
+            &nbsp;&nbsp;&nbsp;&nbsp;• Si <b>P4 ≤ 0</b>: <b>P6 = P5</b> (el IVA no se paga; el remanente |P4| se guarda como <code>remanente_siguiente</code> para el próximo mes) → casilla <b>91 = P5</b>.<br>
+            <b>6.5 · Totales finales</b>: <code>91</code> = total en plazo · <code>92</code> = 91 + IPC (solo fuera de plazo) · <code>93</code> = 92 + intereses/multas · <code>94</code> = total con recargo.
+          </div>
+          <div style="margin-top:10px;font-size:.82rem;color:var(--muted)"><b>Salida (Cliente 1 · abril):</b> <code>P4 = −$417.798</code> (→ casilla 77 = $417.798, casilla 89 = 0) · <code>PPM = round($2.432 × 0,00125) = $3</code> (→ casilla 62) · <code>P5 = $3</code> (→ casilla 595) · <code>P6 = $3</code> (→ casilla 91). <b>La empresa paga $3 de PPM; el IVA queda a favor.</b></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- RESUMEN EJECUTIVO DEL PROCEDIMIENTO -->
+    <div class="card reveal" style="margin-top:16px;background:linear-gradient(160deg,var(--navy),var(--navy-2));color:#fff;border:none">
+      <h3 style="color:#fff;margin-bottom:12px">📋 Resumen ejecutivo del procedimiento</h3>
+      <div style="font-size:.9rem;line-height:1.8;color:#cfe0f4">
+        <b>0</b> Login SII · <b>1</b> RCV «VENTA» → P1 + BI · <b>2</b> RCV «COMPRA» → P2 · <b>3</b> Propuesta F29 → P3 (casilla 504) + tasa (casilla 115) · <b>4</b> Boletas recibidas → ret. honorarios (casilla 151) · <b>5</b> Notion RR.HH. → imp. único (casilla 48) · <b>6</b> Cálculo: P4 = P1+P2+P3 · P5 = (BI×tasa) + ret_h + ret_iu · P6 = P4+P5 si P4&gt;0, sino P5 → casillas 89/77/62/595/91.
+      </div>
+      <p style="font-size:.82rem;color:#9fb6d4;margin-top:12px">3 visitas al SII (RCV, propuesta F29, boletas) + 1 lectura de Notion RR.HH. + cálculo puro. <b>Una sola consulta al RCV entrega 3 datos</b> (P1, P2 y BI), por eso los pasos 1 y 2 comparten el mismo acceso.</p>
+    </div>
+
+    <!-- 4. EL CASO REAL COMPLETO -->
+    <h3 style="margin-top:44px;font-size:1.2rem">✅ La demostración — caso real "Cliente 1" completo</h3>
+    <p style="color:var(--muted);font-size:.96rem;margin-top:8px;margin-bottom:18px">Estos <b>cinco números</b> son la prueba de fuego del motor: cualquier implementación debe reproducirlos <b>exactamente, al peso</b>. Ya están verificados contra la propuesta del SII.</p>
+
+    <div class="card reveal" style="margin-top:8px;background:linear-gradient(160deg,var(--navy),var(--navy-2));color:#fff;border:none">
+      <div style="font-family:'SF Mono',Monaco,Consolas,monospace;font-size:.95rem;line-height:2;padding:8px 0;overflow-x:auto">
+        <div style="color:#9fb6d4">Entradas:</div>
+        <div>&nbsp;&nbsp;IVA ventas (P1)&nbsp;&nbsp;&nbsp;&nbsp;= &nbsp;&nbsp;&nbsp;&nbsp;<b style="color:#9ff0c4">$462</b></div>
+        <div>&nbsp;&nbsp;IVA compras (P2)&nbsp;&nbsp;= &nbsp;<b style="color:#ffd98a">−$260.143</b></div>
+        <div>&nbsp;&nbsp;Remanente (P3)&nbsp;&nbsp;&nbsp;= &nbsp;<b style="color:#ffd98a">−$158.117</b></div>
+        <div style="border-top:1px solid rgba(255,255,255,.15);margin:10px 0;padding-top:10px">
+          <div style="color:#9fb6d4">Cálculo:</div>
+          <div>&nbsp;&nbsp;IVA determinado (P4) = P1 + P2 + P3</div>
+          <div>&nbsp;&nbsp;= $462 − $260.143 − $158.117 = <b style="color:#ffd98a">−$417.798</b></div>
+          <div>&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#9ff0c4">⟹ negativo: NO se paga IVA, $417.798 se arrastra</span></div>
+          <div style="margin-top:8px">&nbsp;&nbsp;PPM = ($462 ÷ 0,19) × 0,125% = $2.432 × 0,00125 ≈ <b style="color:#9ff0c4">$3</b></div>
+          <div>&nbsp;&nbsp;Otros impuestos (P5) = <b style="color:#9ff0c4">$3</b> <span style="color:#9fb6d4">(solo PPM; honorarios y ret. imp. único = $0 en este caso)</span></div>
+          <div style="border-top:1px solid rgba(255,255,255,.15);margin:10px 0;padding-top:10px">
+            <div style="color:#9fb6d4">Total (P6):</div>
+            <div>&nbsp;&nbsp;P4 ≤ 0 ⟹ P6 = P5 = <b style="color:#9ff0c4;font-size:1.15rem">$3</b></div>
+            <div>&nbsp;&nbsp;<span style="color:#9ff0c4">⟹ la empresa paga $3 de PPM; el IVA queda a favor</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 5. LA ESTRUCTURA REAL DEL F29 Y LA SELECCIÓN DE VARIABLES -->
+    <h3 style="margin-top:44px;font-size:1.2rem">🗂️ Las casillas del F29 que usamos — qué significa cada una</h3>
+    <p style="color:var(--muted);font-size:.96rem;margin-top:8px;margin-bottom:18px">El Formulario 29 tiene ~140 casillas (el SII las llama "códigos"). Un cliente típico usa entre <b>8 y 12</b>. Estas son las que importan, agrupadas por concepto y explicadas en simple:</p>
+    <div class="grid g3">
+      <div class="card reveal">
+        <h3 style="font-size:1.02rem">🧾 Ventas — lo que cobraste</h3>
+        <p style="color:var(--muted);font-size:.9rem;line-height:1.8;margin-top:8px">
+          <b><code>502</code> · Débito fiscal:</b> el IVA que cobraste en tus ventas del mes.<br>
+          <b><code>503</code>:</b> cuántas facturas de venta emitiste.<br>
+          <b><code>538</code> · Total débitos:</b> la suma de todo el IVA de tus ventas.
+        </p>
+      </div>
+      <div class="card reveal">
+        <h3 style="font-size:1.02rem">🛒 Compras — lo que pagaste</h3>
+        <p style="color:var(--muted);font-size:.9rem;line-height:1.8;margin-top:8px">
+          <b><code>520</code> · Crédito fiscal:</b> el IVA que pagaste en tus compras y puedes descontar.<br>
+          <b><code>519</code>:</b> cuántas facturas de compra recibiste.<br>
+          <b><code>504</code> · Remanente:</b> IVA a favor que traías del mes anterior.<br>
+          <b><code>537</code> · Total créditos:</b> IVA de compras + el remanente.
+        </p>
+      </div>
+      <div class="card reveal">
+        <h3 style="font-size:1.02rem">⚖️ Resultado del IVA</h3>
+        <p style="color:var(--muted);font-size:.9rem;line-height:1.8;margin-top:8px">
+          <b><code>89</code> · IVA determinado:</b> si el débito supera al crédito, es el <b>IVA a pagar</b> este mes.<br>
+          <b><code>77</code> · Remanente al mes siguiente:</b> si el crédito supera al débito, el <b>saldo a favor</b> que se arrastra.
+        </p>
+      </div>
+      <div class="card reveal">
+        <h3 style="font-size:1.02rem">📅 Otros impuestos</h3>
+        <p style="color:var(--muted);font-size:.9rem;line-height:1.8;margin-top:8px">
+          <b><code>62</code> · PPM:</b> anticipo del impuesto a la renta — un % de las ventas netas.<br>
+          <b><code>151</code> · Retención de honorarios:</b> lo que retienes al pagar boletas de honorarios a profesionales (Ley 21.133).<br>
+          <b><code>48</code> · Retención de impuesto único:</b> lo que retienes del sueldo de tus trabajadores.<br>
+          <b><code>595</code>:</b> el subtotal de estos otros impuestos.
+        </p>
+      </div>
+      <div class="card reveal">
+        <h3 style="font-size:1.02rem">💰 Total a pagar</h3>
+        <p style="color:var(--muted);font-size:.9rem;line-height:1.8;margin-top:8px">
+          <b><code>91</code> · Total en plazo:</b> lo que finalmente se paga dentro del plazo legal.<br>
+          <b><code>92</code> / <code>93</code>:</b> reajuste por IPC e intereses/multas — solo si se paga fuera de plazo.
+        </p>
+      </div>
+      <div class="card reveal">
+        <h3 style="font-size:1.02rem">🧩 Casos especiales <span class="pct">(solo algunos)</span></h3>
+        <p style="color:var(--muted);font-size:.9rem;line-height:1.8;margin-top:8px">
+          <b>ILA:</b> impuesto a las bebidas — solo si vendes bebidas alcohólicas o analcohólicas.<br>
+          <b>Diésel:</b> recuperación del impuesto al petróleo diésel — transportistas y ciertos giros.<br>
+          <b>27 bis:</b> recuperación de IVA por compra de activo fijo grande.<br>
+          <b>Cambio de sujeto:</b> régimen donde el comprador retiene el IVA — ciertos rubros.
+        </p>
+      </div>
+    </div>
+
+    <h4 style="margin-top:28px;font-size:1.05rem">Cómo se elige, según lo que hace cada cliente</h4>
+    <div class="card reveal" style="margin-top:14px">
+      <table class="dt">
+        <tr><td>Si <b>vende</b> con IVA</td><td>se llenan <code>502</code>, <code>503</code> y su total <code>538</code></td></tr>
+        <tr><td>Si <b>compra</b> con IVA que puede descontar</td><td>se llenan <code>519</code>, <code>520</code> y su total <code>537</code></td></tr>
+        <tr><td>Si <b>importa</b> bienes</td><td>la declaración de importación (DIN) se suma al crédito</td></tr>
+        <tr><td>Si <b>traía saldo a favor</b> del mes anterior</td><td>entra en <code>504</code>; si este mes vuelve a quedar a favor, sale en <code>77</code></td></tr>
+        <tr><td>Si <b>paga PPM</b> (anticipo de renta)</td><td>se llena <code>62</code> = ventas netas × su tasa (la fija el SII por contribuyente)</td></tr>
+        <tr><td>Si <b>paga honorarios</b> a profesionales</td><td>se llena <code>151</code> con la retención de esas boletas</td></tr>
+        <tr><td>Si <b>tiene trabajadores</b></td><td>se llena <code>48</code> con el impuesto único (dato de RR.HH.)</td></tr>
+        <tr><td>Si <b>vende bebidas</b>, es <b>exportador</b> o hace <b>27 bis</b>…</td><td>se abre su casilla especial (ILA, exportación, activo fijo)</td></tr>
+        <tr><td>Si <b>no tuvo movimiento</b> el mes</td><td>se declara en cero: ninguna casilla se llena</td></tr>
+      </table>
+      <p style="font-size:.88rem;color:var(--muted);margin-top:14px"><b>Cliente 1</b> usó <b>11 casillas</b> (las de ventas, compras, resultado del IVA y el PPM); las otras ~130 quedaron en cero. Un cliente con honorarios y trabajadores usaría además <code>151</code> y <code>48</code>. El cálculo es el mismo para todos; <b>lo que cambia es qué casillas aplican a cada caso</b>, y eso lo define el perfil del cliente guardado en la base central.</p>
+    </div>
+
+    <!-- 6. CÓMO SE GARANTIZA LA EXACTITUD (factual, no eslogan) -->
+    <h3 style="margin-top:44px;font-size:1.2rem">🔧 Cómo se garantiza la exactitud — el detalle técnico</h3>
+    <div class="grid g2" style="margin-top:16px">
+      <div class="card reveal">
+        <h3 style="margin-bottom:6px">Cálculo al peso exacto, sin errores de redondeo</h3>
+        <p style="color:var(--muted);font-size:.93rem;line-height:1.65">Los pasos intermedios dividen y aplican porcentajes (ej. <code>ventas netas = IVA ÷ 0,19</code>, <code>PPM = base × 0,125%</code>). El motor los hace con <b>aritmética de precisión exacta</b> —no la aproximada que arrastra centavos de error— y redondea a peso entero <b>una sola vez, al final</b>, con una regla fija. Con las mismas entradas, el resultado es siempre idéntico.</p>
+      </div>
+      <div class="card reveal">
+        <h3 style="margin-bottom:6px">Cada peso, rastreable a su factura</h3>
+        <p style="color:var(--muted);font-size:.93rem;line-height:1.65">Cada monto queda ligado al documento que lo originó por su <b>tipo de documento y su folio</b>. Para cualquier casilla del F29 se puede reconstruir la lista exacta de facturas o boletas que la componen — lo que se necesita para auditar y para responder ante una revisión del SII.</p>
+      </div>
+      <div class="card reveal">
+        <h3 style="margin-bottom:6px">Contraste contra la propuesta del SII</h3>
+        <p style="color:var(--muted);font-size:.93rem;line-height:1.65">El resultado propio se compara con la propuesta del F29 que el SII arma a partir del RCV, <b>casilla por casilla</b>. Cada diferencia se reporta con la casilla, el monto de cada lado y el documento que probablemente la causa. Es un segundo punto de contraste, no una verdad absoluta: si el propio SII se equivoca, la diferencia también aparece.</p>
+      </div>
+      <div class="card reveal">
+        <h3 style="margin-bottom:6px">Control de calidad antes de calcular</h3>
+        <p style="color:var(--muted);font-size:.93rem;line-height:1.65">Cada archivo del SII pasa un <b>control de calidad automático</b> antes de usarse: columnas completas, montos coherentes (nada negativo donde no corresponde), sin documentos duplicados y RUT con dígito verificador válido. Un archivo incompleto o inconsistente se rechaza en la entrada, indicando el problema — nunca produce un resultado incorrecto sin avisar.</p>
+      </div>
+    </div>
+    <p class="note reveal">El monto del impuesto lo determinan estas reglas y los datos del SII. La inteligencia artificial interviene <b>después</b> del cálculo, solo para explicar las diferencias y detectar anomalías — <b>nunca</b> para determinar un monto.</p>
+
+    <!-- 7. EL PLAN POR ETAPAS -->
+    <h3 style="margin-top:44px;font-size:1.2rem">🗺️ El plan de construcción, por etapas</h3>
+    <div class="phases-band" style="margin-top:18px">
+      <div class="pband reveal"><div class="pk">Etapa B0 · ahora</div><b>Validar el plan contigo</b><p>Confirmar fuentes, casos y supuestos. Es lo que estás revisando.</p></div>
+      <div class="pband reveal"><div class="pk">Etapa B1</div><b>Mapa maestro del F29</b><p>Cada código oficial → qué significa → de qué dato sale → cuándo aplica.</p></div>
+      <div class="pband reveal"><div class="pk">Etapa B2</div><b>Muestras reales</b><p>Un par de descargas reales (RCV + boletas) para afinar la lectura automática.</p></div>
+      <div class="pband reveal"><div class="pk">Etapa B3</div><b>Construir el motor</b><p>Las 6 partes en código, determinista y con precisión al peso.</p></div>
+      <div class="pband reveal"><div class="pk">Etapa B4</div><b>Prueba de fuego</b><p>Reproducir el caso real al peso exacto, antes de escalar.</p></div>
+      <div class="pband reveal"><div class="pk">Etapa B5</div><b>Cálculo tentativo por cliente</b><p>Un F29 propuesto por cliente, para revisar y ajustar contigo.</p></div>
+    </div>
+
+    <!-- 8. LO QUE NECESITAMOS DE CARLOS -->
+    <h3 style="margin-top:44px;font-size:1.2rem">🙋 Lo que necesitamos de ti para validar el plan</h3>
+    <div class="card reveal" style="margin-top:16px">
+      <ul style="padding-left:20px;color:var(--muted);font-size:.98rem;line-height:1.95">
+        <li>¿El RCV, las boletas de honorarios y RR.HH. cubren <b>todo</b>, o hay clientes con otros impuestos?</li>
+        <li><b>PPM:</b> ¿la tasa es por contribuyente? ¿hay clientes sin PPM?</li>
+        <li><b>Honorarios:</b> por cliente, ¿emite boletas, las recibe, o ambos?</li>
+        <li><b>Impuesto único:</b> ¿la retención a declarar sale directo de la columna de RR.HH.?</li>
+        <li>¿Nos facilitas <b>1–2 descargas reales</b> (RCV + boletas) para fijar el lector?</li>
+        <li>¿Qué clientes son <b>casos especiales</b> (27 bis, exportador, sin movimiento…)?</li>
+      </ul>
+    </div>
+
+    <div class="secure-note reveal" style="margin-top:30px;border-left-color:var(--good)">
+      <span class="e" aria-hidden="true">🟢</span>
+      <p><b>Nada se calcula todavía.</b> Este es el plan para que lo revises. Con tu visto bueno arrancamos a construir el motor — siempre <b>determinista y verificable</b> (la IA explica, nunca inventa el monto) y auditado contra la propia propuesta del SII.</p>
+    </div>
+  </div>
+</section>
+
+<!-- 8 · HOJA DE RUTA -->
+<section id="hoja-de-ruta" class="pipe">
+  <div class="wrap">
+    <div class="reveal">
+      <span class="eyebrow">El plan, de aquí en adelante</span>
+      <h2 class="stitle">Hoja de ruta</h2>
+      <p class="ssub">De prueba de concepto a herramienta diaria, en pasos seguros. Cada fase entrega algo que funciona y se puede mostrar; avanzamos solo cuando lo anterior está verificado.</p>
     </div>
     <div class="timeline">
-      <div class="tl done reveal"><h4><span class="ph">Fase 0</span> Cimientos y red de seguridad <span class="status st-done">Casi lista</span></h4><p>Caso real, lógica documentada, formulario oficial de referencia, base de clientes conectada y respaldos operativos. La base ya existe.</p></div>
-      <div class="tl now reveal"><h4><span class="ph">Fase 1</span> Centralizar la data + formalizar las reglas <span class="status st-now">En foco</span></h4><p>Recuperar y completar la base en Notion, y construir el diccionario de códigos del F29: el “idioma” entre tus planillas y el SII.</p></div>
+      <div class="tl done reveal"><h4><span class="ph">Fase 0</span> Cimientos y red de seguridad <span class="status st-done">Completa</span></h4><p>Caso real, lógica documentada, formulario oficial de referencia, base de clientes conectada y respaldos operativos. La base ya existe.</p></div>
+      <div class="tl now reveal"><h4><span class="ph">Fase 1</span> Centralizar la data + formalizar las reglas <span class="status st-now">En foco</span></h4><p>Base recuperada, ampliada a 331 clientes, validada, con las 4 decisiones de cierre resueltas <b>y el barrido de bases mensuales ejecutado</b> (Febrero barrido completo: 1 clave rescatada, listos 323 → 324). Faltan <b>7 datos que tu responsable debe aportar</b> (no están en Notion) para cerrar el Frente A, y luego construir el diccionario de códigos del F29.</p></div>
       <div class="tl reveal"><h4><span class="ph">Fase 2</span> Motor de cálculo automático <span class="status st-next">Siguiente</span></h4><p>El programa reproduce la planilla solo. Prueba de fuego: dar exactamente el resultado del caso real.</p></div>
       <div class="tl reveal"><h4><span class="ph">Fase 3</span> Conexión con datos del SII <span class="status st-next">Siguiente</span></h4><p>Cargar los libros de compra/venta directo, sin tipear nada a mano.</p></div>
       <div class="tl reveal"><h4><span class="ph">Fase 4</span> Auditoría automática <span class="status st-next">Siguiente</span></h4><p>Comparar contra la propuesta del SII y señalar cada diferencia con su causa.</p></div>
@@ -531,13 +1148,13 @@
   </div>
 </section>
 
-<!-- CHECKLIST MAESTRO -->
+<!-- 8 · CHECKLIST -->
 <section id="checklist">
   <div class="wrap">
     <div class="reveal">
-      <span class="eyebrow">Checklist maestro</span>
-      <h2 class="stitle">Todo el proyecto, de inicio a fin, en una lista.</h2>
-      <p class="ssub">El detalle de cada paso, con lo ya hecho marcado. Así sabes exactamente dónde estamos y qué falta. <span class="muted">(Versión técnica completa con algoritmos en la documentación del proyecto.)</span></p>
+      <span class="eyebrow">Tarea por tarea</span>
+      <h2 class="stitle">Checklist</h2>
+      <p class="ssub">Todo el proyecto, de inicio a fin, con lo ya hecho marcado. Así sabes exactamente dónde estamos y qué falta. <span class="muted">(Versión técnica completa con algoritmos en la documentación del proyecto.)</span></p>
     </div>
     <div class="checklist">
 
@@ -545,9 +1162,9 @@
       <div class="phase is-done reveal">
         <div class="phase-h">
           <h3><span class="ph">Fase 0</span> Cimientos y red de seguridad</h3>
-          <div class="phase-meta"><span class="phase-st st-done">6 / 7</span></div>
+          <div class="phase-meta"><span class="phase-st st-done">7 / 7</span></div>
         </div>
-        <div class="bar"><span style="width:86%"></span></div>
+        <div class="bar"><span style="width:100%"></span></div>
         <ul class="cklist">
           <li class="ck done"><span class="box" aria-hidden="true">✓</span><span>Caso real (Cliente 1) y lógica documentada</span></li>
           <li class="ck done"><span class="box" aria-hidden="true">✓</span><span>Formulario 29 oficial de referencia</span></li>
@@ -555,7 +1172,7 @@
           <li class="ck done"><span class="box" aria-hidden="true">✓</span><span>Base de clientes conectada y mapeada (171)</span></li>
           <li class="ck done"><span class="box" aria-hidden="true">✓</span><span>Red de seguridad: respaldo + copia de trabajo</span></li>
           <li class="ck done"><span class="box" aria-hidden="true">✓</span><span>Fuentes de datos faltantes identificadas</span></li>
-          <li class="ck todo"><span class="box" aria-hidden="true">✓</span><span>Control de versiones del avance</span></li>
+          <li class="ck done"><span class="box" aria-hidden="true">✓</span><span>Control de versiones del avance</span></li>
         </ul>
       </div>
 
@@ -563,14 +1180,18 @@
       <div class="phase is-now reveal">
         <div class="phase-h">
           <h3><span class="ph">Fase 1</span> Centralizar data + reglas</h3>
-          <div class="phase-meta"><span class="phase-st st-now">En foco</span></div>
+          <div class="phase-meta"><span class="phase-st st-now">7 / 9 · En foco</span></div>
         </div>
-        <div class="bar"><span style="width:6%"></span></div>
+        <div class="bar"><span style="width:78%"></span></div>
         <ul class="cklist">
-          <li class="ck todo"><span class="box" aria-hidden="true">✓</span><span>Mapear las 3 fuentes auxiliares de datos</span></li>
-          <li class="ck todo"><span class="box" aria-hidden="true">✓</span><span>Recuperar y completar la base de clientes</span></li>
+          <li class="ck done"><span class="box" aria-hidden="true">✓</span><span>Mapear las 3 fuentes auxiliares de datos</span></li>
+          <li class="ck done"><span class="box" aria-hidden="true">✓</span><span>Limpiar y corregir RUTs de los clientes existentes</span></li>
+          <li class="ck done"><span class="box" aria-hidden="true">✓</span><span>Completar credenciales, contacto y responsables (151 datos)</span></li>
+          <li class="ck done"><span class="box" aria-hidden="true">✓</span><span>Agregar los clientes nuevos detectados en las fuentes (163 registros)</span></li>
+          <li class="ck done"><span class="box" aria-hidden="true">✓</span><span>Control de calidad automático de datos sobre la base completa</span></li>
+          <li class="ck done"><span class="box" aria-hidden="true">✓</span><span>Trazabilidad de origen para cada fila (Origen + relación fuente)</span></li>
+          <li class="ck done"><span class="box" aria-hidden="true">✓</span><span>Barrido de bases mensuales (Febrero) + enriquecimiento general</span></li>
           <li class="ck todo"><span class="box" aria-hidden="true">✓</span><span>Diccionario de los códigos del F29</span></li>
-          <li class="ck todo"><span class="box" aria-hidden="true">✓</span><span>Catálogo de tipos de documento</span></li>
           <li class="ck todo"><span class="box" aria-hidden="true">✓</span><span>Reglas de cálculo formalizadas</span></li>
         </ul>
       </div>
@@ -651,12 +1272,64 @@
   </div>
 </section>
 
-<!-- BENEFICIOS -->
-<section style="background:linear-gradient(180deg,#fff,#f0f4fb)">
+<!-- 9 · DEMO -->
+<section id="demo" class="calc-section">
+  <div class="wrap">
+    <div class="reveal">
+      <span class="eyebrow" style="color:var(--teal)">Pruébalo tú mismo <span class="tag">Caso real: Cliente 1 · Abril</span></span>
+      <h2 class="stitle">Demo</h2>
+      <p class="ssub">Mueve los valores y mira el impuesto recalcularse al instante. Así de simple es la lógica que AuditAI ejecuta. Partimos con los datos reales del caso de prueba; cámbialos y observa cuándo se <b>paga IVA</b> y cuándo queda un <b>saldo a favor</b>.</p>
+    </div>
+    <div class="calc">
+      <!-- INPUTS -->
+      <div class="panel reveal">
+        <h3>🎛️ Los datos del mes</h3>
+        <div class="field">
+          <label for="debito">IVA de tus <b>ventas</b> (débito) <b id="vDebito">$462</b></label>
+          <input type="range" id="debito" min="0" max="1000000" step="1000" value="462" aria-label="IVA de tus ventas (débito fiscal)">
+        </div>
+        <div class="field">
+          <label for="credito">IVA de tus <b>compras</b> (crédito) <b id="vCredito">$260.143</b></label>
+          <input type="range" id="credito" min="0" max="1000000" step="1000" value="260143" aria-label="IVA de tus compras (crédito fiscal)">
+        </div>
+        <div class="field">
+          <label for="remanente"><b>Remanente</b> a favor del mes anterior <b id="vRemanente">$158.117</b></label>
+          <input type="range" id="remanente" min="0" max="1000000" step="1000" value="158117" aria-label="Remanente a favor del mes anterior">
+        </div>
+        <div class="field">
+          <label for="otros">Otros impuestos (<b>PPM</b>, honorarios…) <b id="vOtros">$3</b></label>
+          <input type="range" id="otros" min="0" max="50000" step="1" value="3" aria-label="Otros impuestos: PPM, retenciones de honorarios">
+        </div>
+        <button class="reset" id="reset">↺ Volver al caso real (Cliente 1)</button>
+      </div>
+      <!-- OUTPUTS -->
+      <div class="panel reveal" aria-live="polite">
+        <h3>📈 El resultado, calculado en vivo</h3>
+        <div class="result-row"><span>① Débito fiscal (ventas)</span><b id="oDebito">$462</b></div>
+        <div class="result-row"><span>② − Crédito fiscal (compras)</span><b id="oCredito">−$260.143</b></div>
+        <div class="result-row"><span>③ − Remanente anterior</span><b id="oRemanente">−$158.117</b></div>
+        <div class="result-row"><span>④ = IVA determinado</span><b id="oIva">−$417.798</b></div>
+        <div class="result-row"><span>⑤ + Otros impuestos</span><b id="oOtros">$3</b></div>
+        <div class="verdict good" id="verdict">
+          <span style="font-size:1.6rem" aria-hidden="true">✅</span>
+          <div>
+            <div id="verdictText">No pagas IVA: tienes saldo a favor. Solo se paga el resto.</div>
+            <div>Total a pagar este mes: <span class="big" id="oTotal">$3</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="note reveal" style="color:#9fb6d4">📌 Regla clave que AuditAI nunca olvida: si el IVA determinado (④) es negativo, ese saldo a favor se <b>guarda para el próximo mes</b> — pero los otros impuestos (⑤) <b>se pagan igual</b>. Es el error manual más común, y aquí está automatizado.</p>
+  </div>
+</section>
+
+<!-- 10 · BENEFICIOS -->
+<section id="beneficios" style="background:linear-gradient(180deg,#fff,#f0f4fb)">
   <div class="wrap">
     <div class="reveal">
       <span class="eyebrow">Por qué importa</span>
-      <h2 class="stitle">Lo que ganas con AuditAI.</h2>
+      <h2 class="stitle">Beneficios</h2>
+      <p class="ssub">Lo que ganas con AuditAI, en cuatro palabras.</p>
     </div>
     <div class="ben">
       <div class="card reveal"><div class="ico" aria-hidden="true">⚡</div><h3>Más rápido</h3><p>Lo que tomaba horas, en minutos. Mes a mes, cliente a cliente.</p></div>
@@ -672,8 +1345,8 @@
   <div class="wrap">
     <div class="cta-band reveal">
       <h2>Demos el siguiente paso juntos</h2>
-      <p>Ya tenemos la base, la red de seguridad y la lógica validada con un caso real. El siguiente hito es el <b>motor de cálculo automático</b>: un programa que reproduzca la planilla sola y demuestre que todo el sistema es viable.</p>
-      <a class="btn btn-dark" href="#demo">Revisar la demo otra vez</a>
+      <p>Ya tenemos la base en <b>331 clientes</b> (limpia, validada, con las 4 decisiones de cierre resueltas y el barrido de Febrero ejecutado: <b>324 listos para SII</b>), la red de seguridad y la lógica validada con un caso real. Faltan <b>7 datos que tu responsable debe aportar</b> para cerrar el Frente A; luego construimos el <b>motor de cálculo automático</b>: un programa que reproduzca la planilla sola.</p>
+      <a class="btn btn-dark" href="#avance">Ver el avance</a>
     </div>
   </div>
 </section>

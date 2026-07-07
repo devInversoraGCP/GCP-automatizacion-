@@ -8,6 +8,14 @@
       "environment": {
         "NOTION_TOKEN": "{env:NOTION_TOKEN}"
       }
+    },
+    "playwright": {
+      "type": "local",
+      "command": ["npx", "-y", "@playwright/mcp@latest", "--extension"],
+      "enabled": true,
+      "environment": {
+        "PLAYWRIGHT_MCP_EXTENSION_TOKEN": "{env:PLAYWRIGHT_MCP_EXTENSION_TOKEN}"
+      }
     }
   }
 }

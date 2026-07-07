@@ -4,7 +4,7 @@ Bienvenido a la documentación para desarrolladores de **AuditAI**. Su objetivo 
 
 ## Cómo leer esta documentación
 
-Léela en orden, de **00 a 10**. Cada documento enlaza al siguiente.
+Léela en orden, de **00 a 14**. Cada documento enlaza al siguiente.
 
 | # | Documento | Qué encontrarás | Estado |
 |---|-----------|-----------------|:------:|
@@ -16,11 +16,22 @@ Léela en orden, de **00 a 10**. Cada documento enlaza al siguiente.
 | 05 | [Decisiones y preguntas abiertas](05-decisiones-y-preguntas.md) | Decisiones de diseño (ADR-lite) confirmadas por el creador y temas por resolver | ✅ |
 | 06 | [Stack técnico](06-stack-tecnico.md) | Recomendación de stack 2026 (data-driven, preciso, multiempresa), con comparativas y fuentes | ✅ |
 | 07 | [Flujo de datos y centralización](07-flujo-de-datos.md) | 🔁 **Cambio de rumbo:** ingesta automatizada (Notion → SII → XLSX) y centralización en Notion ("General Customers Data") primero, BD especializada después | ✅ |
-| 08 | [Notion: "General Customers Data"](08-notion-general-customers-data.md) | Esquema (22 columnas) de la base central del cliente, mapeado en **solo lectura** | ✅ |
+| 08 | [Notion: "General Customers Data"](08-notion-general-customers-data.md) | Esquema (22 columnas original · 27 en sandbox) de la base central del cliente, mapeado en **solo lectura** | ✅ |
 | 09 | [Seguridad y respaldo](09-seguridad-y-respaldo.md) | 🛡️ **Protocolo obligatorio** antes de tocar Notion: 3 capas (sandbox + backup externo + recuperación nativa), checklist y log de auditoría | ✅ |
 | 10 | [Fuentes auxiliares Notion](10-fuentes-auxiliares-notion.md) | 📥 Las 3 bases (Contable Mayo, RRHH Junio 2026, Tickets - Servicios) de donde recuperar la **data faltante** para llenar la sandbox | ✅ |
 | 11 | [Checklist maestro](11-checklist-maestro.md) | ✅ **Índice/todolist de inicio a fin:** todas las fases → tareas → subtareas → algoritmos, con lo hecho marcado. Fuente única del avance | ✅ |
 | 12 | [Fase 1 — plan detallado](12-fase1-plan-detallado.md) | 🔬 **Plan profundo de la Fase 1:** centralización (matching, API Notion, volcado) + formalización (catálogo oficial de documentos SII, códigos F29, 6 partes) | ✅ |
+| 13 | [Fase C — volcado de registros nuevos](13-fase-c-volcado-nuevos-registros.md) | ✅ **Ejecución de la Fase C:** agregar 163 registros nuevos a la sandbox, resultados, validación y dry-run | ✅ |
+| 14 | [Construcción del dataset y anomalías](14-construccion-dataset-y-anomalias.md) | ✅ **Cierre del Frente A:** validación Pandera/Pydantic y las 4 decisiones **resueltas** (02-jul); base en 331 clientes | ✅ |
+| 15 | [Barrido de bases contables mensuales](15-barrido-bases-contables-mensuales.md) | 🔎 **Plan/guía ejecutable para LLM:** rescatar las 7 Claves SII + el RUT de Steven desde las bases contables **mensuales** (Febrero, Enero…) descubiertas más allá de "Contable Mayo" | 🚧 |
+| 16 | [Frente B — plan de cálculo del F29](16-frente-b-plan-calculo-f29.md) | 🧮 **Plan del motor de cálculo:** de dónde sale cada dato (SII RCV + boletas honorarios + Notion RRHH), mapa de las 6 partes → código F29, y plan por etapas para presentar al cliente | 🚧 |
+| 17 | [Especificación literal del cálculo del F29](17-especificacion-literal-calculo-f29.md) | 🔬 **Referencia operativa del motor (validada por GCP):** estructura del F29 por bloques, selección de variables por caso, checklist de datos por fuente y el **ALGORITMO LITERAL P1→P6 clic a clic** (§4, rutas reales del SII) + ejemplo trabajado | 🚧 |
+| 18 | [Integración impuesto único e imposiciones](18-integracion-impuesto-unico-imposiciones.md) | 🔗 **Casilla 48:** las columnas `IMPUESTO ÚNICO` y `MONTO IMPOSICIONES\|` integradas a la sandbox vía **rollup de `RRHH Origen`** (patrón D19); match RRHH JUNIO ↔ base central y pendientes de decisión | 🚧 |
+| 19 | [Registro maestro de variables del F29](19-registro-variables-f29.md) | 📇 **Las 260 variables/casillas del `F29.pdf`** (144 líneas) en [`data/f29-registro-variables.csv`](data/f29-registro-variables.csv): glosa literal, columna/rol, signo, sección y **relevancia para el motor por cliente** (núcleo P1–P6 vs casos especiales) | ✅ |
+| 20 | [Spike automatización F29 — guía para LLM](20-spike-automatizacion-f29-guia-llm.md) | 🤖 **Guía ejecutable AUTOSUFICIENTE para LLM, de inicio a fin y clic a clic:** 9 fases con gate de aceptación cada una (entorno → credenciales Notion → login SII → RCV VENTA/COMPRA por captura XHR → motor `Decimal` → golden `CLIENTE1` → propuesta F29 en vivo → boletas/RRHH → informe y limpieza), **código completo del robot incluido** (§6), 8 reglas inquebrantables, tabla de contingencias y checklist final. Esqueleto ya creado en [`spike_f29/`](../../spike_f29/). ⚠️ **Superado por el hallazgo del [`21`](21-resultado-spike-f29.md)/[`22`](22-via-oficial-certificado-digital-api-sii.md):** el login por navegador choca con F5; la vía correcta es el certificado (doc 22) | 🚧 |
+| 21 | [Resultado del spike F29](21-resultado-spike-f29.md) | ⚠️ **Resultado del spike (06-07 jul 2026): PARCIAL.** M0 (Notion) ✅ y M2 (motor) ✅ funcionan. **M1a (login automático) ❌ bloqueado por el SII** — detecta CDP en todos los modos de Playwright. Hallazgo crítico + 5 opciones para destrabar (la vía correcta es **certificado digital**, ver [`22`](22-via-oficial-certificado-digital-api-sii.md)) | ✅ |
+| 22 | [Vía oficial: certificado digital + API SII](22-via-oficial-certificado-digital-api-sii.md) | ✅ **La solución 100% automática y nativa de nube:** autenticar por **certificado digital** (semilla→firma→token), no por Clave Tributaria en el navegador — **evita F5 por completo**. API RCV confirmada, arquitectura por variable, patrón de nube (PFX en secret store), y el prerrequisito de negocio (certificado GCP + **delegación/representante electrónico**). Con fuentes oficiales | 🔬 |
+| 23 | [Automatización de Notion — Contable + correo F29](23-automatizacion-notion-contable-correo.md) | 🤖 **Guía ejecutable AUTOSUFICIENTE para LLM** del foco actual (SII en pausa): **B ·** botón "Enviar Correo F29" por fila → webhook → backend → correo al cliente con el monto (`Impuestos`); **A ·** duplicación mensual de la página Contable + alta de clientes nuevos desde la central (por RUT). 🎉 **E2E verificado (07-jul-2026):** botón → webhook → backend Flask → SMTP Gmail → correo + write-back Status, sobre Contable Junio. Plantillas del correo ([`../../notion_automation/email_templates/`](../../notion_automation/email_templates/)) con los 4 feedbacks del usuario. Código del backend (`notion_client`/`email_sender`/`app`), identificación de fila por **RUT** + extractor recursivo robusto, pasos clic a clic en Notion, contingencias y checklist. **Pendiente:** 4 App Passwords, `duplicar_mes.py` (Fase 2), migración a Render (Fase 3) | 🚧 |
 
 ## Documentos relacionados (fuera de `dev/`)
 
@@ -32,9 +43,9 @@ Estos ya existen y **no se duplican aquí** — se enlazan como fuente única de
 
 ## Archivos de datos y referencia
 
-- [`../../PRUEBA1.xlsx`](../../PRUEBA1.xlsx) — planilla `CLIENTE1`: **fuente de verdad del cálculo** (con fórmulas).
+- [`../../F29.pdf`](../../F29.pdf) — Formulario 29 oficial del SII (~140 códigos): **fuente de verdad madre del cálculo** (qué se calcula por caso; ver [D24](05-decisiones-y-preguntas.md)).
+- [`../../PRUEBA1.xlsx`](../../PRUEBA1.xlsx) — planilla `CLIENTE1`: **golden test** (caso real validado) + **entregable simplificado** al cliente. *No* es la autoridad del cálculo.
 - [`../../PRUEBA1.csv`](../../PRUEBA1.csv) — exportación en CSV (solo valores).
-- [`../../F29.pdf`](../../F29.pdf) — Formulario 29 oficial del SII (~140 códigos).
 - [`../../presentacion.html`](../../presentacion.html) — presentación para cliente (no técnica), con demo interactiva.
 
 ## Documentación futura (pendiente)
@@ -43,7 +54,7 @@ Lo que vendrá en próximas iteraciones de la versión dev, a medida que avancen
 
 | Documento | Cuándo | Estado |
 |-----------|--------|:------:|
-| Diccionario completo de los ~140 códigos del F29 | Fase 1 | 📋 |
+| Diccionario completo de los ~140 códigos del F29 | Fase 1 — **v1 lista**: registro de 260 casillas en [`19`](19-registro-variables-f29.md); falta contraste oficial | 🚧 |
 | Modelo de datos (esquema de libros de compra/venta) | Fase 1–2 | 📋 |
 | Guía de setup del entorno de desarrollo | Fase 2 (al haber código) | 📋 |
 | Documentación del motor de cálculo | Fase 2 | 📋 |

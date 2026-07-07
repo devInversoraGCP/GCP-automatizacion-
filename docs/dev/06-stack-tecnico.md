@@ -33,7 +33,7 @@ Derivados de las decisiones ya tomadas:
 Esto materializa la decisión D1 (precisión y credibilidad):
 
 - El peso chileno (CLP) es una **moneda de pesos enteros** (sin centavos), así que los montos finales del F29 son **números enteros**.
-- Pero los **cálculos intermedios** dividen y aplican porcentajes — por ejemplo: `base = IVA / 0,19` y `PPM = base × 0,125%`. Hacer eso con `float` introduce errores de redondeo inaceptables en un contexto tributario.
+- Pero los **cálculos intermedios** suman muchas filas y aplican porcentajes — por ejemplo: `PPM = BI × tasa` (BI = Σ neto + exento de las ventas; tasa de la casilla 115, ej. 0,125%). Hacer eso con `float` introduce errores de redondeo inaceptables en un contexto tributario.
 - **Práctica recomendada:** ejecutar la aritmética tributaria con `decimal.Decimal` y redondear a peso entero con una regla de redondeo explícita. 
 - **Patrón con DataFrames:** Polars/pandas trabajan en `float`/`int` por defecto. Por eso se usa el DataFrame para **ingerir, contar y agrupar** los documentos, y la **aritmética final del impuesto** se hace en Python puro con `Decimal` sobre los totales.
 

@@ -2,7 +2,7 @@
 
 > **Fuente única de verdad del avance.** Índice completo de todo lo que el proyecto requiere, de principio a fin, con cada fase descompuesta en **tareas → subtareas → algoritmos**. Lo ya hecho queda marcado `[x]`; lo pendiente, `[ ]`. Mantener este documento vivo: al cerrar una subtarea, márcala aquí.
 >
-> **Última actualización:** 30-jun-2026.
+> **Última actualización:** 07-jul-2026 (Frente N — E2E exitoso: botón "Enviar Correo F29" → webhook → backend → correo → write-back Status, sobre Contable Junio con fila de prueba `ZZ_TEST AuditAI`; ver [`23`](23-automatizacion-notion-contable-correo.md) §5.6. Backend en Flask + SMTP Gmail por asesor, identificación de fila por RUT con extractor recursivo).
 > Complementa [`../ROADMAP.md`](../ROADMAP.md) (visión de fases) y [`05-decisiones-y-preguntas.md`](05-decisiones-y-preguntas.md) (decisiones D1–D17). No duplica: aquí está el **detalle ejecutable**.
 
 ## Cómo usar este documento (si eres un LLM / agente)
@@ -14,7 +14,7 @@ Este archivo es un **índice ejecutable**, no la fuente primaria de cada tema. P
 
    | Tema | Fuente de verdad |
    |---|---|
-   | Cálculo del F29 | `PRUEBA1.xlsx` (hoja `CLIENTE1`, con fórmulas) → [`01`](01-dominio-F29.md) / [`../../CONTEXT.md`](../../CONTEXT.md) |
+   | Cálculo del F29 (**qué** se calcula) | **`F29.pdf`** — formulario oficial SII, ~140 códigos (fuente de verdad madre, D24) → [`01`](01-dominio-F29.md). `PRUEBA1.xlsx` = **golden test + formato de salida**, no autoridad |
    | Reglas para agentes (seguridad, PII, idioma) | [`../../AGENTS.md`](../../AGENTS.md) |
    | Decisiones de diseño | [`05`](05-decisiones-y-preguntas.md) (D1–D17) |
    | Esquema de Notion / IDs | [`08`](08-notion-general-customers-data.md), [`10`](10-fuentes-auxiliares-notion.md) |
@@ -44,14 +44,14 @@ Resumen de [`../../AGENTS.md`](../../AGENTS.md); el detalle manda allí. **Antes
 | Tasa IVA | 19% |
 | P1 · Débito (ventas) | $462 |
 | P2 · Crédito (compras) | −$260.143 |
-| P3 · Remanente anterior | −$158.117 |
-| P4 · IVA determinado | −$417.798 (negativo ⇒ no paga IVA) |
-| Ventas netas (= P1 / 0,19) | $2.432 |
-| Tasa PPM (caso) | 0,125% |
+| P3 · Remanente anterior (casilla 504 de la propuesta) | −$158.117 |
+| P4 · IVA determinado | −$417.798 (negativo ⇒ no paga IVA; queda a favor → 77) |
+| BI del PPM (Monto Neto + Monto Exento de ventas) | $2.432 |
+| Tasa PPM (casilla 115, por contribuyente; caso) | 0,125% |
 | P5 · Otros impuestos | PPM $3 · honorarios 14,5% → $0 · imp. único → $0 |
 | P6 · Total a pagar | **$3** |
 
-**Códigos F29 usados** (verificar el resto en la tarea 1.4): `62` PPM neto · `48` ret. imp. único · `151` ret. honorarios (Ley 21.133) · `77` remanente · `538` total débitos · `537` total créditos.
+**Códigos F29 usados** (verificar el resto en la tarea 1.4): `62` PPM neto · `48` ret. imp. único · `151` ret. honorarios (Ley 21.133) · `504` remanente que entra · `77` remanente que sale · `115` tasa PPM · `538` total débitos · `537` total créditos.
 
 **Notion — IDs estables:**
 
@@ -65,9 +65,11 @@ Resumen de [`../../AGENTS.md`](../../AGENTS.md); el detalle manda allí. **Antes
 
 Parent de ambas GCP: `dd47681b-89fe-4f49-bea3-f8038d571d44`. Plan workspace: **Business** (historial 90 d, papelera 30 d). Snapshot base: `backups/general-customers-data/2026-06-30_all.csv` (171 filas, vista "All").
 
-**Completitud de la base (jun-2026):** 171 clientes · 10 sin `RUT` (~6%) · 20 sin `CLAVE SII` (~12%) · ~100 sin `email` (~58%).
+**Completitud de la base — evolución:**
+- *Baseline (jun-2026, 171 clientes):* 12 RUTs problemáticos · 20 sin `CLAVE SII` · 100 sin `email` · 158 listos para SII.
+- **Actual (02-jul-2026, post-barrido Febrero): 331 clientes** — 330 con `RUT` válido (99,7%) · **1 sin RUT** (solo `Steven` ID 48) · 324 con `CLAVE SII` · **324 listos para automatización SII (97,9%)** · email 88 (secundario) · 19 marcados `Email por revisar`. (334 tras Fase C; −3 retirados a "Descartados AuditAI"). Barrido Febrero (02-jul tarde): 1/7 claves rescatada (Escuela de Voces Manuela); 6/7 + RUT de Steven no aparecen en Notion → escalados al usuario (ver [`15`](15-barrido-bases-contables-mensuales.md) §3).
 
-**Esquema (22 columnas)** — tipos en [`08`](08-notion-general-customers-data.md): credenciales/PII (`CLAVE SII`, `Previred`, `RUT`, `RUT RL`, `email`, `Whatsapp`) · identificación (`w` title, `userDefined:ID`, `Nº`, `CRM`, `Rubro`, `Segmentación`, `Ciudad`, `Municipalidad`) · gestión (`Adviser Accounting`, `Adviser RR.HH`, `1ra Factura o Propuesta`, `Respaldo Anual`) · enlaces/otros (`Drive Empresa`, `Propuesta de Servicio`, `Column`, `Texto`).
+**Esquema:** 22 columnas en el **original** · **28 en la sandbox** (post-D19/D23 + `Email por revisar`, 02-jul-2026) — tipos en [`08`](08-notion-general-customers-data.md) y corregido en [`12`](12-fase1-plan-detallado.md): credenciales/PII (`CLAVE SII`, `Previred` [text en original; **status** en sandbox], `USUARIO-Previred` 🆕 sandbox, `CLAVE-Previred` 🆕 sandbox, `RUT`, `RUT RL`, `email`, `Whatsapp`) · identificación (`w` title, **`ID`** (unique_id), `Nº`, `CRM`, `Rubro`, `Segmentación`, `Ciudad`, `Municipalidad`) · gestión (`Adviser Accounting`, `Adviser RR.HH`, `1ra Factura o Propuesta`, `Respaldo Anual`) · enlaces/otros (`Drive Empresa`, `Propuesta de Servicio`, `Column`, `Texto`) · **trazabilidad** (`Origen` 🆕, `Origen Contable Mayo` 🆕, `RRHH Origen`).
 
 **Stack (D10 / [`06`](06-stack-tecnico.md)):** Python 3.12+ · uv · Ruff · mypy --strict · Polars · Pandera · Pydantic v2 · `decimal.Decimal` (dinero, **nunca `float`**) · pytest.
 
@@ -89,6 +91,7 @@ Parent de ambas GCP: `dd47681b-89fe-4f49-bea3-f8038d571d44`. Plan workspace: **B
 | 4 | Auditoría / conciliación | ⬜ | no iniciada |
 | 5 | Capa de IA | ⬜ | no iniciada |
 | 6 | BD especializada y producto multi-cliente | ⬜ | no iniciada |
+| **N** | **Automatización Notion + correo F29** (foco, [`23`](23-automatizacion-notion-contable-correo.md)) | 🟡 | **E2E exitoso** · backend + columnas + botón OK · faltan 4 App Passwords + Fase 2/3 |
 
 ---
 
@@ -138,7 +141,9 @@ Parent de ambas GCP: `dd47681b-89fe-4f49-bea3-f8038d571d44`. Plan workspace: **B
 
 ## Fase 1 — Centralizar la data + formalizar las reglas 🟡  *(EN FOCO)*
 
-**Objetivo:** recuperar/completar la base central en Notion (Etapa 1 de D11) y convertir el conocimiento implícito de las fórmulas en una especificación explícita. **Criterio de aceptación:** la base tiene la data faltante recuperada y un desarrollador puede implementar el cálculo sin abrir el Excel.
+> **🎯 Objetivo principal reforzado:** no es solo recuperar `RUT`/`CLAVE SII`. Es **completar, corregir y enriquecer toda la base de datos central** `General Customers Data`, usando `Contable Mayo` y `RRHH JUNIO 2026` como fuentes. Esto incluye: recuperar campos faltantes, corregir RUTs inválidos, resolver duplicados, llenar advisers, completar credenciales `Previred`, y agregar registros de clientes que existen en las fuentes pero no en la base central.
+
+**Objetivo:** recuperar/completar la base central en Notion (Etapa 1 de D11) y convertir el conocimiento implícito de las fórmulas en una especificación explícita. **Criterio de aceptación:** la base tiene la data faltante recuperada, está depurada de duplicados, validada y trazable; un desarrollador puede implementar el cálculo sin abrir el Excel.
 
 > 🔬 **Plan detallado de esta fase** (investigación, mapeo de elementos, algoritmos, catálogo oficial de documentos del SII, límites reales de la API de Notion): **[`12-fase1-plan-detallado.md`](12-fase1-plan-detallado.md)**. Las tareas de abajo son el índice; el `12` tiene el *cómo*.
 
@@ -146,43 +151,84 @@ Parent de ambas GCP: `dd47681b-89fe-4f49-bea3-f8038d571d44`. Plan workspace: **B
 
 #### Frente A · AHORA — construir y fortalecer la base de datos 🗂️
 
-### 1.1 · Mapear las 3 fuentes auxiliares 🔒
-- [ ] `Contable Mayo` — `query-data-source` (`page_size=1`) → listar columnas y tipos
-- [ ] `RRHH JUNIO 2026` — idem
-- [ ] `Tickets - Servicios` — idem
-- [ ] Para cada fuente, identificar qué columna aporta a cada campo faltante (`RUT`, `CLAVE SII`, `email`, `Whatsapp`, `Adviser …`)
+### 1.1 · Mapear las 3 fuentes auxiliares 🔒 ✅
+- [x] `Contable Mayo` — esquema obtenido por API (`retrieve-a-data-source` + query paginada)
+- [x] `RRHH JUNIO 2026` — esquema obtenido por API
+- [x] `Tickets - Servicios` — esquema obtenido por API y **descartada** como fuente de GCD
+- [x] Para cada fuente, identificar qué columna aporta a cada campo faltante (`RUT`, `CLAVE SII`, `email`, `Previred`, `Whatsapp`, `Adviser …`)
+- [x] Identificar propiedad de agrupación de Contable Mayo (select sin nombre / "Dinámico de grupo")
 
-### 1.2 · Cruzar fuentes auxiliares ↔ sandbox 🔒
-- [ ] Determinar el solape cliente-a-cliente (qué % de los 171 aparece en cada fuente)
-- [ ] **Algoritmo de matching** (llave de cruce):
+### 1.2 · Cruzar fuentes auxiliares ↔ sandbox 🔒 ✅
+- [x] Determinar el solape cliente-a-cliente (qué % de los 171 aparece en cada fuente)
+- [x] **Algoritmo de matching** implementado y ejecutado (llave de cruce):
 
   ```text
   para cada cliente C en sandbox:
-      candidatos ← fuente.where(RUT == C.RUT)            # 1º por RUT (exacto)
+      candidatos ← fuente.where(RUT_normalizado == C.RUT_normalizado)   # 1º por RUT validado (módulo 11)
       si candidatos vacío:
-          candidatos ← fuente.where(norm(nombre) == norm(C.w))   # 2º por nombre normalizado
+          candidatos ← fuente.where(norm(nombre) == norm(C.w))          # 2º por nombre normalizado
       si candidatos == 1: match
       si candidatos > 1:  marcar AMBIGUO → revisión humana
       si candidatos == 0: marcar SIN_FUENTE
-  norm(s) = trim + minúsculas + sin tildes + colapsar espacios + sin sufijos societarios (SPA/LTDA/EIRL)
+  norm(s) = trim + minúsculas + sin tildes + colapsar espacios + sin sufijos societarios (SPA/LTDA/EIRL/SA)
   ```
 
+- [x] Conteos de solape reales:
+  - Sandbox ↔ Contable Mayo: **112** coincidencias por RUT válido
+  - Sandbox ↔ RRHH JUNIO 2026: **16** coincidencias por RUT válido
+  - Contable Mayo ↔ RRHH JUNIO 2026: **16** coincidencias
+- [x] Detectar duplicados: 1 RUT duplicado en sandbox, 1 en Contable Mayo
+- [x] Detectar registros nuevos: **168** en Contable Mayo, **2** en RRHH
+
 ### 1.3 · Volcar data faltante hacia la sandbox 🔒  *(nunca al original — D15)*
-- [ ] **Algoritmo de volcado (dry-run → confirmación → escritura):**
+> **Alcance ampliado:** el volcado no es solo `RUT`/`CLAVE SII`/`email`. Incluye también `Previred`, `Adviser Accounting`, `Adviser RR.HH`, corrección de RUTs inválidos y, si el usuario lo aprueba, **agregar registros nuevos** desde las fuentes.
+
+- [x] **Fase A — Limpieza pre-volcado** ✅ (01-jul-2026, detalle en [`12`](12-fase1-plan-detallado.md))
+  - [x] Backup fresco de la sandbox (`backups/general-customers-data/2026-07-01_sandbox_pre-fase-A.csv`)
+  - [x] RUT duplicado en la sandbox (`SOCIAL UP SPV I/II`): se mantienen como 2 clientes separados, RUT sin tocar hasta consulta al cliente final
+  - [x] RUTs problemáticos: **7/12 corregidos** desde Contable Mayo (log en `log-auditoria-volcado.csv`); 5 quedan pendientes de consulta al cliente final
+  - [x] RUT duplicado en Contable Mayo (`ADMINISTRADORES CHILE`): no se toca la fuente; se deduplica al importar en Fase C
+- [x] **Fase B — Enriquecimiento de registros existentes** ✅ (01-jul-2026: 151 cambios en 103 páginas — `RUT` 166/171, `CLAVE SII` 162/171, `email` 84/171; `Previred` resuelto vía relación+rollup a RRHH sin exponer credenciales; `Adviser Accounting` 90 escrituras, `Adviser RR.HH` 10 escrituras). Log completo en `backups/general-customers-data/log-auditoria-volcado.csv`.
 
   ```text
   precondición: backup CSV de hoy existe y está a salvo
   para cada (cliente, campo_faltante) detectado:
       valor ← fuente_auxiliar[cliente][campo]
       si sandbox[cliente][campo] ya tiene valor: SKIP (no sobreescribir, salvo decisión caso a caso)
-      registrar en diff: (userDefined:ID|RUT, campo, "" → valor, fuente)
-  mostrar diff completo al usuario        # DRY-RUN, sin aplicar
+      si match es AMBIGUO: SKIP → cola de revisión humana
+      registrar en diff: (ID | RUT, campo, "" → valor, fuente)
+  mostrar diff COMPLETO al usuario        # DRY-RUN, sin aplicar
   esperar confirmación explícita
-  aplicar escritura apuntando por clave estable (userDefined:ID o RUT, nunca por posición)
+  aplicar escritura por clave estable (ID de tipo unique_id o RUT; nunca por posición)
   escribir log de auditoría: (id, columna, valor_anterior → valor_nuevo, timestamp, fuente)
   ```
-- [ ] Validar con Pandera/Pydantic **antes** de escribir
-- [ ] Identificar específicamente los **20 clientes sin `CLAVE SII`** (prioridad para automatización SII)
+
+  **Campos recuperados en registros existentes — ✅ ejecutado 01-jul-2026 (regla D21: la fuente auxiliar predomina ante conflicto, no solo vacíos):**
+  - [x] RUT: **7** recuperados/corregidos (Fase A, Contable Mayo) — 5 quedan pendientes de consulta al cliente final
+  - [x] CLAVE SII: **31** escritos (Contable Mayo) — más que la estimación inicial de 7, por la regla D21
+  - [x] email: **15** escritos (Contable Mayo) — más que la estimación inicial de 12
+  - [x] Previred (`USUARIO`/`CLAVE`): resuelto **sin extracción directa** — relación Notion `RRHH Origen` + columnas rollup `USUARIO-Previred`/`CLAVE-Previred` (16 clientes enlazados); el valor nunca pasa por el agente. `DTGO` sigue sin mapear.
+  - [x] Previred (estado): **5** cambios reales aplicados
+  - [x] Adviser Accounting: **90** escrituras (9 llenaban vacío + 81 sobrescribieron por D21)
+  - [x] Adviser RR.HH: **10** escrituras (3 llenaban vacío + 7 sobrescribieron por D21)
+- [x] **Fase C — Agregar registros nuevos** ✅ *(ejecutado 01-jul-2026 · detalle en [`13-fase-c-volcado-nuevos-registros.md`](13-fase-c-volcado-nuevos-registros.md))*
+  - [x] Plan de ejecución, algoritmo y validaciones documentados en [`13-fase-c-volcado-nuevos-registros.md`](13-fase-c-volcado-nuevos-registros.md)
+  - [x] Backup fresco de la sandbox antes de la escritura → `2026-07-01_sandbox_pre-fase-C.csv`
+  - [x] Dry-run generado y revisado → 163 registros nuevos (161 Contable Mayo + 2 RRHH)
+  - [x] Agregar registros nuevos a la sandbox → **163/163 creados exitosamente**
+  - [x] Corrección relación RRHH para los 2 registros de RRHH
+  - [x] Re-medir completitud post-volcado → **334 registros**, 329 RUTs válidos, 322 listos para SII
+- [x] Validar con Pandera/Pydantic **post-volcado** → 334 registros validados; Pandera pasa; 19 errores Pydantic (todos emails inválidos)
+- [x] Re-medir completitud post-volcado → **334 registros**, 329 RUTs válidos, 322 listos para SII
+- [x] Identificar específicamente los **12 clientes sin `CLAVE SII`** post-volcado
+- [x] **Trazabilidad de origen (D23)** — crear y poblar `Origen` (select) + `Origen Contable Mayo` (relation) en la sandbox → **334/334 con Origen**, 161/161 con relación a Contable Mayo
+- [ ] Resolver casos anómalos identificados (ver [`14-construccion-dataset-y-anomalias.md`](14-construccion-dataset-y-anomalias.md)):
+  - [x] **Decisiones de cierre resueltas (02-jul-2026, ver [`14`](14-construccion-dataset-y-anomalias.md) §4):**
+    - [x] Clientes sin RUT: XIT recuperado; `Sergio ??`/`Patricia`/`Zsabesky` retirados a "Descartados AuditAI"; **`Steven` queda pendiente** (único sin RUT)
+    - [x] Duplicado `SOCIAL UP SPV I/II`: se mantiene (mismo cliente, intencional)
+    - [x] 18–19 emails inválidos: etiquetados con checkbox `Email por revisar` (no se limpian por ahora; secundario)
+    - [x] Campos sin fuente: quedan opcionales para el MVP
+  - [ ] **Único pendiente del gate Frente A:** rescatar el `RUT` de `Steven` (barrido de meses [`15`](15-barrido-bases-contables-mensuales.md) o consulta al adviser)
 
 #### Frente B · EN PAUSA — arranca al cerrar el Frente A (gate D18) 📐
 > **Gate:** el Frente A debe estar terminado (fuentes cruzadas · data faltante recuperada · sin duplicados · validación en verde · base verificada y trazable) antes de trabajar §1.4–1.6. Lo marcado `[x]` abajo es **adelanto de investigación**, no trabajo activo del Frente B.
@@ -228,13 +274,15 @@ Parent de ambas GCP: `dd47681b-89fe-4f49-bea3-f8038d571d44`. Plan workspace: **B
 - [ ] Definir regla de redondeo explícita a peso entero (CLP sin centavos)
 - [ ] Patrón: DataFrame (Polars) para ingerir/agrupar/contar; `Decimal` para los totales finales
 
-### 2.4 · Núcleo: las 6 partes (ver Algoritmo A1)
-- [ ] P1 · Débito fiscal = Σ IVA de documentos emitidos
-- [ ] P2 · Crédito fiscal = −Σ IVA de documentos recibidos
-- [ ] P3 · Remanente = saldo a favor del período anterior (negativo)
-- [ ] P4 · IVA determinado = P1 + P2 + P3
+### 2.4 · Núcleo: las 6 partes (ver Algoritmo A1 · rutas SII validadas GCP en doc 17 §3)
+- [ ] P1 · Débito fiscal = Σ «Monto IVA» de la pestaña **VENTA** del RCV (NC restan)
+- [ ] P2 · Crédito fiscal = −Σ «IVA Recuperable» de la pestaña **COMPRA** del RCV (NC restan)
+- [ ] P3 · Remanente = casilla **504** de la **propuesta del F29** (puede no estar ⇒ 0), en negativo
+- [ ] P4 · IVA determinado = P1 + P2 + P3 (positivo = paga IVA; negativo = remanente a favor → 77)
 - [ ] P5 · Otros impuestos = PPM + ret. honorarios + ret. imp. único
-  - [ ] PPM: `base = ventas_netas = débito / 0,19`; `ppm = base × tasa` (0,125% en el caso)
+  - [ ] PPM: `BI = Σ(«Monto Neto» + «Monto Exento») de VENTA (NC restan)`; `ppm = BI × tasa`, **tasa = casilla 115** de la propuesta (0,125% en el caso)
+  - [ ] ret. honorarios: «Retención de terceros», informe anual de boletas recibidas, fila del mes anterior
+  - [ ] ret. imp. único: Notion RRHH `IMPUESTO ÚNICO` (transcripción, no cálculo)
 - [ ] P6 · Total = **si P4 > 0:** P4 + P5; **si P4 ≤ 0:** solo P5
 - [ ] Mapear el resultado a los códigos F29 (consume el diccionario de 1.4)
 
@@ -312,22 +360,29 @@ Parent de ambas GCP: `dd47681b-89fe-4f49-bea3-f8038d571d44`. Plan workspace: **B
 
 ### A1 · Motor de cálculo — las 6 partes 🧮
 ```text
-entrada: libro_ventas, libro_compras, remanente_anterior, tasa_ppm, tasa_honorarios
+# 🔄 Actualizado con el feedback de los expertos GCP (P1–P6, jul-2026).
+#    Rutas de extracción reales en el SII: doc 17 §3.
+entrada: rcv_ventas (pestaña VENTA), rcv_compras (pestaña COMPRA),   # RCV, período = mes anterior
+         remanente_anterior (casilla 504 de la propuesta F29; puede no existir),
+         tasa_ppm (casilla 115 de la propuesta F29, por contribuyente),
+         ret_honorarios («Retención de terceros», informe anual boletas recibidas, fila mes anterior),
+         ret_impuesto_unico (Notion RRHH <Mes>: `IMPUESTO ÚNICO`)
 # todo en Decimal; redondeo final a peso entero
+# notas de crédito: RESTAN en ambos lados (ventas y compras)
 
-P1 = Σ iva(doc) para doc en documentos_emitidos        # débito (≥ 0)
-P2 = -Σ iva(doc) para doc en documentos_recibidos      # crédito (≤ 0)
-P3 = -abs(remanente_anterior)                          # saldo a favor (≤ 0)
-P4 = P1 + P2 + P3                                       # IVA determinado
+P1 = Σ monto_iva(fila) para fila en rcv_ventas          # columna «Monto IVA» (NC restan) — débito (≥ 0)
+P2 = -Σ iva_recuperable(fila) para fila en rcv_compras  # columna «IVA Recuperable» (NC restan) — crédito (≤ 0)
+P3 = -abs(remanente_anterior) si existe casilla 504, si no 0   # saldo a favor (≤ 0), ya reajustado UTM
+P4 = P1 + P2 + P3                                       # > 0: IVA a pagar · ≤ 0: remanente a favor
 
-ventas_netas = P1 / 0.19
-PPM          = round(ventas_netas * tasa_ppm)
+BI  = Σ (monto_neto(fila) + monto_exento(fila)) para fila en rcv_ventas   # NC restan
+PPM = round(BI * tasa_ppm)                              # casilla 62
 P5 = PPM + ret_honorarios + ret_impuesto_unico
 
 if P4 > 0:
     P6 = P4 + P5            # paga IVA + otros impuestos
 else:
-    P6 = P5                # NO paga IVA; remanente -P4 se arrastra; otros impuestos se pagan igual
+    P6 = P5                # NO paga IVA; remanente -P4 se arrastra (casilla 77); otros impuestos se pagan igual
     remanente_siguiente = abs(P4)
 
 salida: {P1..P6, remanente_siguiente, mapeo_codigos_F29}
@@ -378,9 +433,99 @@ Trasladadas de [`05-decisiones-y-preguntas.md`](05-decisiones-y-preguntas.md); c
 - [ ] #3 — Manejo seguro de credenciales de clientes (bloquea 3.3)
 - [ ] #4 — Tecnología de la BD especializada (bloquea 6.1)
 - [ ] #5 — Esquema real del XLSX del SII: falta muestra (bloquea 3.1)
-- [ ] #6 — Esquema de las 3 fuentes auxiliares (bloquea 1.1)
-- [ ] #7 — Solape cliente-a-cliente fuente↔sandbox (bloquea 1.2)
-- [ ] Número exacto de "listos para SII" (rate-limit Notion 429) (bloquea 0.3)
+- [x] #6 — Esquema de las 3 fuentes auxiliares (resuelto en [`12`](12-fase1-plan-detallado.md) §A1)
+- [x] #7 — Solape cliente-a-cliente fuente↔sandbox (resuelto en [`12`](12-fase1-plan-detallado.md) §A1b)
+- [x] Número exacto de "listos para SII" (resuelto: **158** actuales / **165** post-volcado)
+- [x] **Decisión usuario (D19):** mapeo `USUARIO`/`CLAVE` de RRHH → `USUARIO-Previred`/`CLAVE-Previred` (nuevas) + `RRHH Origen` (relation) + `Previred` → status. **Ejecutado en la sandbox** (esquema 22→27 columnas tras D23). `DTGO` sin mapear.
+- [x] **Decisión usuario (D23):** trazabilidad de origen — columnas `Origen` (select) + `Origen Contable Mayo` (relation). **Ejecutado en la sandbox**.
+- [x] **Decisión usuario (D20):** Fase A+B+C completa — se agregan los 170 registros nuevos (sandbox pasará a ~341).
+- [x] **Decisión usuario (D21):** Contable Mayo/RRHH predominan siempre sobre la sandbox ante conflicto de valor (regla general, no solo advisers) — reemplaza la regla de "solo llenar vacíos".
+- [x] **Decisión usuario (D22):** sin exclusión por status/etiqueta al agregar los 168 registros nuevos.
+
+---
+
+## Frente N — Automatización de Notion + correo F29 🟡 *(foco, 07-jul-2026)*
+
+> **Cambio de foco:** el SII se **pausa** (login bloqueado por F5 — ver [`21`](21-resultado-spike-f29.md);
+> la vía correcta es certificado digital, [`22`](22-via-oficial-certificado-digital-api-sii.md), pendiente
+> de gestión de negocio). Mientras, el foco es **automatizar las páginas Contable de Notion**:
+> **(B)** un botón "Enviar Correo F29" por fila que dispara un correo al cliente con su monto, y **(A)** la
+> duplicación mensual de la página Contable + alta de clientes nuevos. Guía ejecutable completa en
+> [`23-automatizacion-notion-contable-correo.md`](23-automatizacion-notion-contable-correo.md).
+>
+> 🎉 **Hito (07-jul-2026): E2E del correo F29 exitoso.** Botón en Notion → webhook → backend
+> Flask → SMTP Gmail → correo al cliente + write-back Status = "1) Enviado y Pendiente".
+> Fila de prueba `ZZ_TEST AuditAI` en Contable Junio. SMTP desde `sebastianrobles@inversoragcp.com`.
+
+### N.1 · Plantilla del correo F29 ✅
+- [x] `notion_automation/email_templates/f29_email.html` (email-safe, tablas + estilos inline, **inline CID** para logo y firma — Gmail bloquea `data:` URIs)
+- [x] `notion_automation/email_templates/f29_email.txt` (respaldo en texto plano)
+- [x] `notion_automation/email_templates/README.md` (variables, variantes, 4 reglas del usuario)
+- [x] `notion_automation/email_templates/preview-correo-f29.html` (vista previa interactiva con
+      logo GCP incrustado, 3 toggles para los bloques opcionales y 3 variantes de resultado)
+- [x] **4 reglas del usuario (07-jul-2026) aplicadas:**
+  - [x] **(1) Asunto fijo** `"Asesoría Honorario"` (sin variables).
+  - [x] **(2) Fecha límite sin paréntesis** — solo `lunes 22 de junio de 2026.`, sin texto redundante.
+  - [x] **(3) Info adicional flexible** — bloque opcional (si la celda está vacía no aparece) y
+        variable (no siempre es el remanente; GCP escribe lo que corresponda).
+  - [x] **(4) Honorarios + datos de transferencia** — si el cliente debe honorarios (> 0), el bloque
+        incluye los datos bancarios de GCP: **Banco Santander · Cuenta Corriente N° 0-000-8577678-9
+        · RUT 76.976.672-3 · Razón Social Inversora GCP Ltda**.
+- [x] Lógica de **fecha límite** con feriados chilenos (`FERIADOS_CL`, fuente `date.nager.at`):
+      día 20 del mes siguiente, trasladado al siguiente día hábil si es fin de semana o feriado.
+- [x] `email_sender.py` carga la plantilla y reemplaza `{{marcadores}}`; funciones
+      `_bloque_fecha`/`_bloque_honorarios`/`_bloque_info`. **Envío por SMTP Gmail** (no SendGrid)
+      con `MIMEMultipart("related")` + nested `"alternative"` para inline CID.
+- [x] **Orden del correo (feedback GCP):** (1) saludo+contexto, (2) monto IVA (card navy),
+      (3) fecha límite, (4) info adicional, (5) honorarios + datos transferencia, (6) cierre.
+      Sin el texto "Es el pago…" en honorarios. "Datos para la transferencia" destacado.
+
+### N.2 · Backend, columnas y botón — ✅ E2E verificado
+- [x] Fase 0: `notion_automation/` con venv, deps (`flask`, `requests`, `python-dotenv`,
+      `jinja2`) y `.env` (secretos fuera de git). `.gitignore` excluye `asesores_smtp.json` y `data/`.
+- [x] `notion_client.py` (helpers REST + `find_page_by_rut()`), `email_sender.py` (SMTP Gmail +
+      inline CID + env var fallback `_cargar_asesores`), `app.py` (Flask `host="0.0.0.0"`,
+      `--test` + `--test-rut`, logging a `auditai.log` sin PII) escritos y arrancando.
+- [x] **`asesores_smtp.json`** (gitignored): 5 asesores mapeados. **Solo Sebastián Robles** tiene
+      App Password + `firma_png: "firmas/firma-sebastian-robles.png"` (los 4 restantes pendientes).
+- [x] Backup previo: `backups/contable-junio/2026-07-07_pre-columnas.csv` (288 filas).
+- [x] Columnas nuevas en Contable Junio creadas: `Honorarios Pendientes` (number, vía API),
+      `Info Adicional` (rich_text, vía API). `Enviar Correo F29` (button) se creó desde la UI
+      (la API de Notion **no soporta crear propiedades tipo `button`**).
+- [x] Fila de prueba `ZZ_TEST AuditAI` (page_id `39612147-b3ea-810f-b761-d610a3be1ce3`):
+      Email=`fbrunel@miuandes.cl`, Impuestos=12345, Honorarios=85000, Info Adicional=remanente,
+      Adviser=Sebastián, Month="Junio 2026", Rut=`12345678-9` (ficticio, asignado para el test).
+- [x] Botón `Enviar Correo F29` + Send webhook configurado en Contable Junio: header
+      `X-AuditAI-Secret` + body con `Rut`+`Email`+`Customers` (propiedades seleccionables —
+      Notion no expone `page_id` como variable; ver [`23`](23-automatizacion-notion-contable-correo.md) §5.4).
+- [x] **Prueba E2E exitosa (07-jul-2026):** botón → correo a `fbrunel@miuandes.cl` desde
+      `sebastianrobles@inversoragcp.com` con monto correcto → `Status = "1) Enviado y Pendiente"`.
+- [x] **Extractor recursivo robusto** (`_buscar_clave` + `_extraer_plano_notion`): tolerante al
+      formato real `{"source": {...}, "data": {...}}` de Notion (las props van anidadas en
+      `data`, no en la raíz). 5/5 casos de test pasan. El `page_id` viene gratis en
+      `source.page_id` (Notion lo incluye automáticamente) — el backend lo usa directo si es
+      UUID válido; si no, cae a `find_page_by_rut()`.
+- [x] Logging sin PII: dump estructural (solo keys y tipos, nunca valores) + `auditai.log`
+      con `RotatingFileHandler`. Verificado en el E2E.
+- [x] Cloud-ready: `requirements.txt`, `runtime.txt` (python-3.11), `Procfile`, `README.md`
+      (paquete). `host="0.0.0.0"`, rutas `firma_png` relativas, `ASESORES_SMTP_JSON` env var fallback.
+- [x] ngrok instalado (`C:\ngrok\ngrok.exe` v3.39.9, authtoken configurado, PATH actualizado).
+- [x] Documentos de misión creados: `MISION-ARREGLAR-CORREO-F29.md` (misión Claude Opus 4.8,
+      ✅ completada) y `MIGRACION-A-RENDER.md` (manual de migración a la nube, 405 líneas).
+- [ ] **App Passwords de 4 asesores restantes** (Constanza, Carlos, Andrea, Matilde) — pendiente
+      tras confirmar que Sebastián funciona en el botón real (✅ confirmado 07-jul). Andrea y
+      Matilde además no tienen contraseña normal de Gmail.
+- [ ] Caso borde sin Email (verificado vía `--test`, falta clic real del botón).
+
+### N.3 · Duplicación mensual (Fase 2 del doc 23, pendiente)
+- [ ] `duplicar_mes.py` con `--dry-run` correcto sobre bases de prueba (reset + nuevos por RUT).
+- [ ] Disparo definido (botón en página de control o job agendado).
+
+### N.4 · Endurecer y llevar a la nube (Fase 3 del doc 23, pendiente)
+- [ ] Backend en la nube con URL estable (Render — manual en `MIGRACION-A-RENDER.md`),
+      secretos en gestor, dominio de correo verificado.
+- [ ] Idempotencia y observabilidad (logs sin PII — el logging ya está listo).
+- [ ] Aplicar a las bases reales con backup + confirmación (R2/R5 — Contable Junio ya operativa).
 
 ---
 
