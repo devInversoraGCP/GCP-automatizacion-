@@ -25,7 +25,7 @@ LOGO_PATH = Path(__file__).parent.parent / "LOGO-GCP.png"
 
 TEMPLATES = Path(__file__).parent / "email_templates"
 ASESORES_JSON = Path(__file__).parent / "asesores_smtp.json"
-ASUNTO = "Asesoria Honorario"
+ASUNTO = "Impuestos mensuales"
 
 _MESES = {
     "enero": 1, "febrero": 2, "marzo": 3, "abril": 4, "mayo": 5, "junio": 6,
@@ -142,7 +142,7 @@ def _variantes(monto_str: str, periodo: str) -> tuple[str, str]:
     except (ValueError, TypeError):
         n = 0.0
     if n > 0:
-        return "IMPUESTOS A PAGAR", ""
+        return "Impuestos a pagar del mes", ""
     if n < 0:
         return "Saldo a favor", "Este mes no paga IVA: el saldo queda a su favor y se arrastra al próximo período."
     return "Sin pago este mes", f"Su Formulario 29 del período {periodo} se declara sin movimiento; este mes no paga IVA."
