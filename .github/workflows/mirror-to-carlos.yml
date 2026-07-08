@@ -21,7 +21,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       MIRROR_TOKEN: ${{ secrets.MIRROR_TOKEN }}
-      CARLOS_REPO: gcp-dev26/AuditAI---GCP
+      CARLOS_REPO: gcp-dev26/GCP-automatizacion-
     steps:
       - name: Checkout con historial completo
         if: ${{ env.MIRROR_TOKEN != '' }}
