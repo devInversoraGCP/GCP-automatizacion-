@@ -14,7 +14,8 @@
     "tipo": "workspace",
     "pendiente": false,
     "app_password": true,
-    "generada": "2026-07-08"
+    "generada": "2026-07-08",
+    "firma_png": "firmas/pie_contanza.jpeg"
   },
   "andreagonzalez@inversoragcp.com": {
     "password": null,
@@ -34,21 +35,21 @@
     "generada": "2026-07-07",
     "firma_png": "firmas/firma-sebastian-robles.png"
   },
-  "carlos.cereceda09@gmail.com": {
-    "password": "aelgdkpomnkpcyse",
-    "password_fmt": "aelg dkpo mnkp cyse",
-    "nombre": "Carlos Cereceda",
-    "nombre_norm": "carlos cereceda",
-    "tipo": "personal",
-    "pendiente": false,
-    "app_password": true,
-    "generada": "2026-07-08"
-  },
   "matildemateluna@inversoragcp.com": {
     "password": null,
     "nombre": "Matilde Mateluna",
     "nombre_norm": "matilde mateluna",
     "tipo": "workspace",
-    "pendiente": true
+    "pendiente": true,
+    "firma_png": "firmas/pie_matilde.jpeg"
+  },
+  "carloscereceda@inversoragcp.com": {
+    "password": "iqkgifehpjwpavuj",
+    "nombre": "Carlos Cereceda",
+    "nombre_norm": "carlos cereceda",
+    "tipo": "workspace",
+    "pendiente": false,
+    "app_password": true,
+    "firma_png": "firmas/pie_carlos.jpeg"
   }
 }
