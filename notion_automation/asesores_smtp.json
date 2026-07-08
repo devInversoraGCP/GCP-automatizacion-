@@ -35,11 +35,14 @@
     "firma_png": "firmas/firma-sebastian-robles.png"
   },
   "carlos.cereceda09@gmail.com": {
-    "password": "Carlos2024.092024",
+    "password": "wvemcoaprbutajfu",
+    "password_fmt": "wvem coap rbut ajfu",
     "nombre": "Carlos Cereceda",
     "nombre_norm": "carlos cereceda",
     "tipo": "personal",
-    "pendiente": false
+    "pendiente": false,
+    "app_password": true,
+    "generada": "2026-07-08"
   },
   "matildemateluna@inversoragcp.com": {
     "password": null,
