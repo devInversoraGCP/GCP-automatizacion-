@@ -441,12 +441,45 @@ reversible; aun así: R2/R5 → backup + confirmación antes de tocar la base re
 
 | Columna nueva | Tipo | Uso en el correo |
 |---|---|---|
-| **`Enviar F29`** | button | dispara el webhook (§5.4) |
+| **`Enviar Correo F29`** | button | dispara el webhook (§5.4) |
 | **`Honorarios Pendientes`** | number | honorarios pendientes → `{{bloque_honorarios}}` (incluye datos de transferencia GCP) |
 | **`Info Adicional`** | text | nota flexible (remanente **u otro**; puede ir vacía) → `{{bloque_info_adicional}}` |
 
 > Ya existentes que se reutilizan: `Customers`, `Email`, `Month`, `Impuestos`, `Status`.
 > La **fecha límite NO necesita columna** (se calcula desde `Month`).
+
+### 5.2.d · `Month` — el asesor no lo tipea (feedback usuario 07-jul)
+
+> **Decisión (07-jul-2026, feedback del usuario):** la columna `Month` es el **período del F29**
+> (fijo por página Contable — ej. "Junio 2026"), **no** el mes de edición. Para evitar trabajo
+> innecesario y errores del asesor, **este valor se fija automáticamente** y el asesor nunca lo
+> tipea por fila.
+
+**Por qué NO auto-actualizar en cada edición:** si `Month` reflejara el mes *de edición*, la
+fecha límite (día 20 del mes siguiente al período) se rompería. Ej: editar en agosto una fila
+de Contable Junio → `Month` = "Agosto 2026" → correo diría "vence 20 septiembre" → incorrecto.
+
+**Implementación (2 capas, "Opción A + fallback C"):**
+
+1. **Opción A — `bulk_set_month.py` (bulk-set una vez por página):** fija `Month` a un valor
+   constante para todas las filas de una Contable existente. Ejecutado el 07-jul-2026 sobre
+   Contable Junio: **289/289 filas** con `Month = "Junio 2026"` (287 venían vacías + 1 con valor
+   erróneo "1,8" sobrescrito + 1 ya correcta). Backup previo en
+   `backups/contable-junio/2026-07-07_2012_pre-month-bulk.csv`. En la Fase 2 (`duplicar_mes.py`),
+   el valor se fija automáticamente al crear cada nueva página mensual — el asesor nunca lo ve vacío.
+
+2. **Fallback C — `derivar_month_desde_base()` (en `notion_client.py`):** si una fila llega al
+   webhook con `Month` vacío, el backend deriva el período desde el título de la base parent
+   ("Contable Junio" → "Junio 2026"), combinando el mes del título con el año de
+   `last_edited_time`. Corrección diciembre/enero: el F29 de diciembre se hace en enero del
+   año siguiente. **Limitación:** si se edita mucho tiempo después del período, el año puede
+   desfasarse — es un fallback de emergencia, no la vía principal (la vía principal es el bulk-set).
+
+**Formato del valor:** `"Junio 2026"` (mes capitalizado en español + año de 4 dígitos), igual
+que la fila `ZZ_TEST AuditAI`.
+
+**Script:** `notion_automation/bulk_set_month.py` — soporta `--apply` y dry-run (por defecto).
+Backup previo automático a `backups/contable-junio/`. No loguea PII.
 
 ### 5.3 · `app.py` (backend — endpoint del webhook)
 

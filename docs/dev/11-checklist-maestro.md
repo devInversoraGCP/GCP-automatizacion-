@@ -498,6 +498,10 @@ Trasladadas de [`05-decisiones-y-preguntas.md`](05-decisiones-y-preguntas.md); c
 - [x] Botón `Enviar Correo F29` + Send webhook configurado en Contable Junio: header
       `X-AuditAI-Secret` + body con `Rut`+`Email`+`Customers` (propiedades seleccionables —
       Notion no expone `page_id` como variable; ver [`23`](23-automatizacion-notion-contable-correo.md) §5.4).
+- [x] **`Month` no lo tipea el asesor (feedback 07-jul):** bulk-set `Month = "Junio 2026"` a las
+      289 filas de Contable Junio (`bulk_set_month.py`, backup previo) + fallback C en el backend
+      (`derivar_month_desde_base()` deriva del título de la base parent si llega vacío). Ver
+      [`23`](23-automatizacion-notion-contable-correo.md) §5.2.d.
 - [x] **Prueba E2E exitosa (07-jul-2026):** botón → correo a `fbrunel@miuandes.cl` desde
       `sebastianrobles@inversoragcp.com` con monto correcto → `Status = "1) Enviado y Pendiente"`.
 - [x] **Extractor recursivo robusto** (`_buscar_clave` + `_extraer_plano_notion`): tolerante al

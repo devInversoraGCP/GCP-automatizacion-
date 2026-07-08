@@ -60,10 +60,20 @@ def _procesar_page(page_id: str) -> dict:
     asesor_nombres = nc.people_names(props.get(P_ADVISER, {}))
     nombre_asesor = asesor_nombres[0] if asesor_nombres else ""
 
+    # Fallback C: si Month esta vacio, derivarlo del titulo de la base parent
+    # ("Contable Junio" -> "Junio 2026"). El asesor no debe tipear Month (Opcion A
+    # bulk-set + este fallback de emergencia). Ver doc 23 §5.2.c.
+    mes_derivado = False
+    if not mes:
+        mes = nc.derivar_month_desde_base(page)
+        mes_derivado = bool(mes)
+        if mes_derivado:
+            log.info("Month vacio -> derivado de la base parent (no se loguea el valor)")
+
     # Log sin PII
     log.info(
-        "page_id=%s cliente=%r asesor=%r mes=%r monto_present=%s hono_present=%s info_present=%s",
-        page_id, nombre, nombre_asesor, mes, bool(monto), bool(honorarios), bool(info),
+        "page_id=%s cliente=%r asesor=%r mes_present=%s mes_derivado=%s hono_present=%s info_present=%s",
+        page_id, nombre, nombre_asesor, bool(mes), mes_derivado, bool(honorarios), bool(info),
     )
 
     if not email:

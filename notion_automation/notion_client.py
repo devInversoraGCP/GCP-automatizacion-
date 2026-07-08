@@ -7,6 +7,12 @@ import requests
 API = "https://api.notion.com/v1"
 VER = "2025-09-03"
 
+_MESES_ES = {
+    "enero": 1, "febrero": 2, "marzo": 3, "abril": 4, "mayo": 5, "junio": 6,
+    "julio": 7, "agosto": 8, "septiembre": 9, "octubre": 10, "noviembre": 11,
+    "diciembre": 12,
+}
+
 
 def _headers() -> dict:
     tok = os.environ["NOTION_TOKEN"]
@@ -96,3 +102,59 @@ def find_page_by_rut(rut: str) -> str | None:
     if not results:
         return None
     return results[0]["id"]
+
+
+def get_database_title(database_id: str) -> str:
+    """Obtiene el titulo plano de una base Notion (de su data source / database).
+    'Contable Junio' -> 'Contable Junio'. Devuelve '' si falla."""
+    r = requests.get(f"{API}/databases/{database_id}", headers=_headers(), timeout=30)
+    r.raise_for_status()
+    data = r.json()
+    titulo = data.get("title", [])
+    if isinstance(titulo, list):
+        return "".join(x.get("plain_text", "") for x in titulo).strip()
+    return ""
+
+
+def derivar_month_desde_base(page: dict) -> str:
+    """Fallback C: si una fila llega con Month vacio, deriva el periodo del F29
+    desde el titulo de la base parent. 'Contable Junio' + ultima_edicion en
+    jul-2026 -> 'Junio 2026'. Logica de anio: mes del titulo + anio de
+    last_edited_time, con correccion si mes=diciembre y edicion en enero
+    (el F29 de diciembre se hace en enero del anio siguiente).
+
+    Limitacion conocida: si se edita mucho tiempo despues del periodo, el anio
+    podria desfasarse. Es un fallback de emergencia; el bulk-set (Opcion A)
+    fija Month correctamente en la mayoria de los casos."""
+    parent = page.get("parent") or {}
+    db_id = parent.get("database_id")
+    if not db_id:
+        return ""
+    titulo = ""
+    try:
+        titulo = get_database_title(db_id)
+    except Exception:
+        return ""
+    # 'Contable Junio' -> 'Junio'
+    partes = titulo.split()
+    if len(partes) < 2 or partes[0].lower() != "contable":
+        return ""
+    nombre_mes = partes[1]
+    mes_lc = nombre_mes.lower()
+    if mes_lc not in _MESES_ES:
+        return ""
+    # Anio desde last_edited_time (formato '2026-07-07T19:39:00.000Z')
+    anio = 0
+    le = page.get("last_edited_time", "")
+    if le and len(le) >= 4 and le[:4].isdigit():
+        anio = int(le[:4])
+    if not anio:
+        return ""
+    # Correccion diciembre/enero: F29 de diciembre se hace en enero del anio siguiente
+    if mes_lc == "diciembre":
+        mes_ed = (le[5:7] if len(le) >= 7 else "")
+        if mes_ed == "01":
+            anio -= 1
+    # Capitalizar mes
+    mes_cap = nombre_mes[0].upper() + nombre_mes[1:].lower()
+    return f"{mes_cap} {anio}"
