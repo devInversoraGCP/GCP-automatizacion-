@@ -1,0 +1,51 @@
+{
+  "_comment": "Credenciales SMTP de los asesores de GCP. El backend envía el correo F29 DESDE la cuenta del asesor asignado a cada cliente (columna 'Adviser Accounting' en Contable Junio). El match se hace por 'nombre_norm' (minúsculas, sin tildes, sin espacios extra) contra el nombre que devuelve la API de Notion para el campo people 'Adviser Accounting'.",
+  "_security": "ARCHIVO GITIGNORED — nunca se commitea (.gitignore línea 19). No imprimir, loguear ni exponer estos valores en outputs del agente (AGENTS.md regla #2).",
+  "_pendientes": [
+    "andreagonzalez@inversoragcp.com",
+    "matildemateluna@inversoragcp.com"
+  ],
+  "_nota_gmail": "Gmail requiere 2FA habilitado + App Password para SMTP (no acepta la contraseña normal desde 2022). Las contraseñas de abajo son las que el usuario proporcionó; cada asesor debe generar su App Password en Cuenta Google → Seguridad → Contraseñas de aplicación y reemplazarla aquí. Cuenta @gmail.com (Carlos) = límite ~500/día; cuentas @inversoragcp.com (Workspace) = sin ese límite si el admin lo permite.",
+  "constanzagaggero@inversoragcp.com": {
+    "password": "gsefbksxkdjvpbik",
+    "password_fmt": "gsef bksx kdjv pbik",
+    "nombre": "Constanza Gaggero",
+    "nombre_norm": "constanza gaggero",
+    "tipo": "workspace",
+    "pendiente": false,
+    "app_password": true,
+    "generada": "2026-07-08"
+  },
+  "andreagonzalez@inversoragcp.com": {
+    "password": null,
+    "nombre": "ANDREA GONZALEZ",
+    "nombre_norm": "andrea gonzalez",
+    "tipo": "workspace",
+    "pendiente": true
+  },
+  "sebastianrobles@inversoragcp.com": {
+    "password": "zugpyxmwibkxgrjh",
+    "password_fmt": "zugp yxmw ibkx grjh",
+    "nombre": "Sebastián Robles",
+    "nombre_norm": "sebastian robles",
+    "tipo": "workspace",
+    "pendiente": false,
+    "app_password": true,
+    "generada": "2026-07-07",
+    "firma_png": "firmas/firma-sebastian-robles.png"
+  },
+  "carlos.cereceda09@gmail.com": {
+    "password": "Carlos2024.092024",
+    "nombre": "Carlos Cereceda",
+    "nombre_norm": "carlos cereceda",
+    "tipo": "personal",
+    "pendiente": false
+  },
+  "matildemateluna@inversoragcp.com": {
+    "password": null,
+    "nombre": "Matilde Mateluna",
+    "nombre_norm": "matilde mateluna",
+    "tipo": "workspace",
+    "pendiente": true
+  }
+}

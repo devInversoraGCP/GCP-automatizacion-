@@ -15,8 +15,7 @@ secrets.*
 **/NOTION_TOKEN*
 
 # 🆕 Automatización Notion + correo F29 (doc 23)
-# Credenciales SMTP de los asesores de GCP y volcados de la API
-notion_automation/asesores_smtp.json
+# Volcados de la API (no commitear)
 notion_automation/data/
 # Logs del backend local (pueden contener estructura del payload con PII)
 backend.log
