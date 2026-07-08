@@ -742,7 +742,7 @@ def find_page_by_rut(rut: str) -> str | None:
    "opcional", el backend lo requiere — R4):
    - **Clave / Key:** `X-AuditAI-Secret`
    - **Valor / Value:** el valor de `WEBHOOK_SECRET` (en `.env`; ej.
-     `29ba2103b03fd589f219d1ba1b1ef3147ff91cc27534ac6d64c1fa7bf988a9a5`).
+     `<WEBHOOK_SECRET>`).
 6. **Contenido (body):** agregar las siguientes **propiedades de la base** (no escribir JSON a
    mano — seleccionarlas de la lista que muestra Notion):
    - **`Rut`** ← **clave de identificación de la fila** (el backend busca por RUT)

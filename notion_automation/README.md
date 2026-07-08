@@ -70,7 +70,7 @@ Estructura de `asesores_smtp.json` (gitignored):
 ```json
 {
   "sebastianrobles@inversoragcp.com": {
-    "password": "zugpyxmwibkxgrjh",
+    "password": "<APP_PASSWORD_GMAIL>",
     "nombre": "Sebastián Robles",
     "nombre_norm": "sebastian robles",
     "tipo": "workspace",

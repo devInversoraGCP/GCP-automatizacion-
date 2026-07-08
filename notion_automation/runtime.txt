@@ -1,3 +1,3 @@
 # Render lee este archivo para saber qué versión de Python usar.
-# Usamos 3.11 por compatibilidad amplia en cloud (3.12+ también funciona).
-python-3.11
+# Se fija el patch completo: Render resuelve mejor una versión exacta que "python-3.11".
+python-3.11.9

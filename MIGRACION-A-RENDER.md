@@ -38,12 +38,19 @@
 
 ## Paso 1 — Subir el repo a GitHub
 
-Render despliega desde GitHub. Si el repo ya está en GitHub, saltar al paso 2.
+> ✅ **YA HECHO (08-jul-2026).** El repo ya está en GitHub como
+> **`francoSW99/AuditAI---GCP`** (rama `main`, todos los commits pusheados). **Puedes saltar
+> directo al Paso 2.** Lo de abajo se conserva solo como referencia por si hay que recrear el
+> repo desde cero.
+>
+> ⚠️ **Nota de secretos:** `.env` está fuera del repo (gitignored). `asesores_smtp.json` **sí
+> está versionado** en el repo privado por decisión del dueño (08-jul) — ver
+> [`notion_automation/CREDENCIALES-Y-HANDOFF.md`](notion_automation/CREDENCIALES-Y-HANDOFF.md).
 
 ### 1.1. Crear el repo en GitHub (si no existe)
 
 1. Ir a https://github.com/new
-2. **Repository name:** `AuditAI`
+2. **Repository name:** `AuditAI---GCP` (o el que uses).
 3. **Private** (recomendado — tiene datos de negocio en la docs).
 4. **No** inicializar con README/license/gitignore (ya los tienes).
 5. **Create repository**.
@@ -52,7 +59,7 @@ Render despliega desde GitHub. Si el repo ya está en GitHub, saltar al paso 2.
 
 ```powershell
 cd C:\Users\Hp\Documents\AuditAI
-git remote add origin https://github.com/TU_USUARIO/AuditAI.git
+git remote add origin https://github.com/TU_USUARIO/AuditAI---GCP.git
 git branch -M main
 git push -u origin main
 ```
@@ -95,8 +102,13 @@ Confirmar que los archivos gitignored no están en GitHub:
 | **Root Directory** | `notion_automation` ⚠️ **importante**: el código está en esta subcarpeta, no en la raíz del repo. |
 | **Runtime** | `Python 3` (Render lee `runtime.txt` automáticamente) |
 | **Build Command** | `pip install -r requirements.txt` |
-| **Start Command** | `python app.py` |
+| **Start Command** | `gunicorn app:app --bind 0.0.0.0:$PORT` |
 | **Instance Type** | `Free` (suficiente para empezar) |
+
+> 💡 **Servidor de producción:** en Render se usa **gunicorn** (ya está en `requirements.txt`
+> y en el `Procfile`), no el dev server de Flask. Render toma el **Start Command** de arriba;
+> si lo dejas vacío, usa el `Procfile` (que ya trae el mismo comando gunicorn). En tu PC
+> (Windows) gunicorn no corre — ahí sigues usando `python app.py` para pruebas locales.
 
 5. **No** hacer deploy todavía — primero configurar las env vars (paso 3).
 6. Hacer clic en **Advanced** (opcional) y revisar. No hace falta tocar nada.
@@ -113,6 +125,21 @@ Hacer clic en **Save** (o **Create Web Service** si no aparece Save). Render pue
 
 Render no tiene acceso a tu `.env` local (está gitignored, bien). Hay que meter los secretos a mano en el panel de Render.
 
+> 🔴 **Secretos rotados el 08-jul-2026 (léelo antes de copiar valores).** Se detectó que el
+> `WEBHOOK_SECRET` viejo y la App Password de Gmail de Sebastián estaban commiteados en el repo.
+> Se **rotaron** para invalidarlos:
+> - **`WEBHOOK_SECRET`:** ya hay uno **nuevo** en `notion_automation/.env` (gitignored). Ese es
+>   el que va en Render **y** en el header del botón de Notion (deben coincidir). El valor viejo
+>   (aún en el historial de git) ya **no sirve**.
+> - **App Password de Sebastián:** **debe regenerarse** en
+>   https://myaccount.google.com/apppasswords (requiere acceso a la cuenta de Sebastián). La
+>   nueva se guarda en `notion_automation/asesores_smtp.json` local y de ahí sale el
+>   `ASESORES_SMTP_JSON` de Render (paso 3.3). Hasta regenerarla, los correos desde su cuenta
+>   fallarán.
+>
+> Ver el inventario completo de credenciales en
+> [`notion_automation/CREDENCIALES-Y-HANDOFF.md`](notion_automation/CREDENCIALES-Y-HANDOFF.md).
+
 ### 3.1. Ir a las env vars del servicio
 
 1. En Render: dashboard → `auditai-backend` → **Environment** (barra lateral izquierda).
@@ -123,7 +150,7 @@ Render no tiene acceso a tu `.env` local (está gitignored, bien). Hay que meter
 | Key | Value | De dónde sacarlo |
 |---|---|---|
 | `NOTION_TOKEN` | `<tu token>` | `notion_automation/.env` local (línea `NOTION_TOKEN=...`) — **NO commitear** |
-| `WEBHOOK_SECRET` | `29ba2103b03fd589f219d1ba1b1ef3147ff91cc27534ac6d64c1fa7bf988a9a5` | El mismo que está en el botón de Notion (deben coincidir) |
+| `WEBHOOK_SECRET` | *(el NUEVO, rotado 08-jul)* | `notion_automation/.env` local, línea `WEBHOOK_SECRET=...`. El **mismo** valor va en el header del botón de Notion (deben coincidir) — **NO commitear** |
 | `EMAIL_FROM` | `notificaciones@inversoragcp.com` | Remitente fallback (cuando el cliente no tiene asesor asignado) |
 | `EMAIL_CONTACTO` | `contacto@gcp.cl` | Correo que va en el pie del correo |
 | `ASESORES_SMTP_JSON` | *(ver 3.3 abajo)* | El contenido completo de `asesores_smtp.json` como string |
@@ -187,8 +214,14 @@ Ahora que tienes URL estable, reemplaza la de ngrok en el botón de Notion.
 |---|---|---|
 | **URL** | `https://xxxx.ngrok-free.app/enviar-f29` | `https://auditai-backend.onrender.com/enviar-f29` |
 | **Method** | POST | POST (sin cambio) |
-| **Header `X-AuditAI-Secret`** | `29ba2103...` | `29ba2103...` (sin cambio — debe coincidir con la env var de Render) |
-| **Body** | `{ "page_id": "<ID>" }` | `{ "page_id": "<ID>" }` (sin cambio) |
+| **Header `X-AuditAI-Secret`** | (secreto viejo) | **el NUEVO `WEBHOOK_SECRET`** (ver ⚠️ abajo — se rotó el 08-jul; debe coincidir con la env var de Render) |
+| **Body** | `Rut` + `Email` + `Customers` (propiedades) | **sin cambio** — dejar las mismas 3 propiedades |
+
+> ⚠️ **El único campo que cambia de verdad es la URL.** El **Body NO es** `{ "page_id": ... }`
+> (eso era un plan viejo): el botón envía las **propiedades `Rut`, `Email`, `Customers`** de la
+> fila, y el backend identifica la fila por `Rut` (o por el `page_id` que Notion mete gratis en
+> `source.page_id`). No lo toques. El **Header** sí hay que actualizarlo con el **nuevo**
+> `WEBHOOK_SECRET` rotado el 08-jul (el valor viejo quedó invalidado).
 
 4. **Guardar**.
 
