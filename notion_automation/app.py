@@ -41,7 +41,7 @@ P_MONTO = "Impuestos"
 P_STATUS = "Status"
 P_HONORARIOS = "Honorarios Pendientes"
 P_INFO_VALOR = "Valor-Info adicional"     # number — valor de la info adicional
-P_INFO_MOTIVO = "Motivo-Info adicional"   # select — motivo (Remanente, Saldo a favor, Pago adicional, Otro)
+P_INFO_MOTIVO = "Motivo-Info adicional"   # rich_text — motivo (Remanente, Saldo a favor, Pago adicional, Otro, o libre)
 P_ADVISER = "Adviser Accounting"
 STATUS_ENVIADO = "1) Enviado y Pendiente"
 
