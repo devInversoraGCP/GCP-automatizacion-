@@ -1,4 +1,4 @@
-Asunto: Impuestos mensuales
+Asunto: Resumen impuestos {{periodo}}
 
 Estimado/a {{nombre_cliente}}:
 

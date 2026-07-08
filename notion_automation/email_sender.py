@@ -25,7 +25,7 @@ LOGO_PATH = Path(__file__).parent.parent / "LOGO-GCP.png"
 
 TEMPLATES = Path(__file__).parent / "email_templates"
 ASESORES_JSON = Path(__file__).parent / "asesores_smtp.json"
-ASUNTO = "Impuestos mensuales"
+ASUNTO_BASE = "Resumen impuestos"   # el asunto se completa con el mes: "Resumen impuestos Junio"
 
 _MESES = {
     "enero": 1, "febrero": 2, "marzo": 3, "abril": 4, "mayo": 5, "junio": 6,
@@ -136,13 +136,21 @@ def fecha_larga(d: datetime.date) -> str:
     return f"{_DIAS[d.weekday()]} {d.day} de {_MI[d.month]} de {d.year}"
 
 
+def _mes_nombre(periodo: str) -> str:
+    """Nombre del mes (capitalizado) del periodo. 'Junio 2026' -> 'Junio'. '' si no se reconoce."""
+    for p in (periodo or "").strip().lower().split():
+        if p in _MESES:
+            return p.capitalize()
+    return ""
+
+
 def _variantes(monto_str: str, periodo: str) -> tuple[str, str]:
     try:
         n = float(monto_str)
     except (ValueError, TypeError):
         n = 0.0
     if n > 0:
-        return "Impuestos a pagar del mes", ""
+        return "Impuesto a pagar", ""
     if n < 0:
         return "Saldo a favor", "Este mes no paga IVA: el saldo queda a su favor y se arrastra al próximo período."
     return "Sin pago este mes", f"Su Formulario 29 del período {periodo} se declara sin movimiento; este mes no paga IVA."
@@ -324,8 +332,8 @@ def enviar(
             firma_png = str(p)
     if firma_png:
         firma_html = (
-            f'<img src="cid:firma-asesor" alt="{asesor_firma}" '
-            f'style="width:600px;max-width:100%;height:auto;display:block;border:0;margin:6px 0 8px;">'
+            f'<img src="cid:firma-asesor" alt="{asesor_firma}" border="0" '
+            f'style="width:600px;max-width:100%;height:auto;display:block;border:none;outline:none;margin:6px 0 8px;">'
         )
     else:
         firma_html = (
@@ -339,10 +347,14 @@ def enviar(
         honorarios, info_valor, info_motivo, firma_html,
     )
 
+    # Asunto dinamico: "Resumen de impuestos de <Mes>" (mes del periodo del F29).
+    mes_nombre = _mes_nombre(mes)
+    asunto = f"{ASUNTO_BASE} {mes_nombre}" if mes_nombre else "Resumen impuestos"
+
     # Mensaje "related" (no "alternative") para que las imágenes inline (logo + firma)
     # se asocien al cuerpo y Gmail las muestre en vez de tratarlas como adjuntos sueltos.
     msg = MIMEMultipart("related")
-    msg["Subject"] = ASUNTO
+    msg["Subject"] = asunto
     msg["From"] = f"{asesor_firma} · GCP <{remitente_email}>"
     msg["To"] = destinatario
     alt = MIMEMultipart("alternative")
@@ -358,12 +370,13 @@ def enviar(
         _logo.add_header("Content-Disposition", "inline", filename="logo-gcp.png")
         msg.attach(_logo)
 
-    # Firma del asesor inline (Content-ID: firma-asesor)
+    # Firma del asesor inline (Content-ID: firma-asesor). Detecta jpeg/png por extension.
     if firma_png:
+        _sub = "jpeg" if firma_png.lower().endswith((".jpg", ".jpeg")) else "png"
         with open(firma_png, "rb") as fh:
-            _firma = MIMEImage(fh.read(), _subtype="png")
+            _firma = MIMEImage(fh.read(), _subtype=_sub)
         _firma.add_header("Content-ID", "<firma-asesor>")
-        _firma.add_header("Content-Disposition", "inline", filename="firma-asesor.png")
+        _firma.add_header("Content-Disposition", "inline", filename=f"firma-asesor.{_sub}")
         msg.attach(_firma)
 
     # SMTP Gmail — puerto 465 (SSL). App Password sin espacios.
