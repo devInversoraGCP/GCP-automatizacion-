@@ -1,0 +1,31 @@
+# Blueprint de Render para el backend del correo F29 (AuditAI).
+# Con esto, en Render: New + -> "Blueprint" -> seleccionar este repo -> Apply.
+# Render lee este archivo y auto-configura el servicio (root dir, build, start, health).
+# Solo tendras que PEGAR los 2 secretos marcados abajo (sync: false).
+#
+# Guia completa: MIGRACION-A-RENDER.md
+services:
+  - type: web
+    name: auditai-backend
+    runtime: python
+    plan: free                       # suficiente para ~300 correos/mes (duerme tras 15 min sin trafico)
+    region: oregon                   # cambiable (oregon/virginia/frankfurt); Virginia suele ir bien desde Chile
+    rootDir: notion_automation       # CLAVE: el codigo esta en esta subcarpeta
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT
+    healthCheckPath: /health
+    autoDeploy: true                 # cada git push a main -> redeploy automatico
+    envVars:
+      # --- Secretos: Render te los pedira al aplicar el blueprint (NO se guardan en el repo) ---
+      - key: NOTION_TOKEN
+        sync: false                  # pegar el token de la integracion de Notion (esta en notion_automation/.env)
+      - key: WEBHOOK_SECRET
+        sync: false                  # pegar el WEBHOOK_SECRET NUEVO (esta en notion_automation/.env) - el mismo va en el boton de Notion
+      # --- No secretos: valores por defecto (editables en el panel) ---
+      - key: EMAIL_FROM
+        value: notificaciones@inversoragcp.com
+      - key: EMAIL_CONTACTO
+        value: contacto@gcp.cl
+      # ASESORES_SMTP_JSON es OPCIONAL: asesores_smtp.json esta versionado en el repo (decision 08-jul),
+      # asi que Render lo lee del archivo directamente. Si prefieres inyectarlo por env var,
+      # agrega aqui: - key: ASESORES_SMTP_JSON / sync: false  (tiene prioridad sobre el archivo).
