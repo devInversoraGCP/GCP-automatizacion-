@@ -11,9 +11,6 @@ Le escribimos para informarle el resultado de su declaración de IVA
 {{linea_info_adicional}}
 {{linea_honorarios}}
 
-Si tiene dudas o necesita el detalle que respalda este monto, responda este
-mismo correo y con gusto le ayudamos.
-
 Saludos cordiales,
 {{asesor}}
 GCP · Asesoría Contable

@@ -142,7 +142,7 @@ def _variantes(monto_str: str, periodo: str) -> tuple[str, str]:
     except (ValueError, TypeError):
         n = 0.0
     if n > 0:
-        return "IVA a pagar este mes", ""
+        return "IMPUESTOS A PAGAR", ""
     if n < 0:
         return "Saldo a favor", "Este mes no paga IVA: el saldo queda a su favor y se arrastra al próximo período."
     return "Sin pago este mes", f"Su Formulario 29 del período {periodo} se declara sin movimiento; este mes no paga IVA."
