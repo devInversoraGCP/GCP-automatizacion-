@@ -443,10 +443,18 @@ reversible; aun así: R2/R5 → backup + confirmación antes de tocar la base re
 |---|---|---|
 | **`Enviar Correo F29`** | button | dispara el webhook (§5.4) |
 | **`Honorarios Pendientes`** | number | honorarios pendientes → `{{bloque_honorarios}}` (incluye datos de transferencia GCP) |
-| **`Info Adicional`** | text | nota flexible (remanente **u otro**; puede ir vacía) → `{{bloque_info_adicional}}` |
+| **`Valor-Info adicional`** 🆕 | number | valor numérico de la info adicional (ej. 417798) |
+| **`Motivo-Info adicional`** 🆕 | select | motivo: Remanente / Saldo a favor / Pago adicional / Otro (el asesor puede escribir nuevas) |
 
 > Ya existentes que se reutilizan: `Customers`, `Email`, `Month`, `Impuestos`, `Status`.
 > La **fecha límite NO necesita columna** (se calcula desde `Month`).
+>
+> 🆕 **Split de "Info Adicional" (07-jul, feedback usuario):** la columna original `Info Adicional`
+> (rich_text libre) se dividió en dos — `Valor-Info adicional` (number) + `Motivo-Info adicional`
+> (select con dropdown + escritura). El backend las combina con `_combinar_info()` en un texto
+> natural: ambos → "Remanente: $417.798" · solo valor → "$417.798" · solo motivo → "Remanente" ·
+> ninguno → bloque omitido. La columna vieja se eliminó (backup previo en
+> `backups/contable-junio/2026-07-07_2037_pre-info-split_InfoAdicional.csv`).
 
 ### 5.2.d · `Month` — el asesor no lo tipea (feedback usuario 07-jul)
 

@@ -186,8 +186,27 @@ def _bloque_honorarios(monto_h: str) -> tuple[str, str]:
     return html, txt
 
 
-def _bloque_info(texto: str) -> tuple[str, str]:
-    t = (texto or "").strip()
+def _combinar_info(valor: str, motivo: str) -> str:
+    """Combina valor (numero) + motivo (select) en un texto natural.
+    - ambos: 'Remanente: $417.798'
+    - solo valor: '$417.798'
+    - solo motivo: 'Remanente'
+    - ninguno: ''"""
+    v = (valor or "").strip()
+    m = (motivo or "").strip()
+    if v and m:
+        return f"{m}: {clp(v)}"
+    if v:
+        return clp(v)
+    if m:
+        return m
+    return ""
+
+
+def _bloque_info(valor: str, motivo: str) -> tuple[str, str]:
+    """Bloque de informacion adicional. Recibe valor (numero) + motivo (select).
+    Si ambos vacios, no se inyecta (devuelve ('', ''))."""
+    t = _combinar_info(valor, motivo)
     if not t:
         return "", ""
     t_html = _resaltar(t)
@@ -204,7 +223,7 @@ def _bloque_info(texto: str) -> tuple[str, str]:
 
 def render(
     nombre: str, periodo: str, monto: str, asesor: str, contacto: str,
-    logo_url: str, honorarios: str = "", info_adicional: str = "",
+    logo_url: str, honorarios: str = "", info_valor: str = "", info_motivo: str = "",
     firma_html: str = "",
 ) -> tuple[str, str]:
     """Carga la plantilla y reemplaza los marcadores. Devuelve (html, txt)."""
@@ -220,7 +239,8 @@ def render(
         if d:
             b_fecha = _bloque_fecha(d)
     b_hono = _bloque_honorarios(honorarios)
-    b_info = _bloque_info(info_adicional)
+    b_info = _bloque_info(info_valor, info_motivo)
+    info_texto = _combinar_info(info_valor, info_motivo)
 
     vars_ = {
         "logo_url": "cid:logo-gcp",
@@ -242,7 +262,7 @@ def render(
         "linea_honorarios": b_hono[1],
         "bloque_info_adicional": b_info[0],
         "linea_info_adicional": b_info[1],
-        "info_adicional_texto": (info_adicional or "").strip(),
+        "info_adicional_texto": info_texto,
     }
     html = (TEMPLATES / "f29_email.html").read_text(encoding="utf-8")
     txt = (TEMPLATES / "f29_email.txt").read_text(encoding="utf-8")
@@ -259,7 +279,8 @@ def enviar(
     monto: str,
     nombre_asesor: str = "",
     honorarios: str = "",
-    info_adicional: str = "",
+    info_valor: str = "",
+    info_motivo: str = "",
     contacto: str | None = None,
     logo_url: str | None = None,
 ) -> str:
@@ -315,7 +336,7 @@ def enviar(
 
     html, txt = render(
         nombre, mes, monto, asesor_firma, contacto, logo_url,
-        honorarios, info_adicional, firma_html,
+        honorarios, info_valor, info_motivo, firma_html,
     )
 
     # Mensaje "related" (no "alternative") para que las imágenes inline (logo + firma)

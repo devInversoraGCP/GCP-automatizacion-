@@ -39,8 +39,8 @@ def plain(prop: dict) -> str:
     if t == "number":
         n = prop.get("number")
         return "" if n is None else str(n)
-    if t == "status":
-        s = prop.get("status")
+    if t in ("status", "select"):
+        s = prop.get(t)
         return (s or {}).get("name", "")
     if t == "people":
         names = [x.get("name", "") for x in prop.get("people", [])]

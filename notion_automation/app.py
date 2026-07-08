@@ -40,7 +40,8 @@ P_MES = "Month"
 P_MONTO = "Impuestos"
 P_STATUS = "Status"
 P_HONORARIOS = "Honorarios Pendientes"
-P_INFO = "Info Adicional"
+P_INFO_VALOR = "Valor-Info adicional"     # number — valor de la info adicional
+P_INFO_MOTIVO = "Motivo-Info adicional"   # select — motivo (Remanente, Saldo a favor, Pago adicional, Otro)
 P_ADVISER = "Adviser Accounting"
 STATUS_ENVIADO = "1) Enviado y Pendiente"
 
@@ -56,7 +57,8 @@ def _procesar_page(page_id: str) -> dict:
     mes = nc.plain(props.get(P_MES, {}))
     monto = nc.plain(props.get(P_MONTO, {}))
     honorarios = nc.plain(props.get(P_HONORARIOS, {}))
-    info = nc.plain(props.get(P_INFO, {}))
+    info_valor = nc.plain(props.get(P_INFO_VALOR, {}))
+    info_motivo = nc.plain(props.get(P_INFO_MOTIVO, {}))
     asesor_nombres = nc.people_names(props.get(P_ADVISER, {}))
     nombre_asesor = asesor_nombres[0] if asesor_nombres else ""
 
@@ -72,8 +74,9 @@ def _procesar_page(page_id: str) -> dict:
 
     # Log sin PII
     log.info(
-        "page_id=%s cliente=%r asesor=%r mes_present=%s mes_derivado=%s hono_present=%s info_present=%s",
-        page_id, nombre, nombre_asesor, bool(mes), mes_derivado, bool(honorarios), bool(info),
+        "page_id=%s cliente=%r asesor=%r mes_present=%s mes_derivado=%s hono_present=%s info_valor_present=%s info_motivo_present=%s",
+        page_id, nombre, nombre_asesor, bool(mes), mes_derivado,
+        bool(honorarios), bool(info_valor), bool(info_motivo),
     )
 
     if not email:
@@ -90,7 +93,8 @@ def _procesar_page(page_id: str) -> dict:
             monto=monto or "0",
             nombre_asesor=nombre_asesor,
             honorarios=honorarios,
-            info_adicional=info,
+            info_valor=info_valor,
+            info_motivo=info_motivo,
         )
         log.info("correo enviado OK · page_id=%s remitente=%s", page_id, remitente)
     except ValueError as exc:
@@ -103,7 +107,7 @@ def _procesar_page(page_id: str) -> dict:
     # Write-back del Status
     try:
         nc.update_props(page_id, {P_STATUS: {"status": {"name": STATUS_ENVIADO}}})
-        log.info("status actualizado · page_id=%s → %s", page_id, STATUS_ENVIADO)
+        log.info("status actualizado · page_id=%s -> %s", page_id, STATUS_ENVIADO)
     except Exception as exc:
         log.warning("no se pudo actualizar status · page_id=%s · %s", page_id, exc)
 
