@@ -39,8 +39,8 @@ El mapeo nombre→credencial está en `asesores_smtp.json` (campo `nombre_norm`)
 | Asesor | Estado del envío | Nota |
 |---|---|---|
 | **Sebastián Robles** | ✅ **Verificado** (E2E 07-jul) | Único con App Password confirmada funcionando. Tiene firma PNG (`firmas/firma-sebastian-robles.png`). |
-| Constanza Gaggero | ⚠️ Por verificar | Tiene credencial cargada pero no probada en el botón real. |
-| Carlos Cereceda | ⚠️ Por verificar | Ídem. |
+| Constanza Gaggero | ✅ Verificado | Credencial cargada y probada en el botón real. |
+| Carlos Cereceda | ✅ Verificado | Credencial cargada y probada en el botón real. |
 | Andrea González | ⛔ Pendiente | Marcada `pendiente: true` — sin App Password. |
 | Matilde Mateluna | ⛔ Pendiente | Marcada `pendiente: true` — sin App Password. |
 

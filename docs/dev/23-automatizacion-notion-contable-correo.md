@@ -792,8 +792,8 @@ si por alguna razón `source.page_id` no viniera, cae al RUT y hace `find_page_b
 > (no un remitente genérico). Gmail requiere **2FA + App Password** (las contraseñas normales
 > son rechazadas desde 2022). El mapeo asesor → credenciales SMTP vive en
 > `notion_automation/asesores_smtp.json` (gitignored, ver R3). Solo **Sebastián Robles** tiene
-> App Password configurada y funcionando (verificada en el E2E). 4 asesores pendientes
-> (Constanza, Carlos, Andrea, Matilde) — Andrea y Matilde además no tienen contraseña normal.
+> App Password configurada y funcionando (verificada en el E2E), al igual que Constanza y Carlos. 2 asesores pendientes
+> (Andrea, Matilde) — Andrea y Matilde además no tienen contraseña normal.
 
 ```powershell
 # terminal 1: backend (con logging a auditai.log)
@@ -966,8 +966,8 @@ Correr contra una base **destino de prueba** partiendo de una copia de Mayo:
 - [x] Extractor recursivo robusto (`_buscar_clave` + `_extraer_plano_notion`) — tolerante al
       formato real `{"source": {...}, "data": {...}}` de Notion. 5/5 casos de test pasan.
 - [ ] **Caso borde sin Email** (verificado manualmente via `--test`, falta clic real del botón).
-- [ ] App Passwords de los 4 asesores restantes (Constanza, Carlos, Andrea, Matilde) — pendiente
-      hasta confirmar que Sebastián funciona en el botón real (✅ confirmado 07-jul).
+- [ ] App Passwords de los 2 asesores restantes (Andrea, Matilde) — pendiente
+      tras confirmar que Sebastián, Constanza y Carlos funcionan.
 - [ ] `duplicar_mes.py` con `--dry-run` correcto sobre bases de prueba (reset + nuevos por RUT, sin duplicados).
 - [x] Cero credenciales/PII en logs o conversación (R3) — log estructural solo keys y tipos.
 - [x] Bases reales tocadas con backup + confirmación (R2/R5) — Contable Junio con backup previo.

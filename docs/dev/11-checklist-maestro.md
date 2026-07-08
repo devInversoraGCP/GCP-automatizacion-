@@ -516,9 +516,7 @@ Trasladadas de [`05-decisiones-y-preguntas.md`](05-decisiones-y-preguntas.md); c
 - [x] ngrok instalado (`C:\ngrok\ngrok.exe` v3.39.9, authtoken configurado, PATH actualizado).
 - [x] Documentos de misión creados: `MISION-ARREGLAR-CORREO-F29.md` (misión Claude Opus 4.8,
       ✅ completada) y `MIGRACION-A-RENDER.md` (manual de migración a la nube, 405 líneas).
-- [ ] **App Passwords de 4 asesores restantes** (Constanza, Carlos, Andrea, Matilde) — pendiente
-      tras confirmar que Sebastián funciona en el botón real (✅ confirmado 07-jul). Andrea y
-      Matilde además no tienen contraseña normal de Gmail.
+- [ ] **App Passwords de 2 asesores restantes** (Andrea, Matilde) — pendiente tras confirmar que Sebastián, Constanza y Carlos funcionan en el botón real. Andrea y Matilde además no tienen contraseña normal de Gmail.
 - [ ] Caso borde sin Email (verificado vía `--test`, falta clic real del botón).
 
 ### N.3 · Duplicación mensual (Fase 2 del doc 23, pendiente)
