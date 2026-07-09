@@ -18,11 +18,14 @@ import datetime
 import json
 import re
 import base64
+import mimetypes
 import requests
 from html import escape as _escape
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.image import MIMEImage
+from email.mime.base import MIMEBase
+from email import encoders
 from pathlib import Path
 
 LOGO_PATH = Path(__file__).parent.parent / "LOGO-GCP.png"
@@ -284,6 +287,34 @@ def render(
     return html, txt
 
 
+MAX_ADJUNTOS_MB = 15   # tope total de adjuntos (los correos rebotan pasados ~25 MB)
+
+
+def _descargar_adjuntos(adjuntos):
+    """Descarga los archivos de la columna 'Adjuntos' de Notion (URLs firmadas
+    temporales) -> [(nombre, bytes, mime)]. Respeta un tope total de tamano;
+    si se excede, deja de agregar. No loguea contenido."""
+    out, total = [], 0
+    tope = MAX_ADJUNTOS_MB * 1024 * 1024
+    for a in (adjuntos or []):
+        url = (a or {}).get("url")
+        nombre = (a or {}).get("name") or "adjunto"
+        if not url:
+            continue
+        try:
+            r = requests.get(url, timeout=30)
+            r.raise_for_status()
+        except Exception:
+            continue
+        data = r.content
+        if total + len(data) > tope:
+            break
+        total += len(data)
+        mime = mimetypes.guess_type(nombre)[0] or "application/octet-stream"
+        out.append((nombre, data, mime))
+    return out
+
+
 def enviar(
     destinatario: str,
     nombre: str,
@@ -293,6 +324,7 @@ def enviar(
     honorarios: str = "",
     info_valor: str = "",
     info_motivo: str = "",
+    adjuntos: list | None = None,
     contacto: str | None = None,
     logo_url: str | None = None,
 ) -> str:
@@ -349,6 +381,9 @@ def enviar(
     mes_nombre = _mes_nombre(mes)
     asunto = f"{ASUNTO_BASE} {mes_nombre}" if mes_nombre else "Resumen impuestos"
 
+    # Descargar adjuntos (PDFs de la columna "Adjuntos" de Notion), con tope de tamano.
+    adjuntos_bin = _descargar_adjuntos(adjuntos)
+
     # === Envío ===
     # En la nube (Render BLOQUEA SMTP) se usa la API HTTPS de SendGrid si hay SENDGRID_API_KEY.
     # En local, si no hay key, cae al SMTP de Gmail (requiere App Password del asesor).
@@ -356,6 +391,7 @@ def enviar(
         _enviar_via_sendgrid(
             os.environ["SENDGRID_API_KEY"],
             remitente_email, asesor_firma, destinatario, asunto, html, txt, firma_png,
+            adjuntos_bin,
         )
         return remitente_email
 
@@ -391,6 +427,15 @@ def enviar(
         _firma.add_header("Content-Disposition", "inline", filename=f"firma-asesor.{_sub}")
         msg.attach(_firma)
 
+    # Adjuntos (PDFs) descargados de Notion
+    for _name, _data, _mime in adjuntos_bin:
+        _maintype, _, _subt = _mime.partition("/")
+        _part = MIMEBase(_maintype or "application", _subt or "octet-stream")
+        _part.set_payload(_data)
+        encoders.encode_base64(_part)
+        _part.add_header("Content-Disposition", "attachment", filename=_name)
+        msg.attach(_part)
+
     pass_clean = remitente_pass.replace(" ", "")
     context = ssl.create_default_context()
     with smtplib.SMTP_SSL("smtp.gmail.com", 465, context=context, timeout=30) as server:
@@ -401,7 +446,7 @@ def enviar(
 
 
 def _enviar_via_sendgrid(api_key, remitente_email, asesor_firma, destinatario,
-                         asunto, html, txt, firma_png):
+                         asunto, html, txt, firma_png, adjuntos_bin=None):
     """Envía el correo por la API HTTPS de SendGrid (Render bloquea SMTP).
     Logo + firma van como adjuntos inline (content_id) para verse en el cuerpo.
     El remitente (remitente_email) DEBE estar verificado en SendGrid (Single
@@ -421,6 +466,13 @@ def _enviar_via_sendgrid(api_key, remitente_email, asesor_firma, destinatario,
     if firma_png:
         ctype = "image/jpeg" if firma_png.lower().endswith((".jpg", ".jpeg")) else "image/png"
         _inline(firma_png, "firma-asesor", "firma-asesor", ctype)
+
+    # Adjuntos (PDFs) — disposition "attachment" (no inline)
+    for _name, _data, _mime in (adjuntos_bin or []):
+        attachments.append({
+            "content": base64.b64encode(_data).decode("ascii"),
+            "type": _mime, "filename": _name, "disposition": "attachment",
+        })
 
     payload = {
         "personalizations": [{"to": [{"email": destinatario}]}],

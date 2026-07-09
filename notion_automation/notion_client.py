@@ -53,6 +53,27 @@ def people_names(prop: dict) -> list[str]:
     return [x.get("name", "").strip() for x in prop.get("people", [])]
 
 
+def files(prop: dict) -> list[dict]:
+    """Lista de archivos de una propiedad 'files & media' de Notion.
+    Devuelve [{'name':..., 'url':...}]. Maneja archivos subidos a Notion
+    (URL firmada temporal ~1h) y externos. No loguea nada."""
+    out = []
+    for f in prop.get("files", []) or []:
+        if not isinstance(f, dict):
+            continue
+        nombre = f.get("name") or "adjunto"
+        t = f.get("type")
+        if t == "file":
+            url = (f.get("file") or {}).get("url", "")
+        elif t == "external":
+            url = (f.get("external") or {}).get("url", "")
+        else:
+            url = ""
+        if url:
+            out.append({"name": nombre, "url": url})
+    return out
+
+
 def update_props(page_id: str, properties: dict) -> None:
     r = requests.patch(
         f"{API}/pages/{page_id}",
