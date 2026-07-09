@@ -15,6 +15,7 @@ import logging
 from logging.handlers import RotatingFileHandler
 from flask import Flask, request, abort
 from dotenv import load_dotenv
+import datetime
 import notion_client as nc
 import email_sender as es
 
@@ -45,6 +46,7 @@ P_INFO_MOTIVO = "Motivo-Info adicional"   # rich_text — motivo (Remanente, Sal
 P_ADVISER = "Adviser Accounting"
 P_ADJUNTOS = "Adjuntos"   # files & media — PDFs que se adjuntan al correo
 P_MSG_ADJUNTOS = "Mensaje Adjuntos"   # rich_text — nota del asesor sobre los adjuntos
+P_FECHA_ENVIO = "Fecha Envío"   # date — fecha y hora en la que se envió el correo
 STATUS_ENVIADO = "1) Enviado y Pendiente"
 
 
@@ -83,10 +85,24 @@ def _procesar_page(page_id: str) -> dict:
         bool(honorarios), bool(info_valor), bool(info_motivo), bool(msg_adjuntos), len(adjuntos),
     )
 
+    def _alertar_error(motivo: str):
+        email_asesor = os.environ.get("EMAIL_FROM", "notificaciones@inversoragcp.com")
+        if nombre_asesor:
+            asesor_info = es._buscar_asesor_por_nombre(nombre_asesor)
+            if asesor_info:
+                email_asesor = asesor_info["email"]
+        try:
+            es.enviar_aviso_error(email_asesor, nombre or "Cliente Desconocido", mes or "", motivo)
+            log.info("aviso de error enviado al asesor: %s", email_asesor)
+        except Exception as e:
+            log.warning("no se pudo enviar aviso de error al asesor: %s", e)
+
     if not email:
+        _alertar_error("Fila sin correo electrónico (Email).")
         return {"ok": False, "motivo": "fila sin Email"}
 
     if not mes:
+        _alertar_error("Fila sin mes (Month), necesario para calcular la fecha límite.")
         return {"ok": False, "motivo": "fila sin Month (necesario para fecha límite)"}
 
     try:
@@ -105,17 +121,23 @@ def _procesar_page(page_id: str) -> dict:
         log.info("correo enviado OK · page_id=%s remitente=%s", page_id, remitente)
     except ValueError as exc:
         log.error("error envio · page_id=%s · %s", page_id, exc)
+        _alertar_error(str(exc))
         return {"ok": False, "motivo": str(exc)}
     except Exception as exc:
         log.error("error SMTP · page_id=%s · %s", page_id, exc)
+        _alertar_error(f"Error de envío: {exc}")
         return {"ok": False, "motivo": f"error SMTP: {exc}"}
 
-    # Write-back del Status
+    # Write-back del Status y Fecha Envío
     try:
-        nc.update_props(page_id, {P_STATUS: {"status": {"name": STATUS_ENVIADO}}})
-        log.info("status actualizado · page_id=%s -> %s", page_id, STATUS_ENVIADO)
+        now_iso = datetime.datetime.now(datetime.timezone.utc).isoformat()
+        nc.update_props(page_id, {
+            P_STATUS: {"status": {"name": STATUS_ENVIADO}},
+            P_FECHA_ENVIO: {"date": {"start": now_iso}}
+        })
+        log.info("status y fecha actualizados · page_id=%s -> %s", page_id, STATUS_ENVIADO)
     except Exception as exc:
-        log.warning("no se pudo actualizar status · page_id=%s · %s", page_id, exc)
+        log.warning("no se pudo actualizar status/fecha · page_id=%s · %s", page_id, exc)
 
     return {"ok": True, "remitente": remitente}
 
