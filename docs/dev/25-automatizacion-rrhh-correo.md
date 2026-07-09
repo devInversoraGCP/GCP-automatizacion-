@@ -1,8 +1,8 @@
 # 25 · Automatización RRHH JUNIO 2026 — correo de imposiciones
 
-> **Estado: ✅ IMPLEMENTADO Y DESPLEGADO** (09-jul-2026, commit `3aeb05d`).
-> Endpoint `POST /webhook/rrhh` vivo en Render (verificado: responde 401 sin secreto).
-> **Pendiente:** prueba E2E real apretando el botón (§7) y columna `Fecha Envío` en Notion (§2.3).
+> **Estado: ✅ IMPLEMENTADO Y DESPLEGADO** (09-jul-2026, commit base `3aeb05d`, iterado con
+> feedback del usuario hasta `HEAD`). Endpoint `POST /webhook/rrhh` vivo en Render.
+> **Pendiente:** prueba E2E real apretando el botón en la fila `RODOTECH` (§7).
 >
 > **Qué hace:** el botón **"Enviar Correo"** de cada fila de **RRHH JUNIO 2026** envía al cliente
 > un correo con el monto de sus imposiciones del mes y el plazo de pago (13 del mes siguiente,
@@ -65,7 +65,7 @@
 | General Customers Data - AuditAI (sandbox, para lookup de email por RUT) | `4ff12147-b3ea-82f4-98dd-072067524cdc` |
 | Backend (Render) | `https://auditai-backend-gubv.onrender.com` |
 
-### 2.2 · Columnas (las 15 que existen hoy)
+### 2.2 · Columnas (las 18 que existen hoy)
 
 | Columna | Tipo real | Uso en la automatización |
 |---------|-----------|--------------------------|
@@ -74,23 +74,26 @@
 | `ASISTENTE` | select: `Andrea`, `Yasna`, `Carlos`, `Seba`, `Matilde`, `Samuel` | Remitente, vía `ALIAS_ASESOR` (§5.1). Yasna/Samuel ya no están en GCP |
 | `MONTO IMPOSICIONES\|` | number | Monto a pagar → tarjeta del correo (el `\|` final es parte del nombre) |
 | `Email` | **rich_text** (⚠️ NO tipo email, y NO se llama "Email Cliente") | Correo del destinatario; si está vacío se busca en la base central por RUT |
+| `Adjuntos` | files & media | PDFs/archivos que se adjuntan al correo (igual que F29) |
+| `Comentario-Adjuntos` | rich_text | Nota del asesor sobre los adjuntos → bloque "Archivos adjuntos" en el correo |
 | `Estado Correo` | status: `Sin empezar` / `En curso` / **`Listo`** | Write-back tras envío exitoso → **"Listo"** (ver §5.2, no existe opción "Enviado") |
+| `Fecha envío` | date (⚠️ **`envío` en minúscula** — "Fecha Envío" con mayúscula NO existe) | Write-back con la fecha/hora del envío |
 | `Enviar Correo` | **button** | Dispara el webhook (§6). Nota: se llama así, no "Enviar Correo RRHH" |
 | `IMPUESTO ÚNICO` | number | No se usa en este correo |
 | `Nº. Trab.` | number | No se usa |
 | `CLAVE`, `USUARIO` | rich_text | Credenciales del cliente — no se usan, no exponer |
 | `Previred`, `Liquidaciones` | status | Operación interna — no se usan |
 | `DTGO` | rich_text | No se usa |
-| `Date` | date | Preexistente del cliente — **no confundir con Fecha Envío**, no se toca |
+| `Date` | date | Preexistente del cliente — **no confundir con `Fecha envío`**, no se toca |
 
-### 2.3 · ⚠️ Columna `Fecha Envío` — AÚN NO EXISTE
+### 2.3 · Columna `Fecha envío` — creada
 
-Al 09-jul (verificado con query en vivo a la API) la base **no tiene** columna `Fecha Envío`.
-El intento de crearla no quedó guardado (o se hizo en otra base — Contable Junio ya tiene la suya).
-
-- **Qué hacer:** crearla en la UI de Notion, tipo **Date**, nombre exacto **`Fecha Envío`** (con tilde).
-- **Mientras no exista, nada se rompe:** el handler escribe solo las columnas presentes en la fila
-  (deja `warning` en el log y sigue). Apenas exista, la empieza a poblar **sin redeploy**.
+Ojo con el nombre exacto: es **`Fecha envío`** (e minúscula en "envío"), no "Fecha Envío" como
+decía la primera versión de este doc. Ese desajuste habría repetido el mismo bug silencioso que
+tuvo `Estado Correo` al principio (§5.2): el handler no revienta si la columna no calza — solo dejaba
+de escribirla, con un `warning` en el log. **Ya corregido en `handlers/rrhh.py` (`FECHA_COL`).**
+Write-back tolerante: si en el futuro cambia el nombre de nuevo, la fecha deja de escribirse pero
+el correo se sigue enviando igual.
 
 ### 2.4 · ⚠️ Higiene de datos (medida por API el 09-jul)
 
@@ -137,13 +140,22 @@ Errores controlados (fila sin Email, asesor `pendiente`, fallo SendGrid) devuelv
 
 - **Asunto:** `Imposiciones Junio 2026- {CLIENTE}` (dinámico por mes derivado del título de la base).
 - **HTML** (`email_templates/rrhh_email.html`): mismo layout visual del F29 — tabla 600px, fondo
-  `#f2f4f8`, logo GCP inline (CID), navy `#0B1F3A`. Tarjeta con título "Imposiciones" y el monto
-  en CLP (`$15.474.109`), bloque "**Plazo hasta** lunes 13 de julio de 2026 a las 13.45 horas.",
+  `#f2f4f8`, logo GCP inline (CID), navy `#0B1F3A`. Tarjeta con título **"Imposiciones a pagar"**
+  (feedback del usuario tras el primer correo de prueba) y el monto en CLP (`$15.474.109`), bloque
+  "**Plazo hasta** lunes 13 de julio de 2026 a las 13.45 horas." seguido de un aviso para pagar en
+  **Previred** (con link), bloque opcional "Archivos adjuntos" si `Comentario-Adjuntos` tiene texto,
   firma del asesor (imagen si tiene `firma_png`; si no, texto), pie de confidencialidad.
 - **Texto plano** (`email_templates/rrhh_email.txt`): mismo contenido sin HTML.
 - **Fecha límite:** `fecha_limite_rrhh()` en `email_sender.py` — día **13 del mes siguiente** al
   período, corrido al siguiente día hábil si cae en finde/feriado (`FERIADOS_CL`), siempre 13:45.
   Junio 2026 → **lunes 13 de julio de 2026** (verificado en smoke test).
+- **Adjuntos:** columna `Adjuntos` (files & media) → se descargan y adjuntan al correo igual que
+  en F29 (`_descargar_adjuntos()`, genérico, mismo tope de tamaño `MAX_ADJUNTOS_MB`). Columna
+  `Comentario-Adjuntos` (rich_text) → nota del asesor, se muestra en el bloque "Archivos adjuntos"
+  (mismo componente visual que F29, `_bloque_adjuntos()`). Ambas opcionales: fila sin adjuntos ni
+  comentario no muestra el bloque.
+- **Previred:** constante `PREVIRED_URL` en `email_sender.py`
+  (`https://www.previred.com/wPortal/login/login.jsp`), agregada en `_bloque_fecha_rrhh()`.
 
 ---
 
@@ -153,7 +165,7 @@ Errores controlados (fila sin Email, asesor `pendiente`, fallo SendGrid) devuelv
 
 | Archivo | Qué contiene |
 |---------|--------------|
-| `notion_automation/handlers/rrhh.py` | `procesar(page_id)`: leer fila → validar → lookup email por RUT en central → enviar → write-back. Constantes de columnas, `ALIAS_ASESOR`, `STATUS_ENVIADO="Listo"` |
+| `notion_automation/handlers/rrhh.py` | `procesar(page_id)`: leer fila (incl. `Adjuntos`/`Comentario-Adjuntos`) → validar → lookup email por RUT en central → enviar → write-back (`Estado Correo` + `Fecha envío`). Constantes de columnas, `ALIAS_ASESOR`, `STATUS_ENVIADO="Listo"` |
 | `notion_automation/handlers/__init__.py` | vacío (hace paquete a `handlers/`) |
 | `notion_automation/app.py` | `_procesar_webhook_generico()` (secreto → page_id/RUT → handler) + endpoint `POST /webhook/rrhh`. `/enviar-f29` intacto |
 | `notion_automation/email_sender.py` | `fecha_limite_rrhh()`, `_bloque_fecha_rrhh()`; `enviar()` y `render()` aceptan `template=` y `asunto=` (default sigue siendo F29) |
@@ -185,11 +197,17 @@ Quedaron así:
    `STATUS_ENVIADO` en `handlers/rrhh.py`.
 3. **Write-back tolerante:** el plan mandaba Estado + Fecha en un solo PATCH; con una propiedad
    inexistente **el PATCH entero falla**. Ahora se escriben solo las columnas que existen en la
-   fila (por eso la falta de `Fecha Envío` no rompe nada, §2.3).
+   fila (así una columna con el nombre desalineado no bloquea el envío del correo, solo omite
+   ese campo — como pasó con el punto 5).
 4. **Matching de asesor:** el plan pasaba el valor del select directo, pero
    `_buscar_asesor_por_nombre()` compara por **igualdad exacta** de `nombre_norm`
    ("seba" ≠ "sebastian robles") ⇒ ningún asesor matcheaba y todo salía del remitente genérico.
    Se agregó `ALIAS_ASESOR` (§5.1).
+5. **Nombre de columna con mayúscula distinta:** el código esperaba `"Fecha Envío"` (E mayúscula)
+   pero la columna que se creó en Notion se llama `"Fecha envío"` (e minúscula). Notion es
+   case-sensitive en nombres de propiedad, así que no calzaban y la fecha nunca se escribía (sin
+   error visible, por el punto 3). Corregido comparando contra el esquema real vía API antes de
+   asumir el nombre.
 
 ### 5.3 · Verificación hecha (09-jul)
 
@@ -256,24 +274,31 @@ No hace falta backend local ni ngrok: producción es Render (always-on, plan Sta
 | `fila sin Email` | Sin `Email` en la fila y RUT no está en la base central | Poblar `Email` a mano |
 | `Asesor '...' marcado como pendiente` | `pendiente:true` en `asesores_smtp.json` **o** env var `ASESORES_SMTP_JSON` vieja en Render (tiene prioridad sobre el archivo) | Poner `pendiente:false` + push; si persiste, revisar/borrar la env var en el panel de Render |
 | SendGrid 403 | Remitente no autorizado | No debería pasar: Domain Authentication de `inversoragcp.com` está verificado (09-jul). Revisar SendGrid → Sender Authentication |
-| Envía pero `Estado Correo` no cambia | Falta la columna o la opción del status | Ver §2.3 y §5.2; el log dice qué columna saltó |
+| Envía pero `Estado Correo`/`Fecha envío` no cambia | Falta la columna, la opción del status, o el nombre no calza exacto (mayúscula/acento) | Ver §2.3 y §5.2 punto 5; el log dice qué columna saltó |
 
 ---
 
 ## §8 · Checklist de estado
 
-### Fase 0 — Código ✅ (commit `3aeb05d`, 09-jul-2026)
+### Fase 0 — Código ✅ (commit base `3aeb05d`, iterado hasta `HEAD`, 09-jul-2026)
 - [x] `handlers/__init__.py` + `handlers/rrhh.py`
 - [x] `fecha_limite_rrhh()` + params `template`/`asunto` en `email_sender.py`
 - [x] Plantillas `rrhh_email.html` / `.txt`
 - [x] `_procesar_webhook_generico()` + `POST /webhook/rrhh` en `app.py`
 - [x] `find_page_by_rut_generico()` en `notion_client.py`
 - [x] `ALIAS_ASESOR` + write-back tolerante (ajustes al esquema real)
+- [x] Fallback de identificación por `CLIENTE` cuando falta `RUT`
+- [x] Título "Imposiciones a pagar" + aviso de pago en Previred
+- [x] BCC reducido a solo Carlos (`BCC_EXTRA`)
+- [x] Soporte de `Adjuntos` + `Comentario-Adjuntos` (igual que F29)
+- [x] `FECHA_COL` corregido a `"Fecha envío"` (nombre real de la columna)
 
 ### Fase 1 — Notion
 - [x] Columna `Email` (rich_text) — creada por el usuario
 - [x] Columna `Estado Correo` (status) — creada por el usuario
-- [ ] **Columna `Fecha Envío` (date) — NO existe aún por API (§2.3)** ← único faltante
+- [x] Columna `Fecha envío` (date) — creada por el usuario (nombre real con e minúscula, §2.3)
+- [x] Columna `Adjuntos` (files & media) — creada por el usuario
+- [x] Columna `Comentario-Adjuntos` (rich_text) — creada por el usuario
 - [x] Botón `Enviar Correo` configurado (URL + header + body)
 
 ### Fase 2 — Prueba E2E ⏳

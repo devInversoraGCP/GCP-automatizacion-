@@ -19,12 +19,16 @@ ASISTENTE = "ASISTENTE"
 MONTO = "MONTO IMPOSICIONES|"
 RUT = "RUT"
 EMAIL_CLIENTE = "Email"
+ADJUNTOS = "Adjuntos"                 # files & media
+MSG_ADJUNTOS = "Comentario-Adjuntos"  # rich_text
 
 STATUS_COL = "Estado Correo"
 # Opciones reales del status en RRHH: "Sin empezar" / "En curso" / "Listo".
 # "Enviado" no existe y la API no puede crear opciones de status.
 STATUS_ENVIADO = "Listo"
-FECHA_COL = "Fecha Envío"
+# 'envío' en minuscula: es el nombre EXACTO de la columna en Notion (verificado
+# por API 09-jul). "Fecha Envío" (con E mayuscula) NO existe y falla en silencio.
+FECHA_COL = "Fecha envío"
 
 TEMPLATE = "rrhh_email"
 
@@ -73,9 +77,11 @@ def procesar(page_id: str) -> dict:
     rut = nc.plain(props.get(RUT, {}))
     email = nc.plain(props.get(EMAIL_CLIENTE, {}))
     asistente_raw = nc.plain(props.get(ASISTENTE, {}))
+    adjuntos = nc.files(props.get(ADJUNTOS, {}))
+    msg_adjuntos = nc.plain(props.get(MSG_ADJUNTOS, {}))
 
-    log.info("page_id=%s cliente=%r asistente=%r monto_present=%s email_propio=%s rut_present=%s",
-             page_id, nombre, asistente_raw, bool(monto_str), bool(email), bool(rut))
+    log.info("page_id=%s cliente=%r asistente=%r monto_present=%s email_propio=%s rut_present=%s adjuntos_n=%d msg_adj_present=%s",
+             page_id, nombre, asistente_raw, bool(monto_str), bool(email), bool(rut), len(adjuntos), bool(msg_adjuntos))
 
     if not email and rut:
         encontrado = _buscar_email_en_central(rut)
@@ -107,8 +113,8 @@ def procesar(page_id: str) -> dict:
             honorarios="",
             info_valor="",
             info_motivo="",
-            msg_adjuntos="",
-            adjuntos=None,
+            msg_adjuntos=msg_adjuntos,
+            adjuntos=adjuntos,
             template=TEMPLATE,
             asunto=asunto,
         )
