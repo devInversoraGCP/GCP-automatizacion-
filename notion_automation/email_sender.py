@@ -144,6 +144,21 @@ def fecha_limite(periodo: str) -> datetime.date | None:
     return d
 
 
+def fecha_limite_rrhh(periodo: str) -> datetime.date | None:
+    """'Junio 2026' → día 13 del mes SIGUIENTE; si no es hábil,
+    se traslada al siguiente día hábil. Siempre a las 13:45."""
+    p = periodo.strip().lower().split()
+    mes = next((_MESES[x] for x in p if x in _MESES), None)
+    anio = next((int(x) for x in p if x.isdigit() and len(x) == 4), None)
+    if not mes or not anio:
+        return None
+    m2, a2 = (mes + 1, anio) if mes < 12 else (1, anio + 1)
+    d = datetime.date(a2, m2, 13)
+    while not _es_habil(d):
+        d += datetime.timedelta(days=1)
+    return d
+
+
 def fecha_larga(d: datetime.date) -> str:
     return f"{_DIAS[d.weekday()]} {d.day} de {_MI[d.month]} de {d.year}"
 
@@ -175,6 +190,16 @@ def _bloque_fecha(d: datetime.date) -> tuple[str, str]:
         f'<b>Fecha límite de pago:</b> {f}.</p>'
     )
     txt = f"Fecha límite de pago: {f}."
+    return html, txt
+
+
+def _bloque_fecha_rrhh(d: datetime.date) -> tuple[str, str]:
+    f = fecha_larga(d)
+    html = (
+        f'<p style="margin:0 0 18px 0;font-size:14px;line-height:1.6;color:#3a4658;">'
+        f'<b>Plazo hasta</b> {f} a las 13.45 horas.</p>'
+    )
+    txt = f"Plazo hasta {f} a las 13.45 horas."
     return html, txt
 
 
@@ -262,19 +287,28 @@ def render(
     nombre: str, periodo: str, monto: str, asesor: str, contacto: str,
     logo_url: str, honorarios: str = "", info_valor: str = "", info_motivo: str = "",
     msg_adjuntos: str = "", firma_html: str = "",
+    template: str = "f29_email",
+    titulo_override: str = "", mensaje_override: str = "",
+    bloque_fecha_override: str = "", linea_fecha_override: str = "",
 ) -> tuple[str, str]:
     """Carga la plantilla y reemplaza los marcadores. Devuelve (html, txt)."""
-    titulo, msg = _variantes(monto, periodo)
+    if titulo_override:
+        titulo, msg = titulo_override, mensaje_override
+    else:
+        titulo, msg = _variantes(monto, periodo)
     try:
         n = float(monto)
     except (ValueError, TypeError):
         n = 0.0
 
-    b_fecha = ("", "")
-    if n > 0:
-        d = fecha_limite(periodo)
-        if d:
-            b_fecha = _bloque_fecha(d)
+    if bloque_fecha_override:
+        b_fecha = (bloque_fecha_override, linea_fecha_override)
+    else:
+        b_fecha = ("", "")
+        if n > 0:
+            d = fecha_limite(periodo)
+            if d:
+                b_fecha = _bloque_fecha(d)
     b_hono = _bloque_honorarios(honorarios)
     b_info = _bloque_info(info_valor, info_motivo)
     b_adj = _bloque_adjuntos(msg_adjuntos)
@@ -287,10 +321,10 @@ def render(
         "periodo": periodo,
         "monto": clp(monto),
         "titulo_resultado": titulo,
-        "mensaje_resultado": msg,
+        "mensaje_resultado": mensaje_override if mensaje_override else msg,
         "bloque_mensaje_resultado": (
-            f'<div style="font-size:14px;color:#c9d6ea;margin-top:10px;line-height:1.5;">{msg}</div>'
-            if msg else ""
+            f'<div style="font-size:14px;color:#c9d6ea;margin-top:10px;line-height:1.5;">{mensaje_override if mensaje_override else msg}</div>'
+            if (mensaje_override or msg) else ""
         ),
         "asesor": asesor,
         "contacto_email": contacto,
@@ -304,8 +338,14 @@ def render(
         "bloque_adjuntos": b_adj[0],
         "linea_adjuntos": b_adj[1],
     }
-    html = (TEMPLATES / "f29_email.html").read_text(encoding="utf-8")
-    txt = (TEMPLATES / "f29_email.txt").read_text(encoding="utf-8")
+    html_path = TEMPLATES / f"{template}.html"
+    txt_path = TEMPLATES / f"{template}.txt"
+    if not html_path.is_file():
+        html_path = TEMPLATES / "f29_email.html"
+    if not txt_path.is_file():
+        txt_path = TEMPLATES / "f29_email.txt"
+    html = html_path.read_text(encoding="utf-8")
+    txt = txt_path.read_text(encoding="utf-8")
     for k, v in vars_.items():
         html = html.replace("{{" + k + "}}", v)
         txt = txt.replace("{{" + k + "}}", v)
@@ -353,6 +393,8 @@ def enviar(
     adjuntos: list | None = None,
     contacto: str | None = None,
     logo_url: str | None = None,
+    template: str = "f29_email",
+    asunto: str | None = None,
 ) -> str:
     """Envía el correo por SMTP de Gmail. El remitente es el asesor del cliente.
     Devuelve el email del remitente usado (para log sin PII del destinatario)."""
@@ -398,14 +440,30 @@ def enviar(
             f'<span style="color:#5a6b82;">GCP · Asesoría Contable</span></p>'
         )
 
-    html, txt = render(
-        nombre, mes, monto, asesor_firma, contacto, logo_url,
-        honorarios, info_valor, info_motivo, msg_adjuntos, firma_html,
-    )
+    if template == "rrhh_email":
+        d_rrhh = fecha_limite_rrhh(mes)
+        b_fecha_rrhh = _bloque_fecha_rrhh(d_rrhh) if d_rrhh else ("", "")
+        html, txt = render(
+            nombre, mes, monto, asesor_firma, contacto, logo_url,
+            honorarios, info_valor, info_motivo, msg_adjuntos, firma_html,
+            template=template,
+            titulo_override="Imposiciones",
+            bloque_fecha_override=b_fecha_rrhh[0],
+            linea_fecha_override=b_fecha_rrhh[1],
+        )
+    else:
+        html, txt = render(
+            nombre, mes, monto, asesor_firma, contacto, logo_url,
+            honorarios, info_valor, info_motivo, msg_adjuntos, firma_html,
+            template=template,
+        )
 
-    # Asunto dinamico: "Resumen de impuestos de <Mes>" (mes del periodo del F29).
-    mes_nombre = _mes_nombre(mes)
-    asunto = f"{ASUNTO_BASE} {mes_nombre}" if mes_nombre else "Resumen impuestos"
+    # Asunto: si se pasa explícito, usarlo; si no, dinámico por mes (F29).
+    if asunto:
+        asunto_final = asunto
+    else:
+        mes_nombre = _mes_nombre(mes)
+        asunto_final = f"{ASUNTO_BASE} {mes_nombre}" if mes_nombre else ASUNTO_BASE
 
     # Descargar adjuntos (PDFs de la columna "Adjuntos" de Notion), con tope de tamano.
     adjuntos_bin = _descargar_adjuntos(adjuntos)
@@ -416,7 +474,7 @@ def enviar(
     if os.environ.get("SENDGRID_API_KEY"):
         _enviar_via_sendgrid(
             os.environ["SENDGRID_API_KEY"],
-            remitente_email, asesor_firma, destinatario, asunto, html, txt, firma_png,
+            remitente_email, asesor_firma, destinatario, asunto_final, html, txt, firma_png,
             adjuntos_bin,
         )
         return remitente_email
@@ -430,7 +488,7 @@ def enviar(
 
     # Mensaje "related" para que las imágenes inline (logo + firma) se vean en el cuerpo.
     msg = MIMEMultipart("related")
-    msg["Subject"] = asunto
+    msg["Subject"] = asunto_final
     msg["From"] = f"{asesor_firma} · GCP <{remitente_email}>"
     msg["To"] = destinatario
     alt = MIMEMultipart("alternative")

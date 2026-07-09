@@ -125,6 +125,23 @@ def find_page_by_rut(rut: str) -> str | None:
     return results[0]["id"]
 
 
+def find_page_by_rut_generico(rut: str, ds_id: str, prop_rut: str = "Rut") -> str | None:
+    """Busca el page_id por RUT en un data source genérico.
+    ds_id: data source ID de la base.
+    prop_rut: nombre de la propiedad que contiene el RUT (title o rich_text)."""
+    body = {
+        "filter": {
+            "property": prop_rut,
+            "rich_text": {"equals": rut},
+        },
+        "page_size": 5,
+    }
+    results = query_data_source(ds_id, body)
+    if not results:
+        return None
+    return results[0]["id"]
+
+
 def get_database_title(database_id: str) -> str:
     """Obtiene el titulo plano de una base Notion (de su data source / database).
     'Contable Junio' -> 'Contable Junio'. Devuelve '' si falla."""
@@ -158,7 +175,7 @@ def derivar_month_desde_base(page: dict) -> str:
         return ""
     # 'Contable Junio' -> 'Junio'
     partes = titulo.split()
-    if len(partes) < 2 or partes[0].lower() != "contable":
+    if len(partes) < 2 or partes[0].lower() not in ("contable", "rrhh"):
         return ""
     nombre_mes = partes[1]
     mes_lc = nombre_mes.lower()

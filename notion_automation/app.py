@@ -18,6 +18,7 @@ from dotenv import load_dotenv
 import datetime
 import notion_client as nc
 import email_sender as es
+import handlers.rrhh as rrhh_handler
 
 load_dotenv()
 
@@ -213,6 +214,56 @@ def _es_uuid(s: str) -> bool:
         and s.count("-") == 4
         and all(c in "0123456789abcdef-" for c in s.lower())
     )
+
+
+def _procesar_webhook_generico(handler, nombre_handler: str):
+    """Lógica común para todos los webhooks de botones Notion.
+    - Valida X-AuditAI-Secret
+    - Extrae page_id o RUT del payload
+    - Llama al handler específico con el page_id
+    handler: función que recibe (page_id) -> dict
+    """
+    tiene_secreto = bool(request.headers.get("X-AuditAI-Secret"))
+    log.info("request recibida · path=%s · tiene_secreto=%s", request.path, tiene_secreto)
+
+    secreto_esperado = os.environ.get("WEBHOOK_SECRET", "")
+    if secreto_esperado:
+        if request.headers.get("X-AuditAI-Secret") != secreto_esperado:
+            log.warning("secreto invalido · path=%s · 401", request.path)
+            abort(401)
+
+    data = request.get_json(force=True, silent=True) or {}
+    log.info("estructura payload %s: %s", nombre_handler, _estructura(data))
+
+    ident, ruta = _buscar_clave(data, ["page_id"])
+    if not ident:
+        ident, ruta = _buscar_clave(data, ["Rut", "rut", "RUT"])
+    log.info("identificador en ruta=%r (valor no se loguea)", ruta)
+
+    if not ident:
+        abort(400, f"no se encontro page_id ni Rut en el payload ({nombre_handler})")
+
+    if _es_uuid(ident):
+        page_id = ident
+        log.info("usando page_id directo · %s", nombre_handler)
+    else:
+        if nombre_handler == "RRHH":
+            from handlers.rrhh import DS_ID as DS
+            page_id = nc.find_page_by_rut_generico(ident, DS, "RUT")
+        else:
+            page_id = nc.find_page_by_rut(ident)
+        if not page_id:
+            log.warning("RUT no encontrado · %s", nombre_handler)
+            abort(404, f"no se encontro fila con ese Rut en {nombre_handler}")
+
+    resultado = handler(page_id)
+    return resultado, 200
+
+
+@app.post("/webhook/rrhh")
+def webhook_rrhh():
+    """Webhook del botón 'Enviar Correo RRHH' en RRHH JUNIO 2026."""
+    return _procesar_webhook_generico(rrhh_handler.procesar, "RRHH")
 
 
 @app.post("/enviar-f29")

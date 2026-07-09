@@ -13,6 +13,9 @@ backups/
 *.env
 secrets.*
 **/NOTION_TOKEN*
+# Apuntes locales con tokens/credenciales (NUNCA versionar)
+notion_automation/env_vars_para_render.txt
+notion_automation/temp_json.txt
 
 # 🆕 Automatización Notion + correo F29 (doc 23)
 # Volcados de la API (no commitear)
