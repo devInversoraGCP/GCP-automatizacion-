@@ -40,23 +40,28 @@ ALIAS_ASESOR = {
 
 
 def _buscar_email_en_central(rut: str) -> str | None:
-    body = {
-        "filter": {
-            "property": "RUT",
-            "rich_text": {"equals": rut},
-        },
-        "page_size": 3,
-    }
-    results = nc.query_data_source(DS_CENTRAL, body)
-    if not results:
+    # Nunca debe botar el request: si el lookup falla, se sigue sin email (R5).
+    try:
+        body = {
+            "filter": {
+                "property": "RUT",
+                "rich_text": {"equals": rut},
+            },
+            "page_size": 3,
+        }
+        results = nc.query_data_source(DS_CENTRAL, body)
+        if not results:
+            return None
+        props = results[0].get("properties", {})
+        for col in ("email", "Email", "e-mail"):
+            prop = props.get(col, {})
+            val = nc.plain(prop)
+            if val:
+                return val
         return None
-    props = results[0].get("properties", {})
-    for col in ("email", "Email", "e-mail"):
-        prop = props.get(col, {})
-        val = nc.plain(prop)
-        if val:
-            return val
-    return None
+    except Exception as exc:
+        log.warning("lookup en base central fallo (se sigue sin email): %s", exc)
+        return None
 
 
 def procesar(page_id: str) -> dict:

@@ -237,11 +237,25 @@ def _procesar_webhook_generico(handler, nombre_handler: str):
 
     ident, ruta = _buscar_clave(data, ["page_id"])
     if not ident:
+        # Payload tipo page-object (automations nuevas): data.id / entity.id
+        for k in ("data", "entity"):
+            v = data.get(k)
+            pid = v.get("id") if isinstance(v, dict) else None
+            if isinstance(pid, str) and _es_uuid(pid):
+                ident, ruta = pid, f"{k}.id"
+                break
+    if not ident:
         ident, ruta = _buscar_clave(data, ["Rut", "rut", "RUT"])
+    # Fallback RRHH: muchas filas tienen el RUT (title) vacio -> identificar
+    # por CLIENTE (contingencia doc 25 §9). Solo si no hubo page_id ni RUT.
+    prop_busqueda = "RUT"
+    if not ident and nombre_handler == "RRHH":
+        ident, ruta = _buscar_clave(data, ["CLIENTE", "Cliente", "cliente"])
+        prop_busqueda = "CLIENTE"
     log.info("identificador en ruta=%r (valor no se loguea)", ruta)
 
     if not ident:
-        abort(400, f"no se encontro page_id ni Rut en el payload ({nombre_handler})")
+        abort(400, f"no se encontro page_id, Rut ni CLIENTE en el payload ({nombre_handler})")
 
     if _es_uuid(ident):
         page_id = ident
@@ -249,12 +263,12 @@ def _procesar_webhook_generico(handler, nombre_handler: str):
     else:
         if nombre_handler == "RRHH":
             from handlers.rrhh import DS_ID as DS
-            page_id = nc.find_page_by_rut_generico(ident, DS, "RUT")
+            page_id = nc.find_page_by_rut_generico(ident, DS, prop_busqueda)
         else:
             page_id = nc.find_page_by_rut(ident)
         if not page_id:
-            log.warning("RUT no encontrado · %s", nombre_handler)
-            abort(404, f"no se encontro fila con ese Rut en {nombre_handler}")
+            log.warning("%s no encontrado · %s", prop_busqueda, nombre_handler)
+            abort(404, f"no se encontro fila con ese {prop_busqueda} en {nombre_handler}")
 
     resultado = handler(page_id)
     return resultado, 200

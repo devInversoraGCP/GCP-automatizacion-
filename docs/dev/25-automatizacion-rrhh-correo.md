@@ -46,7 +46,7 @@
 | # | Regla | Detalle |
 |---|---|---|
 | R1 | **La base original es sagrada** | RRHH JUNIO 2026 es una base real del cliente. Solo se le **agregan** columnas (operación aditiva y reversible), y las crea **el usuario** en la UI de Notion, con backup CSV previo. El backend jamás modifica el esquema. |
-| R2 | **Identificación por page_id o RUT** | El payload del botón trae `source.page_id` (se usa directo). Fallback: buscar por **`RUT`** (columna title) con `find_page_by_rut_generico()`. |
+| R2 | **Identificación en cascada** | Orden: `page_id` en el payload (si Notion lo manda) → `data.id`/`entity.id` (payload tipo page-object) → **`RUT`** → **`CLIENTE`** (fallback RRHH: 33 de 53 filas tienen el RUT vacío, verificado 09-jul). Todo con `find_page_by_rut_generico()`. |
 | R3 | **Credenciales y PII nunca en outputs** | RUT, email y montos no se imprimen ni loguean. El backend lee la fila por API en memoria. |
 | R4 | **El webhook se autentica** | Header `X-AuditAI-Secret` = `WEBHOOK_SECRET` (el mismo del F29). Sin secreto válido → 401. |
 | R5 | **Si algo no calza, no adivinar** | Propiedad inexistente, payload con otra forma ⇒ volcar evidencia (`_estructura()` en el log) y decidir con el usuario. |
@@ -92,6 +92,15 @@ El intento de crearla no quedó guardado (o se hizo en otra base — Contable Ju
 - **Mientras no exista, nada se rompe:** el handler escribe solo las columnas presentes en la fila
   (deja `warning` en el log y sigue). Apenas exista, la empieza a poblar **sin redeploy**.
 
+### 2.4 · ⚠️ Higiene de datos (medida por API el 09-jul)
+
+De **53 filas**: **33 sin RUT** (title vacío) y **52 sin `Email`**. Consecuencias:
+- Sin RUT ni CLIENTE la fila no se puede identificar → el botón falla (400).
+- Sin `Email` (y sin RUT que cruce con la base central) **no hay destinatario**: el backend
+  responde `{"ok": false, "motivo": "fila sin Email..."}` — el botón se ve "exitoso" pero no
+  envía nada (el motivo queda en los logs de Render).
+- **Antes del uso masivo: poblar `Email` (y ojalá RUT) en las filas reales.**
+
 ---
 
 ## §3 · Arquitectura: cómo se conecta
@@ -101,9 +110,11 @@ Notion (RRHH JUNIO 2026)
   │  [Botón "Enviar Correo"]
   │  POST https://auditai-backend-gubv.onrender.com/webhook/rrhh
   │  header: X-AuditAI-Secret = <WEBHOOK_SECRET>
-  │  body: { source: {page_id}, data: { RUT, CLIENTE, Email } }
+  │  body: propiedades del "Contenido" del botón (RUT, CLIENTE, Email)
   ▼
-app.py · _procesar_webhook_generico()        # valida secreto, extrae page_id/RUT
+app.py · _procesar_webhook_generico()
+  │  valida secreto → identifica la fila en cascada:
+  │  page_id → data.id/entity.id → RUT → CLIENTE (fallback RRHH)
   ▼
 handlers/rrhh.py · procesar(page_id)
   ├─ 1. nc.get_page(page_id)                 # lee la fila en memoria
@@ -198,11 +209,13 @@ Columna **`Enviar Correo`** (tipo button) en RRHH JUNIO 2026, con paso **Send we
 - **URL:** `https://auditai-backend-gubv.onrender.com/webhook/rrhh`
 - **Method:** POST
 - **Header:** `X-AuditAI-Secret` = el `WEBHOOK_SECRET` (mismo del F29, está en `.env` local y en Render)
-- **Body:** propiedades `RUT`, `CLIENTE`, `Email` (el payload además trae `source.page_id`, que es
-  lo que el backend usa primero)
+- **Contenido (body): ⚠️ CRÍTICO — agregar las propiedades `RUT`, `CLIENTE` y `Email`.**
+  El payload del botón NO trae un `page_id` utilizable (lección F29, doc 23 §5.4), así que el
+  backend identifica la fila con lo que venga en el Contenido: RUT y, si está vacío, CLIENTE.
+  Un botón sin propiedades en Contenido ⇒ `400` ⇒ "No se puede ejecutar el botón".
 
 Si el botón "no hace nada", revisar esta config **antes** que el backend (URL exacta con
-`/webhook/rrhh`, header bien escrito, secreto vigente).
+`/webhook/rrhh`, header bien escrito, secreto vigente, Contenido con las 3 propiedades).
 
 ---
 
@@ -231,8 +244,10 @@ Si el botón "no hace nada", revisar esta config **antes** que el backend (URL e
 |---------|----------------|----------|
 | Logs de Render **ni se mueven** | El endpoint no existe en lo desplegado (404; gunicorn no loguea rutas no matcheadas). Pasó el 09-jul: el código estaba solo en local | `git add/commit/push` → Render redespliega (~2-3 min). Confirmar: `POST /webhook/rrhh` sin secreto debe dar **401**, no 404 |
 | `401` con el botón | Header `X-AuditAI-Secret` ausente/typo o secreto distinto al de Render | Revisar config del botón y env var en Render |
-| `400 no se encontro page_id ni Rut` | Payload de Notion cambió de forma | Ver `estructura payload` en el log y ajustar `_buscar_clave` |
-| `404 no se encontro fila con ese Rut` | RUT no matchea exacto (espacios, guión) | Corregir el RUT en la fila |
+| "No se puede ejecutar el botón" en fila **sin RUT y sin CLIENTE** | Nada con qué identificar la fila (400) | Poblar CLIENTE (mínimo) o RUT. Pasó el 09-jul: 33/53 filas sin RUT → se agregó el fallback por CLIENTE |
+| `400 no se encontro page_id, Rut ni CLIENTE` | Contenido del botón sin propiedades, o payload cambió de forma | Agregar RUT/CLIENTE/Email al Contenido (§6); ver `estructura payload` en el log |
+| `404 no se encontro fila con ese RUT/CLIENTE` | El valor no matchea exacto (espacios, guión) | Corregir el valor en la fila |
+| El botón dice éxito pero no llega correo | La fila no tiene `Email` y el RUT no está en la central → el backend responde 200 con `{"ok": false, "motivo": ...}` (solo visible en logs de Render) | Poblar `Email` en la fila. (Mejora futura: aviso al asesor como en F29) |
 | `fila sin Email` | Sin `Email` en la fila y RUT no está en la base central | Poblar `Email` a mano |
 | `Asesor '...' marcado como pendiente` | `pendiente:true` en `asesores_smtp.json` **o** env var `ASESORES_SMTP_JSON` vieja en Render (tiene prioridad sobre el archivo) | Poner `pendiente:false` + push; si persiste, revisar/borrar la env var en el panel de Render |
 | SendGrid 403 | Remitente no autorizado | No debería pasar: Domain Authentication de `inversoragcp.com` está verificado (09-jul). Revisar SendGrid → Sender Authentication |
