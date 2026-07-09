@@ -91,7 +91,7 @@ Parent de ambas GCP: `dd47681b-89fe-4f49-bea3-f8038d571d44`. Plan workspace: **B
 | 4 | Auditoría / conciliación | ⬜ | no iniciada |
 | 5 | Capa de IA | ⬜ | no iniciada |
 | 6 | BD especializada y producto multi-cliente | ⬜ | no iniciada |
-| **N** | **Automatización Notion + correo F29** (foco, [`23`](23-automatizacion-notion-contable-correo.md)) | 🟡 | **E2E exitoso** · backend + columnas + botón OK · faltan 4 App Passwords + Fase 2/3 |
+| **N** | **Automatización Notion + correo F29 / multi-automatización RRHH + Tickets** (foco, [`23`](23-automatizacion-notion-contable-correo.md) / [`24`](24-arquitectura-multi-automatizacion.md)) | 🟡 | **E2E F29 exitoso** · arquitectura multi-handler definida · RRHH en implementación · Tickets planificado |
 
 ---
 
@@ -444,18 +444,23 @@ Trasladadas de [`05-decisiones-y-preguntas.md`](05-decisiones-y-preguntas.md); c
 
 ---
 
-## Frente N — Automatización de Notion + correo F29 🟡 *(foco, 07-jul-2026)*
+## Frente N — Automatización de Notion + multi-automatización 🟡 *(foco, jul-2026)*
 
 > **Cambio de foco:** el SII se **pausa** (login bloqueado por F5 — ver [`21`](21-resultado-spike-f29.md);
 > la vía correcta es certificado digital, [`22`](22-via-oficial-certificado-digital-api-sii.md), pendiente
-> de gestión de negocio). Mientras, el foco es **automatizar las páginas Contable de Notion**:
-> **(B)** un botón "Enviar Correo F29" por fila que dispara un correo al cliente con su monto, y **(A)** la
-> duplicación mensual de la página Contable + alta de clientes nuevos. Guía ejecutable completa en
-> [`23-automatizacion-notion-contable-correo.md`](23-automatizacion-notion-contable-correo.md).
+> de gestión de negocio). Mientras, el foco es **automatizar páginas de Notion**: primero
+> **Contable** (F29, ya operativa), luego **RRHH JUNIO 2026** (en implementación), y después
+> **Tickets - Servicios** (planificado). Todo desde un backend centralizado con handlers
+> modulares. Arquitectura multi-automatización en
+> [`24-arquitectura-multi-automatizacion.md`](24-arquitectura-multi-automatizacion.md).
 >
 > 🎉 **Hito (07-jul-2026): E2E del correo F29 exitoso.** Botón en Notion → webhook → backend
 > Flask → SMTP Gmail → correo al cliente + write-back Status = "1) Enviado y Pendiente".
 > Fila de prueba `ZZ_TEST AuditAI` en Contable Junio. SMTP desde `sebastianrobles@inversoragcp.com`.
+>
+> 🆕 **Hito (09-jul-2026): arquitectura multi-handler definida.** Se crea el patrón de handlers
+> (`handlers/f29.py`, `handlers/rrhh.py`, `handlers/tickets.py`) y el documento
+> [`24`](24-arquitectura-multi-automatizacion.md) con el plano de la expansión.
 
 ### N.1 · Plantilla del correo F29 ✅
 - [x] `notion_automation/email_templates/f29_email.html` (email-safe, tablas + estilos inline, **inline CID** para logo y firma — Gmail bloquea `data:` URIs)
@@ -528,6 +533,25 @@ Trasladadas de [`05-decisiones-y-preguntas.md`](05-decisiones-y-preguntas.md); c
       secretos en gestor, dominio de correo verificado.
 - [ ] Idempotencia y observabilidad (logs sin PII — el logging ya está listo).
 - [ ] Aplicar a las bases reales con backup + confirmación (R2/R5 — Contable Junio ya operativa).
+
+### N.5 · Handler RRHH JUNIO 2026 🆕 *(en implementación, 09-jul-2026)*
+- [ ] `handlers/rrhh.py` — mapeo de columnas, lógica de composición, write-back Status/Fecha
+- [ ] `email_templates/rrhh_email.html` y `rrhh_email.txt` — plantilla del correo de imposiciones
+  - [ ] Asunto: `Imposiciones {mes} {año}- {CLIENTE}`
+  - [ ] Cuerpo: "Por medio de la presente informo el monto a pagar por concepto de imposiciones del mes de {mes} {año}. Plazo hasta {día} {nº} de {mes_siguiente} a las 13.45 horas. Total a pagar $ {monto}.-"
+  - [ ] Fecha límite: **13 del mes siguiente** (día hábil) a las 13:45
+- [ ] Endpoint `POST /webhook/rrhh` en `app.py`
+- [ ] Lookup de email: si `Email Cliente` vacío, buscar en General Customers Data por RUT
+- [ ] Columnas nuevas en Notion RRHH: `Email Cliente` (email), `Estado Correo` (status), `Fecha Envío` (date)
+- [ ] Botón "Enviar Correo RRHH" en la página RRHH JUNIO 2026 (lo crea el usuario)
+- [ ] Prueba E2E con fila real de RRHH
+
+### N.6 · Handler Tickets - Servicios 🆕 *(planificado)*
+- [ ] `handlers/tickets.py` — mapeo de columnas y lógica
+- [ ] `email_templates/tickets_email.html` y `tickets_email.txt`
+- [ ] Endpoint `POST /webhook/tickets` en `app.py`
+- [ ] Botón en la página Tickets - Servicios
+- [ ] Definir contenido del correo (pendiente con el usuario)
 
 ---
 

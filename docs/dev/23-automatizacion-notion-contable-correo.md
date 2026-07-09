@@ -102,15 +102,28 @@ automatización. Es no-code, sin plugins. Fuentes: [Notion · Webhook actions](h
 
 ---
 
-## §3 · Arquitectura general
+## §3 · Arquitectura general (evolución multi-automatización)
+
+> 🔁 **09-jul-2026:** la arquitectura se expande de una sola automatización (F29) a un
+> **sistema multi-handler** que soporta F29, RRHH y Tickets desde el mismo backend.
+> Ver [`24-arquitectura-multi-automatizacion.md`](24-arquitectura-multi-automatizacion.md).
+> **Este doc se mantiene como la guía operativa del handler F29** (el resto de handlers
+> tienen su propia lógica en `handlers/`).
 
 ```text
 ┌─────────────────────────── AUTOMATIZACIÓN B (correo) ───────────────────────────┐
 │ Notion (fila Contable)                     Backend AuditAI            Proveedor  │
-│  [Botón "Enviar F29"] --Send webhook POST--> /enviar-f29  --compone--> correo →  │
-│        (payload: page_id + secreto)          (lee fila por API,        Email     │
-│                                               en memoria)              cliente   │
+│  [Botón "Enviar F29"] --Send webhook POST--> /webhook/f29  --compone--> correo → │
+│        (payload: page_id + secreto)          (handlers/f29.py)          Email     │
+│                                               lee fila por API,        cliente   │
+│                                               en memoria)                        │
 │                       <---- write-back Status="Enviado" + fecha ------            │
+└──────────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────── AUTOMATIZACIÓN B (RRHH) ──────────────────────────────────┐
+│ Notion (RRHH JUNIO 2026)                  Backend AuditAI                Correo  │
+│  [Botón "Enviar RRHH"] --Send webhook--> /webhook/rrhh  --compone--> imposiciones│
+│                        (handlers/rrhh.py)                           al cliente   │
 └──────────────────────────────────────────────────────────────────────────────────┘
 
 ┌─────────────────────── AUTOMATIZACIÓN A (duplicación mensual) ────────────────────┐
@@ -120,23 +133,34 @@ automatización. Es no-code, sin plugins. Fuentes: [Notion · Webhook actions](h
 └──────────────────────────────────────────────────────────────────────────────────┘
 ```
 
-**Estructura de archivos a crear** (paquete `notion_automation/`, junto a `spike_f29/`):
+**Estructura de archivos** (paquete `notion_automation/`, junto a `spike_f29/`):
 ```
 notion_automation/
   README.md
-  requirements.txt          # requests, flask (o fastapi+uvicorn), python-dotenv, (sendgrid|resend)
-  .env.example              # NOTION_TOKEN, WEBHOOK_SECRET, EMAIL_API_KEY, EMAIL_FROM, EMAIL_CONTACTO, LOGO_URL
-  notion_client.py          # helpers REST (leer/escribir fila, query por RUT) — generaliza notion_lookup.py
-  email_sender.py           # carga plantilla + envío por el proveedor (asunto fijo, 3 bloques opcionales)
-  app.py                    # backend: endpoint POST /enviar-f29
-  duplicar_mes.py           # Fase 2: duplicación mensual + reconciliación de nuevos
-  email_templates/          # ✅ ya creadas
-    f29_email.html          #   plantilla HTML (email-safe, tablas + estilos inline)
-    f29_email.txt           #   plantilla texto plano (respaldo)
-    README.md               #   variables, variantes y las 4 reglas del usuario
-    preview-correo-f29.html #   vista previa interactiva (logo incrustado, 3 toggles, 3 variantes)
+  requirements.txt
+  .env.example
+  notion_client.py          # helpers REST (leer/escribir fila, query por RUT)
+  email_sender.py           # carga plantilla + envío SMTP/SendGrid + BCC_EXTRA
+  app.py                    # backend: router POST /webhook/<tipo>
+  duplicar_mes.py           # Fase 2: duplicación mensual + reconciliación
+  handlers/                 # 🆕 modular — un handler por página
+    f29.py                  #   handler del botón "Enviar F29"
+    rrhh.py                 #   🆕 handler del botón "Enviar RRHH" (en impl.)
+    tickets.py              #   🆕 handler del botón "Enviar Ticket" (planif.)
+  email_templates/
+    f29_email.html / .txt   # (existente)
+    rrhh_email.html / .txt  # 🆕
+    tickets_email.html/.txt # 🆕 (planif.)
+    README.md
+    preview-correo-f29.html
+  firmas/                   # PNG de firmas de asesores
   data/                     # volcados (gitignored)
 ```
+
+> 📐 **Cada handler** define su data source, columnas, plantilla y lógica de forma autocontenida.
+> Todo lo común (API Notion, envío de correos, BCC a Carlos/Andrea, credenciales de asesores)
+> se comparte. Para el detalle completo de la arquitectura multi-handler y cómo agregar
+> nuevas automatizaciones, ver [`24-arquitectura-multi-automatizacion.md`](24-arquitectura-multi-automatizacion.md).
 
 ---
 

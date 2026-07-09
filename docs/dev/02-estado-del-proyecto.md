@@ -15,7 +15,7 @@ Todo lo que existe hoy en el repositorio:
 | [`docs/ARQUITECTURA.md`](../ARQUITECTURA.md) | Documentación | Sistema objetivo, diagrama de flujo y el "porqué" de cada etapa |
 | [`docs/ROADMAP.md`](../ROADMAP.md) | Documentación | Fases, hitos y criterios de aceptación |
 | [`presentacion.html`](../../presentacion.html) | Presentación | Material para cliente (no técnico), con demo interactiva |
-| [`docs/dev/`](.) | Documentación | **Esta** documentación para desarrolladores (00–23) |
+| [`docs/dev/`](.) | Documentación | **Esta** documentación para desarrolladores (00–24) |
 | [`docs/dev/11-checklist-maestro.md`](11-checklist-maestro.md) | Documentación | **Checklist maestro:** índice ejecutable de todas las fases (tareas → subtareas → algoritmos), con lo hecho marcado |
 | [`docs/dev/12-fase1-plan-detallado.md`](12-fase1-plan-detallado.md) | Documentación | Plan detallado de la Fase 1: centralización + formalización de reglas |
 | [`docs/dev/13-fase-c-volcado-nuevos-registros.md`](13-fase-c-volcado-nuevos-registros.md) | Documentación | Ejecución de la Fase C: 163 registros nuevos en la sandbox |
@@ -50,7 +50,7 @@ Plan del workspace: **Business** → historial de página **90 días**, papelera
 - **El caso de referencia `CLIENTE1`** con resultados conocidos que sirven de *golden test*: total $3, remanente −$158.117.
 - **La arquitectura objetivo** y la **hoja de ruta** están documentadas.
 - **Material de presentación** para cliente, listo para usar.
-- **Documentación dev 00–23** completa (incluye seguridad/respaldo, fuentes auxiliares, **checklist maestro**, plan Fase 1, ejecución Fase C, cierre del Frente A, plan de barrido de bases mensuales, especificación literal del cálculo validada por GCP, integración impuesto único, registro de variables F29, spike F29, vía del certificado digital y **automatización de Notion + correo F29**), con onboarding para agentes ([`AGENTS.md`](../../AGENTS.md)).
+- **Documentación dev 00–24** completa (incluye seguridad/respaldo, fuentes auxiliares, **checklist maestro**, plan Fase 1, ejecución Fase C, cierre del Frente A, plan de barrido de bases mensuales, especificación literal del cálculo validada por GCP, integración impuesto único, registro de variables F29, spike F29, vía del certificado digital, **automatización de Notion + correo F29** y **arquitectura multi-automatización** para RRHH y Tickets), con onboarding para agentes ([`AGENTS.md`](../../AGENTS.md)).
 - **Notion conectado** (Claude Code + opencode), modo lectura por defecto salvo la sandbox (escritura autorizada). **Esquema mapeado** y completitud medida: **331 clientes** en la sandbox (ver [`08-notion-general-customers-data.md`](08-notion-general-customers-data.md)).
 - **Red de seguridad montada (30-jun-2026):** plan Business confirmado, snapshot CSV base fechado (`2026-06-30_all.csv`), sandbox `General Customers Data - AuditAI`. Protocolo en [`09-seguridad-y-respaldo.md`](09-seguridad-y-respaldo.md)).
 - **Fuentes auxiliares identificadas** (Contable Mayo, RRHH Junio 2026, Tickets - Servicios — ver [`10`](10-fuentes-auxiliares-notion.md)). **Nuevo (02-jul):** se descubrieron bases contables **mensuales** adicionales (Febrero, etc.) como fuentes extra — ver [`15`](15-barrido-bases-contables-mensuales.md).
@@ -108,6 +108,12 @@ Fase 2  Motor de cálculo       ░░░░░░░░░░
 > (1) **4 App Passwords** de asesores restantes, (2) **`duplicar_mes.py`** (Fase 2), (3) **migración
 > a Render** (Fase 3, manual en [`MIGRACION-A-RENDER.md`](../../MIGRACION-A-RENDER.md)). Guía
 > ejecutable completa en [`23`](23-automatizacion-notion-contable-correo.md).
+>
+> 🆕 **Expansión multi-automatización (09-jul-2026):** la arquitectura del backend se extiende
+> para soportar **múltiples páginas de Notion** desde un solo sistema, con handlers modulares
+> (`handlers/f29.py`, `handlers/rrhh.py`, `handlers/tickets.py`). **RRHH JUNIO 2026** es la
+> siguiente en implementarse, seguida de **Tickets - Servicios**. Patrón y detalle en
+> [`24-arquitectura-multi-automatizacion.md`](24-arquitectura-multi-automatizacion.md).
 
 ## Riesgos y deuda técnica conocidos
 
