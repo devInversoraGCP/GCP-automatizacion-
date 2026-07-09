@@ -40,7 +40,7 @@
     "nombre": "Matilde Mateluna",
     "nombre_norm": "matilde mateluna",
     "tipo": "workspace",
-    "pendiente": true,
+    "pendiente": false,
     "firma_png": "firmas/pie_matilde.jpeg"
   },
   "carloscereceda@inversoragcp.com": {
