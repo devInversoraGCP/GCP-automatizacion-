@@ -10,6 +10,7 @@ Le escribimos para informarle el resultado de su declaración de IVA
 {{linea_fecha_limite}}
 {{linea_info_adicional}}
 {{linea_honorarios}}
+{{linea_adjuntos}}
 
 Saludos cordiales,
 {{asesor}}

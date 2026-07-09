@@ -44,6 +44,7 @@ P_INFO_VALOR = "Valor-Info adicional"     # number — valor de la info adiciona
 P_INFO_MOTIVO = "Motivo-Info adicional"   # rich_text — motivo (Remanente, Saldo a favor, Pago adicional, Otro, o libre)
 P_ADVISER = "Adviser Accounting"
 P_ADJUNTOS = "Adjuntos"   # files & media — PDFs que se adjuntan al correo
+P_MSG_ADJUNTOS = "Mensaje Adjuntos"   # rich_text — nota del asesor sobre los adjuntos
 STATUS_ENVIADO = "1) Enviado y Pendiente"
 
 
@@ -63,6 +64,7 @@ def _procesar_page(page_id: str) -> dict:
     asesor_nombres = nc.people_names(props.get(P_ADVISER, {}))
     nombre_asesor = asesor_nombres[0] if asesor_nombres else ""
     adjuntos = nc.files(props.get(P_ADJUNTOS, {}))
+    msg_adjuntos = nc.plain(props.get(P_MSG_ADJUNTOS, {}))
 
     # Fallback C: si Month esta vacio, derivarlo del titulo de la base parent
     # ("Contable Junio" -> "Junio 2026"). El asesor no debe tipear Month (Opcion A
@@ -76,9 +78,9 @@ def _procesar_page(page_id: str) -> dict:
 
     # Log sin PII
     log.info(
-        "page_id=%s cliente=%r asesor=%r mes_present=%s mes_derivado=%s hono_present=%s info_valor_present=%s info_motivo_present=%s adjuntos_n=%d",
+        "page_id=%s cliente=%r asesor=%r mes_present=%s mes_derivado=%s hono_present=%s info_valor_present=%s info_motivo_present=%s msg_adj_present=%s adjuntos_n=%d",
         page_id, nombre, nombre_asesor, bool(mes), mes_derivado,
-        bool(honorarios), bool(info_valor), bool(info_motivo), len(adjuntos),
+        bool(honorarios), bool(info_valor), bool(info_motivo), bool(msg_adjuntos), len(adjuntos),
     )
 
     if not email:
@@ -97,6 +99,7 @@ def _procesar_page(page_id: str) -> dict:
             honorarios=honorarios,
             info_valor=info_valor,
             info_motivo=info_motivo,
+            msg_adjuntos=msg_adjuntos,
             adjuntos=adjuntos,
         )
         log.info("correo enviado OK · page_id=%s remitente=%s", page_id, remitente)

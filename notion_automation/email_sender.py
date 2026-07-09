@@ -236,10 +236,27 @@ def _bloque_info(valor: str, motivo: str) -> tuple[str, str]:
     return html, txt
 
 
+def _bloque_adjuntos(mensaje: str) -> tuple[str, str]:
+    """Nota/mensaje del asesor sobre los archivos adjuntos. Vacio -> ('', '')."""
+    t = (mensaje or "").strip()
+    if not t:
+        return "", ""
+    t_html = _escape(t).replace("\n", "<br>")
+    html = (
+        '<div style="margin:0 0 18px 0;background:#eef4ff;border:1px solid #d3e0f5;'
+        'border-left:4px solid #0B1F3A;border-radius:10px;padding:14px 18px;">'
+        '<div style="font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;'
+        'color:#3a5a8c;margin-bottom:3px;">Archivos adjuntos</div>'
+        f'<div style="font-size:14px;color:#3a4658;line-height:1.55;">{t_html}</div></div>'
+    )
+    txt = f"Archivos adjuntos: {t}"
+    return html, txt
+
+
 def render(
     nombre: str, periodo: str, monto: str, asesor: str, contacto: str,
     logo_url: str, honorarios: str = "", info_valor: str = "", info_motivo: str = "",
-    firma_html: str = "",
+    msg_adjuntos: str = "", firma_html: str = "",
 ) -> tuple[str, str]:
     """Carga la plantilla y reemplaza los marcadores. Devuelve (html, txt)."""
     titulo, msg = _variantes(monto, periodo)
@@ -255,6 +272,7 @@ def render(
             b_fecha = _bloque_fecha(d)
     b_hono = _bloque_honorarios(honorarios)
     b_info = _bloque_info(info_valor, info_motivo)
+    b_adj = _bloque_adjuntos(msg_adjuntos)
     info_texto = _combinar_info(info_valor, info_motivo)
 
     vars_ = {
@@ -278,6 +296,8 @@ def render(
         "bloque_info_adicional": b_info[0],
         "linea_info_adicional": b_info[1],
         "info_adicional_texto": info_texto,
+        "bloque_adjuntos": b_adj[0],
+        "linea_adjuntos": b_adj[1],
     }
     html = (TEMPLATES / "f29_email.html").read_text(encoding="utf-8")
     txt = (TEMPLATES / "f29_email.txt").read_text(encoding="utf-8")
@@ -324,6 +344,7 @@ def enviar(
     honorarios: str = "",
     info_valor: str = "",
     info_motivo: str = "",
+    msg_adjuntos: str = "",
     adjuntos: list | None = None,
     contacto: str | None = None,
     logo_url: str | None = None,
@@ -374,7 +395,7 @@ def enviar(
 
     html, txt = render(
         nombre, mes, monto, asesor_firma, contacto, logo_url,
-        honorarios, info_valor, info_motivo, firma_html,
+        honorarios, info_valor, info_motivo, msg_adjuntos, firma_html,
     )
 
     # Asunto dinamico: "Resumen de impuestos de <Mes>" (mes del periodo del F29).
