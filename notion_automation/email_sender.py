@@ -458,10 +458,14 @@ def enviar(
         msg.attach(_part)
 
     pass_clean = remitente_pass.replace(" ", "")
+    # BCC al asesor tambien en el camino SMTP (destinatario extra sin header visible).
+    rcpt = [destinatario]
+    if remitente_email.lower() != destinatario.lower():
+        rcpt.append(remitente_email)
     context = ssl.create_default_context()
     with smtplib.SMTP_SSL("smtp.gmail.com", 465, context=context, timeout=30) as server:
         server.login(remitente_email, pass_clean)
-        server.sendmail(remitente_email, [destinatario], msg.as_string())
+        server.sendmail(remitente_email, rcpt, msg.as_string())
 
     return remitente_email
 
@@ -495,8 +499,14 @@ def _enviar_via_sendgrid(api_key, remitente_email, asesor_firma, destinatario,
             "type": _mime, "filename": _name, "disposition": "attachment",
         })
 
+    # BCC al asesor: copia exacta del correo en su bandeja (registro + respaldo).
+    # SendGrid exige que to/cc/bcc no se repitan, por eso el guard.
+    personalization = {"to": [{"email": destinatario}]}
+    if remitente_email.lower() != destinatario.lower():
+        personalization["bcc"] = [{"email": remitente_email}]
+
     payload = {
-        "personalizations": [{"to": [{"email": destinatario}]}],
+        "personalizations": [personalization],
         "from": {"email": remitente_email, "name": f"{asesor_firma} · GCP"},
         "subject": asunto,
         "content": [
@@ -514,3 +524,53 @@ def _enviar_via_sendgrid(api_key, remitente_email, asesor_firma, destinatario,
     )
     if r.status_code not in (200, 202):
         raise ValueError(f"SendGrid rechazo el envio (HTTP {r.status_code}): {r.text[:300]}")
+
+
+def enviar_aviso_error(email_asesor: str, cliente: str, mes: str, motivo: str) -> bool:
+    """Aviso automatico al asesor cuando el correo de un cliente NO se pudo enviar.
+    Best-effort: nunca lanza excepcion (si el propio aviso falla, devuelve False y
+    queda solo el log del backend). Requiere SENDGRID_API_KEY (nube).
+    Limite conocido: si SendGrid entero esta caido, este aviso tampoco sale."""
+    try:
+        api_key = os.environ.get("SENDGRID_API_KEY")
+        if not (api_key and email_asesor):
+            return False
+        remitente = os.environ.get("EMAIL_FROM", "notificaciones@inversoragcp.com")
+        asunto = f"AVISO: no se envio el correo F29 de {cliente}"
+        cuerpo = (
+            f"El correo del F29 de {cliente} (periodo {mes or 'desconocido'}) NO se pudo enviar.\n\n"
+            f"Motivo: {motivo}\n\n"
+            "Que hacer: revisa la fila en Notion (Email, Month, Adviser Accounting, Adjuntos) "
+            "y vuelve a apretar el boton. El Status de la fila NO fue cambiado.\n\n"
+            "— Aviso automatico del sistema AuditAI (no responder)."
+        )
+        html = (
+            '<div style="font-family:Arial,sans-serif;max-width:560px;">'
+            '<div style="background:#fff3f3;border:1px solid #f3c2c2;border-left:4px solid #c0392b;'
+            'border-radius:10px;padding:16px 20px;">'
+            f'<p style="margin:0 0 10px 0;"><b>El correo del F29 de {_escape(cliente)}</b> '
+            f'(periodo {_escape(mes or "desconocido")}) <b>NO se pudo enviar.</b></p>'
+            f'<p style="margin:0 0 10px 0;"><b>Motivo:</b> {_escape(motivo)}</p>'
+            '<p style="margin:0;"><b>Que hacer:</b> revisa la fila en Notion (Email, Month, '
+            'Adviser Accounting, Adjuntos) y vuelve a apretar el boton. '
+            'El Status de la fila no fue cambiado.</p></div>'
+            '<p style="color:#8593a8;font-size:12px;">Aviso automatico del sistema AuditAI (no responder).</p>'
+            '</div>'
+        )
+        payload = {
+            "personalizations": [{"to": [{"email": email_asesor}]}],
+            "from": {"email": remitente, "name": "AuditAI · Avisos"},
+            "subject": asunto,
+            "content": [
+                {"type": "text/plain", "value": cuerpo},
+                {"type": "text/html", "value": html},
+            ],
+        }
+        r = requests.post(
+            "https://api.sendgrid.com/v3/mail/send",
+            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+            json=payload, timeout=15,
+        )
+        return r.status_code in (200, 202)
+    except Exception:
+        return False
