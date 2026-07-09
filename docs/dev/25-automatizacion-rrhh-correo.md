@@ -50,7 +50,7 @@
 | R3 | **Credenciales y PII nunca en outputs** | RUT, email y montos no se imprimen ni loguean. El backend lee la fila por API en memoria. |
 | R4 | **El webhook se autentica** | Header `X-AuditAI-Secret` = `WEBHOOK_SECRET` (el mismo del F29). Sin secreto válido → 401. |
 | R5 | **Si algo no calza, no adivinar** | Propiedad inexistente, payload con otra forma ⇒ volcar evidencia (`_estructura()` en el log) y decidir con el usuario. |
-| R6 | **BCC automático a Carlos + Andrea** | Constante `BCC_EXTRA` en `email_sender.py`. Aplica a todos los envíos, RRHH incluido. |
+| R6 | **BCC automático a Carlos** | Constante `BCC_EXTRA` en `email_sender.py` (solo Carlos desde el 09-jul — Andrea se sacó del BCC). Aplica a todos los envíos, RRHH incluido. |
 
 ---
 
@@ -222,21 +222,26 @@ Si el botón "no hace nada", revisar esta config **antes** que el backend (URL e
 ## §7 · Prueba E2E — ⏳ PENDIENTE de ejecutar
 
 ### 7.1 · Preparación
-1. Fila de prueba en RRHH JUNIO 2026: `RUT` ficticio (ej. `12345678-9`), `CLIENTE` =
-   `ZZ_TEST AuditAI RRHH`, `MONTO IMPOSICIONES|` = `15474109`, `ASISTENTE` = `Seba`,
-   `Email` = una dirección real verificable.
-2. No hace falta backend local ni ngrok: producción es Render (always-on, plan Starter).
+
+**Decisión del usuario (09-jul): la prueba se hace sobre una fila real, no una `ZZ_TEST`.**
+Fila elegida: **`RODOTECH`** (`page_id` `39512147-b3ea-805a-a350-e06b9314261b`), a la que el
+usuario le puso su propio correo en `Email` para recibir el envío de prueba. Verificado por API:
+`CLIENTE`="RODOTECH", `RUT` vacío (ejercita el fallback por CLIENTE de R2), `Email` presente,
+`ASISTENTE`="Seba" (activo), `MONTO IMPOSICIONES|` presente, `Estado Correo`="Sin empezar".
+No hace falta backend local ni ngrok: producción es Render (always-on, plan Starter).
 
 ### 7.2 · Ejecución y criterios
-1. Apretar **Enviar Correo** en la fila de prueba.
+1. Apretar **Enviar Correo** en la fila `RODOTECH`.
 2. Logs de Render (Dashboard → servicio → Logs):
    `request recibida · path=/webhook/rrhh · tiene_secreto=True` →
    `identificador en ruta=...` → `correo RRHH enviado OK · page_id=... remitente=...`.
-3. Correo recibido: asunto `Imposiciones Junio 2026- ZZ_TEST AuditAI RRHH`, monto `$15.474.109`,
-   plazo `lunes 13 de julio de 2026 a las 13.45 horas`, logo, firma, BCC a Carlos/Andrea.
+3. Correo recibido (al correo que el usuario puso en `Email` de esa fila): asunto
+   `Imposiciones Junio 2026- RODOTECH`, monto según `MONTO IMPOSICIONES|` de la fila,
+   plazo `lunes 13 de julio de 2026 a las 13.45 horas`, logo, firma de Sebastián, BCC a Carlos.
 4. En Notion: `Estado Correo` = **"Listo"** (y `Fecha Envío` poblada cuando la columna exista).
-5. Casos borde: fila sin `Email` pero con RUT en la central → envía igual (lookup);
-   fila sin RUT ni Email → `{"ok": false, "motivo": "fila sin Email..."}` sin crash.
+5. Casos borde (usar otra fila, no RODOTECH): sin `Email` pero con RUT en la central → envía
+   igual (lookup); sin RUT ni Email pero con CLIENTE → `{"ok": false, "motivo": "fila sin Email..."}`
+   sin crash; sin RUT, sin CLIENTE ni Email → `400` (no identificable).
 
 ### 7.3 · Depuración
 
@@ -272,14 +277,15 @@ Si el botón "no hace nada", revisar esta config **antes** que el backend (URL e
 - [x] Botón `Enviar Correo` configurado (URL + header + body)
 
 ### Fase 2 — Prueba E2E ⏳
-- [ ] Fila `ZZ_TEST AuditAI RRHH` + apretar botón + verificar correo y write-back (§7)
+- [ ] Fila `RODOTECH` (Email = correo del usuario) + apretar botón + verificar correo y write-back (§7)
 - [ ] Caso borde: sin `Email` con RUT en central
 - [ ] Caso borde: sin RUT ni Email → error controlado
 
 ### Fase 3 — Integración
 - [x] `/enviar-f29` intacto (no se tocó su lógica; mismo deploy sano: `/health` OK)
 - [x] Andrea activada (`pendiente:false`, 09-jul) — pendiente su firma PNG
-- [ ] Verificar BCC a Carlos + Andrea en el E2E
+- [x] BCC reducido a solo Carlos (09-jul, se sacó a Andrea de `BCC_EXTRA`)
+- [ ] Verificar BCC a Carlos en el E2E
 - [ ] Reasignar filas de Yasna/Samuel a asesores activos (ya no trabajan en GCP)
 - [ ] Actualizar [`11-checklist-maestro.md`](11-checklist-maestro.md) (N.5) y [`02-estado-del-proyecto.md`](02-estado-del-proyecto.md) al cerrar el E2E
 

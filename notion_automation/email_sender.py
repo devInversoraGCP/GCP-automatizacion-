@@ -53,7 +53,6 @@ FERIADOS_CL = {
 
 BCC_EXTRA = [
     "carloscereceda@inversoragcp.com",
-    "andreagonzalez@inversoragcp.com",
 ]
 
 BANCO_GCP_HTML = (
@@ -521,7 +520,7 @@ def enviar(
         msg.attach(_part)
 
     pass_clean = remitente_pass.replace(" ", "")
-    # BCC al asesor + extra (Carlos, Andrea, etc.) sin header visible.
+    # BCC al asesor + extra (BCC_EXTRA) sin header visible.
     rcpt = [destinatario]
     if remitente_email.lower() != destinatario.lower():
         rcpt.append(remitente_email)
@@ -565,7 +564,7 @@ def _enviar_via_sendgrid(api_key, remitente_email, asesor_firma, destinatario,
             "type": _mime, "filename": _name, "disposition": "attachment",
         })
 
-    # BCC al asesor + extra (Carlos, Andrea, etc.): copia exacta.
+    # BCC al asesor + extra (BCC_EXTRA): copia exacta.
     # SendGrid exige que to/cc/bcc no se repitan, por eso el guard con set.
     bcc_set = set()
     if remitente_email.lower() != destinatario.lower():
