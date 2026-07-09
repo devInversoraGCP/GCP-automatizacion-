@@ -51,7 +51,10 @@ FERIADOS_CL = {
     },
 }
 
-CARLOS_EMAIL = "carloscereceda@inversoragcp.com"
+BCC_EXTRA = [
+    "carloscereceda@inversoragcp.com",
+    "andreagonzalez@inversoragcp.com",
+]
 
 BANCO_GCP_HTML = (
     "Banco Santander · Cuenta Corriente<br>N° 0-000-8577678-9<br>"
@@ -460,12 +463,13 @@ def enviar(
         msg.attach(_part)
 
     pass_clean = remitente_pass.replace(" ", "")
-    # BCC al asesor + Carlos (destinatarios extra sin header visible).
+    # BCC al asesor + extra (Carlos, Andrea, etc.) sin header visible.
     rcpt = [destinatario]
     if remitente_email.lower() != destinatario.lower():
         rcpt.append(remitente_email)
-    if CARLOS_EMAIL.lower() != destinatario.lower():
-        rcpt.append(CARLOS_EMAIL)
+    for _bcc in BCC_EXTRA:
+        if _bcc.lower() != destinatario.lower():
+            rcpt.append(_bcc)
     context = ssl.create_default_context()
     with smtplib.SMTP_SSL("smtp.gmail.com", 465, context=context, timeout=30) as server:
         server.login(remitente_email, pass_clean)
@@ -503,12 +507,13 @@ def _enviar_via_sendgrid(api_key, remitente_email, asesor_firma, destinatario,
             "type": _mime, "filename": _name, "disposition": "attachment",
         })
 
-    # BCC al asesor + Carlos: copia exacta del correo (registro + respaldo).
+    # BCC al asesor + extra (Carlos, Andrea, etc.): copia exacta.
     # SendGrid exige que to/cc/bcc no se repitan, por eso el guard con set.
     bcc_set = set()
     if remitente_email.lower() != destinatario.lower():
         bcc_set.add(remitente_email.lower())
-    bcc_set.add(CARLOS_EMAIL.lower())
+    for _bcc in BCC_EXTRA:
+        bcc_set.add(_bcc.lower())
     bcc_set.discard(destinatario.lower())
     personalization = {"to": [{"email": destinatario}]}
     if bcc_set:
