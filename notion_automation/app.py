@@ -129,16 +129,26 @@ def _procesar_page(page_id: str) -> dict:
         _alertar_error(f"Error de envío: {exc}")
         return {"ok": False, "motivo": f"error SMTP: {exc}"}
 
-    # Write-back del Status y Fecha Envío
-    try:
-        now_iso = datetime.datetime.now(datetime.timezone.utc).isoformat()
-        nc.update_props(page_id, {
-            P_STATUS: {"status": {"name": STATUS_ENVIADO}},
-            P_FECHA_ENVIO: {"date": {"start": now_iso}}
-        })
-        log.info("status y fecha actualizados · page_id=%s -> %s", page_id, STATUS_ENVIADO)
-    except Exception as exc:
-        log.warning("no se pudo actualizar status/fecha · page_id=%s · %s", page_id, exc)
+    # Write-back del Status y Fecha Envío. Tolerante: escribe solo las columnas
+    # que existen en la fila. Un PATCH con una propiedad inexistente falla
+    # completo, y antes eso tumbaba tambien el Status en silencio (la columna
+    # date se llamaba "Fecha", no "Fecha Envío"). Ver doc 24 §5.1.
+    now_iso = datetime.datetime.now(datetime.timezone.utc).isoformat()
+    updates = {}
+    if P_STATUS in props:
+        updates[P_STATUS] = {"status": {"name": STATUS_ENVIADO}}
+    else:
+        log.warning("columna %r no existe en Contable; no se escribe status", P_STATUS)
+    if P_FECHA_ENVIO in props:
+        updates[P_FECHA_ENVIO] = {"date": {"start": now_iso}}
+    else:
+        log.warning("columna %r no existe en Contable; no se escribe fecha", P_FECHA_ENVIO)
+    if updates:
+        try:
+            nc.update_props(page_id, updates)
+            log.info("write-back OK (%s) · page_id=%s -> %s", ", ".join(updates), page_id, STATUS_ENVIADO)
+        except Exception as exc:
+            log.warning("no se pudo actualizar status/fecha · page_id=%s · %s", page_id, exc)
 
     return {"ok": True, "remitente": remitente}
 
