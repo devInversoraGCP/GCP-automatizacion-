@@ -55,6 +55,8 @@ BCC_EXTRA = [
     "carloscereceda@inversoragcp.com",
 ]
 
+PREVIRED_URL = "https://www.previred.com/wPortal/login/login.jsp"
+
 BANCO_GCP_HTML = (
     "Banco Santander · Cuenta Corriente<br>N° 0-000-8577678-9<br>"
     "RUT: 76.976.672-3<br>Razón Social: Inversora GCP Ltda"
@@ -195,10 +197,16 @@ def _bloque_fecha(d: datetime.date) -> tuple[str, str]:
 def _bloque_fecha_rrhh(d: datetime.date) -> tuple[str, str]:
     f = fecha_larga(d)
     html = (
-        f'<p style="margin:0 0 18px 0;font-size:14px;line-height:1.6;color:#3a4658;">'
+        f'<p style="margin:0 0 8px 0;font-size:14px;line-height:1.6;color:#3a4658;">'
         f'<b>Plazo hasta</b> {f} a las 13.45 horas.</p>'
+        f'<p style="margin:0 0 18px 0;font-size:14px;line-height:1.6;color:#3a4658;">'
+        f'Puede pagar directamente en la página de '
+        f'<a href="{PREVIRED_URL}" style="color:#0B1F3A;font-weight:700;">Previred</a>.</p>'
     )
-    txt = f"Plazo hasta {f} a las 13.45 horas."
+    txt = (
+        f"Plazo hasta {f} a las 13.45 horas.\n"
+        f"Puede pagar directamente en la pagina de Previred: {PREVIRED_URL}"
+    )
     return html, txt
 
 
@@ -446,7 +454,7 @@ def enviar(
             nombre, mes, monto, asesor_firma, contacto, logo_url,
             honorarios, info_valor, info_motivo, msg_adjuntos, firma_html,
             template=template,
-            titulo_override="Imposiciones",
+            titulo_override="Imposiciones a pagar",
             bloque_fecha_override=b_fecha_rrhh[0],
             linea_fecha_override=b_fecha_rrhh[1],
         )
