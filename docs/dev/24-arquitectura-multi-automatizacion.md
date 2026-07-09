@@ -155,10 +155,13 @@ def procesar(page_id: str) -> dict:
   `Mensaje Adjuntos` (text), `Rut` (text), `Status` (status → `1) Enviado y Pendiente`).
 - **Particularidades:** fecha límite día **20** del mes siguiente; bloque de honorarios con datos de
   transferencia GCP; el asesor sale de `Adviser Accounting` (people).
-- **⚠️ Bug latente (detectado 09-jul, ver §9):** el write-back escribe `Status` + `Fecha Envío`,
-  pero en Contable Junio la columna date se llama **`Fecha`**, no `Fecha Envío`. El `PATCH` completo
-  falla → probablemente el `Status` tampoco se está actualizando tras enviar. **Verificar y decidir**
-  (renombrar la columna a `Fecha Envío`, o corregir `P_FECHA_ENVIO` en `app.py`).
+- **Write-back:** `Status` → `1) Enviado y Pendiente` + `Fecha Envío` (date). Es **tolerante** (solo
+  escribe las columnas presentes en la fila), igual que RRHH.
+- **🐞 Bug corregido (09-jul):** hasta ese día el write-back apuntaba a `Fecha Envío` pero la columna
+  date de Contable Junio se llamaba `Fecha` → el `PATCH` completo fallaba y el `Status` **tampoco se
+  escribía**, en silencio. Se creó la columna `Fecha Envío` (date) en Notion y se hizo el write-back
+  tolerante. Verificado E2E contra `ZZ_TEST AuditAI`: antes `Fecha Envío` vacía → después Status y
+  Fecha Envío ambos escritos.
 
 ### 5.2 · RRHH JUNIO 2026 — ✅ desplegada
 
