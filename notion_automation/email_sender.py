@@ -1,12 +1,14 @@
-"""Compone y envía el correo del F29 via SMTP de Gmail.
+"""Compone y envía el correo del F29.
+
+Envío: API HTTPS de SendGrid si hay SENDGRID_API_KEY (nube/Render, que bloquea
+SMTP); si no, SMTP de Gmail con App Password (local, ver asesores_smtp.json).
 
 Carga la plantilla de email_templates/ y reemplaza {{marcadores}}.
 Contenido: monto (Impuestos) + fecha límite + honorarios (con datos de
 transferencia) + info adicional opcional.
 
 El remitente es el asesor asignado al cliente (columna Adviser Accounting),
-no una cuenta genérica. Cada asesor envía desde su propio Gmail con su
-App Password (ver asesores_smtp.json).
+que debe estar verificado en SendGrid (Single Sender o dominio).
 """
 from __future__ import annotations
 import os
@@ -15,6 +17,8 @@ import ssl
 import datetime
 import json
 import re
+import base64
+import requests
 from html import escape as _escape
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
@@ -305,21 +309,15 @@ def enviar(
 
     if nombre_asesor:
         asesor_info = _buscar_asesor_por_nombre(nombre_asesor)
-        if asesor_info and asesor_info.get("password") and not asesor_info.get("pendiente"):
-            remitente_email = asesor_info["email"]
-            remitente_pass = asesor_info["password"]
-            asesor_firma = asesor_info.get("nombre", nombre_asesor)
-        elif asesor_info and asesor_info.get("pendiente"):
+        if asesor_info and asesor_info.get("pendiente"):
             raise ValueError(
-                f"Asesor '{nombre_asesor}' ({asesor_info['email']}) no tiene App Password aún (pendiente). "
-                f"No se puede enviar el correo desde su cuenta."
+                f"Asesor '{nombre_asesor}' ({asesor_info['email']}) marcado como pendiente. "
+                f"No se puede enviar desde su cuenta todavía."
             )
-
-    if not remitente_pass:
-        raise ValueError(
-            f"No se encontró contraseña SMTP para el remitente {remitente_email}. "
-            f"Verifica asesores_smtp.json."
-        )
+        if asesor_info:
+            remitente_email = asesor_info["email"]
+            asesor_firma = asesor_info.get("nombre", nombre_asesor)
+            remitente_pass = asesor_info.get("password")   # solo lo usa el fallback SMTP local
 
     # Firma del asesor: imagen inline (CID) si tiene firma_png; si no, texto simple con su nombre.
     # firma_png puede ser ruta absoluta o relativa al paquete notion_automation/ (cloud-ready).
@@ -351,8 +349,24 @@ def enviar(
     mes_nombre = _mes_nombre(mes)
     asunto = f"{ASUNTO_BASE} {mes_nombre}" if mes_nombre else "Resumen impuestos"
 
-    # Mensaje "related" (no "alternative") para que las imágenes inline (logo + firma)
-    # se asocien al cuerpo y Gmail las muestre en vez de tratarlas como adjuntos sueltos.
+    # === Envío ===
+    # En la nube (Render BLOQUEA SMTP) se usa la API HTTPS de SendGrid si hay SENDGRID_API_KEY.
+    # En local, si no hay key, cae al SMTP de Gmail (requiere App Password del asesor).
+    if os.environ.get("SENDGRID_API_KEY"):
+        _enviar_via_sendgrid(
+            os.environ["SENDGRID_API_KEY"],
+            remitente_email, asesor_firma, destinatario, asunto, html, txt, firma_png,
+        )
+        return remitente_email
+
+    # --- Fallback local: SMTP Gmail (puerto 465, SSL) ---
+    if not remitente_pass:
+        raise ValueError(
+            f"No hay SENDGRID_API_KEY ni App Password SMTP para {remitente_email}. "
+            f"Configura SendGrid (nube) o el App Password en asesores_smtp.json (local)."
+        )
+
+    # Mensaje "related" para que las imágenes inline (logo + firma) se vean en el cuerpo.
     msg = MIMEMultipart("related")
     msg["Subject"] = asunto
     msg["From"] = f"{asesor_firma} · GCP <{remitente_email}>"
@@ -362,7 +376,6 @@ def enviar(
     alt.attach(MIMEText(html, "html", "utf-8"))
     msg.attach(alt)
 
-    # Logo GCP inline (Content-ID: logo-gcp). _subtype="png" evita imghdr (removido en Python 3.13+).
     if LOGO_PATH.is_file():
         with open(LOGO_PATH, "rb") as fh:
             _logo = MIMEImage(fh.read(), _subtype="png")
@@ -370,7 +383,6 @@ def enviar(
         _logo.add_header("Content-Disposition", "inline", filename="logo-gcp.png")
         msg.attach(_logo)
 
-    # Firma del asesor inline (Content-ID: firma-asesor). Detecta jpeg/png por extension.
     if firma_png:
         _sub = "jpeg" if firma_png.lower().endswith((".jpg", ".jpeg")) else "png"
         with open(firma_png, "rb") as fh:
@@ -379,7 +391,6 @@ def enviar(
         _firma.add_header("Content-Disposition", "inline", filename=f"firma-asesor.{_sub}")
         msg.attach(_firma)
 
-    # SMTP Gmail — puerto 465 (SSL). App Password sin espacios.
     pass_clean = remitente_pass.replace(" ", "")
     context = ssl.create_default_context()
     with smtplib.SMTP_SSL("smtp.gmail.com", 465, context=context, timeout=30) as server:
@@ -387,3 +398,46 @@ def enviar(
         server.sendmail(remitente_email, [destinatario], msg.as_string())
 
     return remitente_email
+
+
+def _enviar_via_sendgrid(api_key, remitente_email, asesor_firma, destinatario,
+                         asunto, html, txt, firma_png):
+    """Envía el correo por la API HTTPS de SendGrid (Render bloquea SMTP).
+    Logo + firma van como adjuntos inline (content_id) para verse en el cuerpo.
+    El remitente (remitente_email) DEBE estar verificado en SendGrid (Single
+    Sender o dominio), si no SendGrid responde 403."""
+    attachments = []
+
+    def _inline(path, cid, filename, ctype):
+        with open(path, "rb") as fh:
+            b64 = base64.b64encode(fh.read()).decode("ascii")
+        attachments.append({
+            "content": b64, "type": ctype, "filename": filename,
+            "disposition": "inline", "content_id": cid,
+        })
+
+    if LOGO_PATH.is_file():
+        _inline(LOGO_PATH, "logo-gcp", "logo-gcp.png", "image/png")
+    if firma_png:
+        ctype = "image/jpeg" if firma_png.lower().endswith((".jpg", ".jpeg")) else "image/png"
+        _inline(firma_png, "firma-asesor", "firma-asesor", ctype)
+
+    payload = {
+        "personalizations": [{"to": [{"email": destinatario}]}],
+        "from": {"email": remitente_email, "name": f"{asesor_firma} · GCP"},
+        "subject": asunto,
+        "content": [
+            {"type": "text/plain", "value": txt},
+            {"type": "text/html", "value": html},
+        ],
+    }
+    if attachments:
+        payload["attachments"] = attachments
+
+    r = requests.post(
+        "https://api.sendgrid.com/v3/mail/send",
+        headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+        json=payload, timeout=30,
+    )
+    if r.status_code not in (200, 202):
+        raise ValueError(f"SendGrid rechazo el envio (HTTP {r.status_code}): {r.text[:300]}")
