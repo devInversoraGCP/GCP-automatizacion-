@@ -24,10 +24,11 @@ MENSAJE = "Mensaje Correo"      # columna nueva: cuerpo personalizable (rich_tex
 MONTO = "Monto"                 # columna nueva (opcional): monto a cobrar (number)
 FECHA_PROM = "Fecha prometida"  # date
 
-# Write-back (columnas nuevas)
+# Write-back (columnas nuevas). 'Fecha envío' = nombre EXACTO en Notion (e
+# minuscula, verificado por API); "Fecha Envío" con mayuscula NO existe.
 STATUS_COL = "Estado Correo"
 STATUS_ENVIADO = "Enviado"
-FECHA_COL = "Fecha Envío"
+FECHA_COL = "Fecha envío"
 
 # tipo_correo -> (plantilla, plantilla de asunto, texto estandar si Mensaje Correo esta vacio)
 CORREOS = {

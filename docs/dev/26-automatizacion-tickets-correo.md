@@ -64,7 +64,7 @@
 | R2 | **Identificación por `Tarea`** | El payload del botón no trae page_id utilizable (lección F29/RRHH). Se identifica por **`Tarea`** (title = nombre del cliente). Hoy las 79 son únicas (verificado). Cascada: page_id → `data.id`/`entity.id` → `Tarea`. |
 | R3 | **PII nunca en outputs** | Nombre, email y mensaje no se imprimen ni loguean (solo presencia booleana). Se lee la fila por API en memoria. |
 | R4 | **El webhook se autentica** | Header `X-AuditAI-Secret` = `WEBHOOK_SECRET` (el mismo de F29/RRHH). Sin secreto válido → 401. |
-| R5 | **Verificar nombre EXACTO de columna vía API antes de codear** | Notion es case/acento-sensitive (`Fecha Envío` ≠ `Fecha envío`). Este bug ya pegó 3 veces. Confirmar cada columna nueva contra el esquema en vivo antes de fijar la constante. |
+| R5 | **Verificar nombre EXACTO de columna vía API antes de codear** | Notion es case/acento-sensitive (`Fecha envío` ≠ `Fecha envío`). Este bug ya pegó 3 veces. Confirmar cada columna nueva contra el esquema en vivo antes de fijar la constante. |
 | R6 | **Write-back tolerante** | El PATCH se arma **solo con las columnas presentes** en la fila. Un correo enviado nunca queda sin registrar por una columna mal nombrada o ausente. |
 | R7 | **BCC automático a Carlos** | Constante `BCC_EXTRA` en `email_sender.py`. Ya aplica a todos los envíos. Sin cambios. |
 
@@ -107,7 +107,7 @@
 | **`Mensaje Correo`** | text | `Mensaje Correo` | **Cuerpo del correo**, redactado por el asesor por ticket. Si está vacío → texto estándar. |
 | **`Monto`** | number | `Monto` | **Opcional.** Monto a cobrar. Si está poblado, **Cobranza** muestra una tarjeta "Total a pagar: $X" formateada. Si está vacío, no se muestra (el asesor puede ponerlo en el mensaje). |
 | **`Estado Correo`** | status | `Estado Correo` | Write-back tras el envío. Crear la opción exacta **`Enviado`**. |
-| **`Fecha Envío`** | date | `Fecha Envío` | Write-back con la fecha/hora del envío. |
+| **`Fecha envío`** | date | `Fecha envío` | Write-back con la fecha/hora del envío. |
 | **`Enviar Avance`** | button | — | Dispara el correo de avance (§6). |
 | **`Enviar Completado`** | button | — | Dispara el correo de completado (§6). |
 | **`Enviar Cobranza`** | button | — | Dispara el correo de cobranza (§6). |
@@ -141,7 +141,7 @@ handlers/tickets.py · procesar(page_id, tipo_correo)
   ├─ 6. es.enviar(template="tickets_<tipo>", asunto=..., extra_vars=...)
   │     ├─ SendGrid (SENDGRID_API_KEY en Render; SMTP solo fallback local)
   │     └─ BCC automático a Carlos (BCC_EXTRA)
-  └─ 7. write-back TOLERANTE: Estado Correo="Enviado" + Fecha Envío=now (si existen)
+  └─ 7. write-back TOLERANTE: Estado Correo="Enviado" + Fecha envío=now (si existen)
 ```
 
 Un solo handler y un endpoint parametrizado por `<tipo>`; los 3 botones solo difieren en la URL.
@@ -222,7 +222,7 @@ FECHA_PROM = "Fecha prometida"  # date
 # Write-back (columnas nuevas)
 STATUS_COL = "Estado Correo"
 STATUS_ENVIADO = "Enviado"
-FECHA_COL = "Fecha Envío"
+FECHA_COL = "Fecha envío"
 
 # tipo_correo -> (plantilla, plantilla de asunto, texto estandar si Mensaje Correo esta vacio)
 CORREOS = {
@@ -608,7 +608,7 @@ datos bancarios).
 1. **Backup** de Tickets - Servicios (export CSV antes de tocar — R1).
 2. **Crear las columnas** de §2.3 con los nombres EXACTOS: `Email` (email), `Mensaje Correo` (text),
    `Monto` (number, opcional — para la tarjeta de Cobranza), `Estado Correo` (status, con opción
-   `Enviado`), `Fecha Envío` (date).
+   `Enviado`), `Fecha envío` (date).
 3. **Crear los 3 botones** (tipo Button → *Add step* → *Send webhook*), todos con:
    - **Method:** POST
    - **Header:** `X-AuditAI-Secret` = el `WEBHOOK_SECRET` (el mismo de F29/RRHH)
@@ -646,7 +646,7 @@ datos bancarios).
    - **Cobranza:** el mensaje + "transferencia a:" + datos bancarios GCP.
    - Los 3: logo, firma del asesor asignado, BCC a Carlos.
 4. **Fallback:** vaciar `Mensaje Correo` y reenviar → debe salir el **texto estándar** del tipo.
-5. En Notion: `Estado Correo` = `Enviado` y `Fecha Envío` poblada tras cada envío.
+5. En Notion: `Estado Correo` = `Enviado` y `Fecha envío` poblada tras cada envío.
 6. Casos borde: fila **sin `Email`** → `{"ok": false, "motivo": "fila sin Email..."}` sin crash;
    `Asignado` vacío → sale desde `EMAIL_FROM` con firma "Equipo GCP".
 
@@ -661,7 +661,7 @@ datos bancarios).
 | Sale texto estándar cuando esperaba el personalizado | `Mensaje Correo` vacío o mal nombrado | Verificar la columna (nombre exacto) y que tenga texto. |
 | Llega con plantilla equivocada (parece F29) | Falta el archivo `tickets_<tipo>.html/.txt` → `render()` cae a `f29_email` | Crear los 6 archivos (§5.5–5.8). |
 | `Asesor '...' marcado como pendiente` | El `Asignado` está `pendiente:true` en `asesores_smtp.json` | Activarlo o reasignar la fila. |
-| Envía pero `Estado Correo`/`Fecha Envío` no cambian | Columna ausente o nombre/opción no calza | Ver §2.3 y R5; el log dice qué columna se omitió. |
+| Envía pero `Estado Correo`/`Fecha envío` no cambian | Columna ausente o nombre/opción no calza | Ver §2.3 y R5; el log dice qué columna se omitió. |
 
 ---
 
@@ -681,7 +681,7 @@ datos bancarios).
 - [ ] Columna `Email` (email)
 - [ ] Columna `Mensaje Correo` (text)
 - [ ] Columna `Estado Correo` (status, con opción `Enviado`)
-- [ ] Columna `Fecha Envío` (date)
+- [ ] Columna `Fecha envío` (date)
 - [ ] 3 botones con sus URLs, header y `Tarea`+`Email` en el Contenido (§6)
 
 ### Fase 2 — Prueba E2E
