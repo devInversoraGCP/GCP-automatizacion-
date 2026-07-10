@@ -22,7 +22,11 @@ ASIGNADO = "Asignado"           # person -> remitente/firma
 EMAIL_CLIENTE = "Email"         # columna nueva
 MENSAJE = "Mensaje Correo"      # columna nueva: cuerpo personalizable (rich_text)
 MONTO = "Monto"                 # columna nueva (opcional): monto a cobrar (number)
-FECHA_PROM = "Fecha prometida"  # date
+FECHA_PROM = "Fecha prometida"  # date (existente) -> Avance/Completado
+# Columnas nuevas OPCIONALES de personalizacion
+ADJUNTOS = "Adjuntos"           # files -> se adjuntan al correo
+FECHA_LIMITE = "Fecha límite pago"  # date -> Cobranza: "pagar antes del..."
+ASUNTO_COL = "Asunto"           # rich_text -> override del asunto (si vacio, asunto automatico)
 
 # Write-back (columnas nuevas). 'Fecha envío' = nombre EXACTO en Notion (e
 # minuscula, verificado por API); "Fecha Envío" con mayuscula NO existe.
@@ -71,46 +75,54 @@ def _bloque_mensaje(mensaje: str, estandar: str) -> tuple[str, str]:
     return html, txt
 
 
-def _bloque_monto(monto: str) -> tuple[str, str]:
-    """Tarjeta 'Total a pagar' formateada en CLP. ('', '') si no hay monto valido (>0).
-    El monto sale de la columna 'Monto' (number); si esta vacia, no se muestra tarjeta
-    (el asesor puede ponerlo en el mensaje libre)."""
+def _linea(texto_html: str) -> str:
+    return (f'<p style="margin:0 0 8px 0;font-size:14px;color:#3a4658;line-height:1.6;">'
+            f'{texto_html}</p>')
+
+
+def _bloque_monto(monto: str, fecha_limite: str) -> tuple[str, str]:
+    """Bloque de cobro (solo Cobranza): tarjeta 'Total a pagar' formateada en CLP +
+    'Fecha límite de pago' si esta poblada. Cada parte es opcional; si el monto esta
+    vacio no hay tarjeta (el asesor puede ponerlo en el mensaje libre)."""
+    ph, pt = [], []
     try:
         n = float(monto)
     except (ValueError, TypeError):
         n = 0.0
-    if n <= 0:
-        return "", ""
-    m = es.clp(monto)
-    html = (
-        '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" '
-        'style="margin:0 0 18px 0;"><tr><td style="background:#0B1F3A;border-radius:14px;'
-        'padding:22px 26px;"><div style="font-size:12px;font-weight:700;letter-spacing:.12em;'
-        'text-transform:uppercase;color:#8fb4ee;margin-bottom:8px;">Total a pagar</div>'
-        f'<div style="font-size:40px;font-weight:800;color:#ffffff;line-height:1;'
-        f'font-variant-numeric:tabular-nums;">{m}</div></td></tr></table>'
-    )
-    return html, f"Total a pagar: {m}"
+    if n > 0:
+        m = es.clp(monto)
+        ph.append(
+            '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" '
+            'style="margin:0 0 12px 0;"><tr><td style="background:#0B1F3A;border-radius:14px;'
+            'padding:22px 26px;"><div style="font-size:12px;font-weight:700;letter-spacing:.12em;'
+            'text-transform:uppercase;color:#8fb4ee;margin-bottom:8px;">Total a pagar</div>'
+            f'<div style="font-size:40px;font-weight:800;color:#ffffff;line-height:1;'
+            f'font-variant-numeric:tabular-nums;">{m}</div></td></tr></table>'
+        )
+        pt.append(f"Total a pagar: {m}")
+    fl = _fmt_fecha(fecha_limite)
+    if fl:
+        ph.append(_linea(f'<b>Fecha límite de pago:</b> {fl}.'))
+        pt.append(f"Fecha límite de pago: {fl}.")
+    return "".join(ph), "\n".join(pt)
 
 
-def _bloque_detalle(tipo_correo: str, estado: str, fecha_prom: str) -> tuple[str, str]:
-    """Extra especifico del tipo. avance: Estado + Fecha; cobranza: datos bancarios GCP."""
+def _bloque_detalle(tipo_correo: str, estado: str, fecha_prom: str, n_adjuntos: int) -> tuple[str, str]:
+    """Extra especifico del tipo:
+    - avance: Estado actual + Fecha comprometida
+    - completado: Fecha comprometida
+    - cobranza: datos bancarios GCP
+    - todos: aviso de adjuntos si los hay."""
     ph, pt = [], []
-    if tipo_correo == "avance":
-        if estado:
-            ph.append(
-                f'<p style="margin:0 0 8px 0;font-size:14px;color:#3a4658;line-height:1.6;">'
-                f'<b>Estado actual:</b> {es._escape(estado)}.</p>'
-            )
-            pt.append(f"Estado actual: {estado}.")
+    if tipo_correo == "avance" and estado:
+        ph.append(_linea(f'<b>Estado actual:</b> {es._escape(estado)}.'))
+        pt.append(f"Estado actual: {estado}.")
+    if tipo_correo in ("avance", "completado"):
         f = _fmt_fecha(fecha_prom)
         if f:
-            ph.append(
-                f'<p style="margin:0 0 14px 0;font-size:14px;color:#3a4658;line-height:1.6;">'
-                f'<b>Fecha comprometida:</b> {f}.</p>'
-            )
+            ph.append(_linea(f'<b>Fecha comprometida:</b> {f}.'))
             pt.append(f"Fecha comprometida: {f}.")
-    elif tipo_correo == "cobranza":
+    if tipo_correo == "cobranza":
         ph.append(
             '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" '
             'style="margin:0 0 18px 0;"><tr><td style="background:#eef4ff;border:1px solid #d3e0f5;'
@@ -118,6 +130,10 @@ def _bloque_detalle(tipo_correo: str, estado: str, fecha_prom: str) -> tuple[str
             f'color:#3a4658;line-height:1.6;">{es.BANCO_GCP_HTML}</td></tr></table>'
         )
         pt.append(es.BANCO_GCP_TXT)
+    if n_adjuntos:
+        s = "documento" if n_adjuntos == 1 else "documentos"
+        ph.append(_linea(f'📎 Adjuntamos {n_adjuntos} {s} a este correo.'))
+        pt.append(f"Adjuntamos {n_adjuntos} {s} a este correo.")
     return "".join(ph), "\n".join(pt)
 
 
@@ -134,15 +150,18 @@ def procesar(page_id: str, tipo_correo: str) -> dict:
     email = nc.plain(props.get(EMAIL_CLIENTE, {}))
     mensaje = nc.plain(props.get(MENSAJE, {}))
     monto = nc.plain(props.get(MONTO, {}))
-    estado = (props.get(ESTADO, {}).get("status") or {}).get("name", "")
     fecha_prom = (props.get(FECHA_PROM, {}).get("date") or {}).get("start", "") or ""
+    fecha_limite = (props.get(FECHA_LIMITE, {}).get("date") or {}).get("start", "") or ""
+    asunto_custom = nc.plain(props.get(ASUNTO_COL, {}))
+    adjuntos = nc.files(props.get(ADJUNTOS, {}))
+    estado = (props.get(ESTADO, {}).get("status") or {}).get("name", "")
     tipos = [o.get("name", "") for o in (props.get(TIPO, {}).get("multi_select") or [])]
     tipo = ", ".join(t for t in tipos if t) or "trámite"
     asignados = nc.people_names(props.get(ASIGNADO, {}))
     asesor = asignados[0] if asignados else ""
 
-    log.info("tickets tipo=%s page_id=%s cliente_present=%s email_present=%s mensaje_present=%s asesor=%r",
-             tipo_correo, page_id, bool(cliente), bool(email), bool(mensaje), asesor)
+    log.info("tickets tipo=%s page_id=%s cliente_present=%s email_present=%s mensaje_present=%s asunto_custom=%s adjuntos_n=%d asesor=%r",
+             tipo_correo, page_id, bool(cliente), bool(email), bool(mensaje), bool(asunto_custom), len(adjuntos), asesor)
 
     if not email:
         return {"ok": False, "motivo": "fila sin Email (columna Email vacía)"}
@@ -151,16 +170,17 @@ def procesar(page_id: str, tipo_correo: str) -> dict:
 
     estandar = estandar_tpl.format(tipo=tipo)
     b_msg = _bloque_mensaje(mensaje, estandar)
-    b_det = _bloque_detalle(tipo_correo, estado, fecha_prom)
-    # El monto solo se muestra en Cobranza (decision del usuario 10-jul).
-    b_monto = _bloque_monto(monto) if tipo_correo == "cobranza" else ("", "")
+    b_det = _bloque_detalle(tipo_correo, estado, fecha_prom, len(adjuntos))
+    # El monto + fecha límite solo se muestran en Cobranza (decision del usuario 10-jul).
+    b_monto = _bloque_monto(monto, fecha_limite) if tipo_correo == "cobranza" else ("", "")
     extra_vars = {
         "tipo": tipo,
         "bloque_mensaje": b_msg[0], "linea_mensaje": b_msg[1],
         "bloque_monto": b_monto[0], "linea_monto": b_monto[1],
         "bloque_detalle": b_det[0], "linea_detalle": b_det[1],
     }
-    asunto = asunto_tpl.format(tipo=tipo)
+    # Asunto: override manual (columna Asunto) o el automatico por tipo.
+    asunto = asunto_custom.strip() if asunto_custom.strip() else asunto_tpl.format(tipo=tipo)
 
     try:
         remitente = es.enviar(
@@ -169,6 +189,7 @@ def procesar(page_id: str, tipo_correo: str) -> dict:
             mes="",            # Tickets no usa periodo/fecha límite
             monto="0",         # ni monto
             nombre_asesor=asesor,
+            adjuntos=adjuntos,
             template=plantilla,
             asunto=asunto,
             extra_vars=extra_vars,

@@ -89,7 +89,7 @@
 | `Estado` | **status** | Avance interno → se muestra como línea "Estado actual" en el correo de **Avance** |
 | `Asignado` | **person** | Miembro de GCP a cargo → **remitente/firma** (mapea a `asesores_smtp.json`) |
 | `Descripción` | text | Notas internas — **NO** se envían al cliente |
-| `Fecha prometida` | date | Compromiso opcional → línea en el correo de **Avance** |
+| `Fecha prometida` | date | Compromiso opcional → línea "Fecha comprometida" en **Avance** y **Completado** |
 | `Compromiso` | formula (read-only) | Marca atrasados. No se escribe |
 | `Número` | number | Casi vacío (2/79). **No** usar como identificador |
 | `Actualizado` | last_edited_time (read-only) | No se usa |
@@ -106,6 +106,9 @@
 | **`Email`** | email (o text) | `Email` | Correo del cliente destinatario. **Requerido** para enviar. |
 | **`Mensaje Correo`** | text | `Mensaje Correo` | **Cuerpo del correo**, redactado por el asesor por ticket. Si está vacío → texto estándar. |
 | **`Monto`** | number | `Monto` | **Opcional.** Monto a cobrar. Si está poblado, **Cobranza** muestra una tarjeta "Total a pagar: $X" formateada. Si está vacío, no se muestra (el asesor puede ponerlo en el mensaje). |
+| **`Adjuntos`** | files & media | `Adjuntos` | **Opcional.** Documentos que se adjuntan al correo (certificado, factura). El cuerpo muestra "📎 Adjuntamos N documentos". Mismo sistema que F29/RRHH. |
+| **`Fecha límite pago`** | date | `Fecha límite pago` | **Opcional.** En **Cobranza** muestra "Fecha límite de pago: DD/MM/AAAA" (formateada). |
+| **`Asunto`** | text | `Asunto` | **Opcional.** Sobrescribe el asunto del correo por ticket. Si está vacío, se usa el asunto automático por tipo. |
 | **`Estado Correo`** | status | `Estado Correo` | Write-back tras el envío. Crear la opción exacta **`Enviado`**. |
 | **`Fecha envío`** | date | `Fecha envío` | Write-back con la fecha/hora del envío. |
 | **`Enviar Avance`** | button | — | Dispara el correo de avance (§6). |
@@ -180,9 +183,26 @@ firma del asesor, pie de confidencialidad). **El cuerpo central es el `Mensaje C
   relato. Así el asesor no tipea formatos y los datos quedan registrados en Notion (decisión 10-jul).
 
 **Variables que inyecta el handler** (vía `extra_vars`, §5.2): `{{tipo}}`, `{{bloque_mensaje}}`
-(cuerpo, HTML), `{{linea_mensaje}}` (cuerpo, texto), `{{bloque_detalle}}` (Estado+fecha en avance /
-datos bancarios en cobranza), `{{linea_detalle}}`. Las estándar (`{{nombre_cliente}}`,
-`{{bloque_firma}}`, `{{contacto_email}}`) las provee `render()`.
+(cuerpo, HTML), `{{linea_mensaje}}` (cuerpo, texto), `{{bloque_monto}}` (tarjeta monto + fecha límite,
+solo cobranza), `{{bloque_detalle}}` (Estado+fecha en avance/completado / datos bancarios en cobranza /
+aviso de adjuntos), `{{linea_*}}`. Las estándar (`{{nombre_cliente}}`, `{{bloque_firma}}`,
+`{{contacto_email}}`) las provee `render()`.
+
+### 4.4 · Personalización avanzada (columnas opcionales, agregadas 10-jul)
+
+Cada dato duro sale de una columna y el backend lo formatea; el asesor no tipea formatos y todo
+queda registrado en Notion. Todas opcionales (si la columna está vacía, esa parte no aparece):
+
+| Columna | Efecto en el correo |
+|---------|---------------------|
+| `Adjuntos` (files) | Adjunta los archivos al correo (igual que F29/RRHH, con tope `MAX_ADJUNTOS_MB`) y agrega "📎 Adjuntamos N documentos". |
+| `Monto` (number) | **Cobranza:** tarjeta navy "Total a pagar: $X" (`es.clp()`). |
+| `Fecha límite pago` (date) | **Cobranza:** línea "Fecha límite de pago: DD/MM/AAAA". |
+| `Fecha prometida` (date) | **Avance y Completado:** línea "Fecha comprometida: DD/MM/AAAA". |
+| `Asunto` (text) | Sobrescribe el asunto; si está vacía, se usa el automático por tipo. |
+
+Ninguna requiere tocar plantillas: los placeholders (`{{bloque_monto}}`, `{{bloque_detalle}}`) ya
+existen; el asunto y los adjuntos los maneja `es.enviar()`.
 
 ---
 
@@ -217,7 +237,10 @@ ASIGNADO = "Asignado"           # person -> remitente/firma
 EMAIL_CLIENTE = "Email"         # columna nueva
 MENSAJE = "Mensaje Correo"      # columna nueva: cuerpo personalizable (rich_text)
 MONTO = "Monto"                 # columna nueva (opcional): monto a cobrar (number)
-FECHA_PROM = "Fecha prometida"  # date
+FECHA_PROM = "Fecha prometida"  # date (existente) -> Avance/Completado
+ADJUNTOS = "Adjuntos"           # files (opcional) -> se adjuntan al correo
+FECHA_LIMITE = "Fecha límite pago"  # date (opcional) -> Cobranza
+ASUNTO_COL = "Asunto"           # rich_text (opcional) -> override del asunto
 
 # Write-back (columnas nuevas)
 STATUS_COL = "Estado Correo"
@@ -606,9 +629,10 @@ datos bancarios).
 ## §6 · Configuración en Notion (lo hace el usuario)
 
 1. **Backup** de Tickets - Servicios (export CSV antes de tocar — R1).
-2. **Crear las columnas** de §2.3 con los nombres EXACTOS: `Email` (email), `Mensaje Correo` (text),
-   `Monto` (number, opcional — para la tarjeta de Cobranza), `Estado Correo` (status, con opción
-   `Enviado`), `Fecha envío` (date).
+2. **Crear las columnas** de §2.3 con los nombres EXACTOS. Requeridas: `Email` (email),
+   `Mensaje Correo` (text), `Estado Correo` (status, con opción `Enviado`), `Fecha envío` (date).
+   Opcionales (personalización, §4.4): `Monto` (number), `Adjuntos` (files), `Fecha límite pago`
+   (date), `Asunto` (text).
 3. **Crear los 3 botones** (tipo Button → *Add step* → *Send webhook*), todos con:
    - **Method:** POST
    - **Header:** `X-AuditAI-Secret` = el `WEBHOOK_SECRET` (el mismo de F29/RRHH)
