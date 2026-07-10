@@ -1,0 +1,13 @@
+Asunto: Avance de su trámite de {{tipo}} — GCP
+
+Estimado/a {{nombre_cliente}}:
+
+{{linea_mensaje}}
+{{linea_detalle}}
+
+Saludos cordiales,
+GCP · Asesoría Contable
+
+—
+Este correo y su contenido son confidenciales y están dirigidos exclusivamente
+a {{nombre_cliente}}.

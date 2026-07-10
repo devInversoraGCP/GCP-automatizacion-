@@ -19,6 +19,7 @@ import datetime
 import notion_client as nc
 import email_sender as es
 import handlers.rrhh as rrhh_handler
+import handlers.tickets as tickets_handler
 
 load_dotenv()
 
@@ -262,6 +263,9 @@ def _procesar_webhook_generico(handler, nombre_handler: str):
     if not ident and nombre_handler == "RRHH":
         ident, ruta = _buscar_clave(data, ["CLIENTE", "Cliente", "cliente"])
         prop_busqueda = "CLIENTE"
+    if not ident and nombre_handler == "TICKETS":
+        ident, ruta = _buscar_clave(data, ["Tarea", "tarea", "Nombre"])
+        prop_busqueda = "Tarea"
     log.info("identificador en ruta=%r (valor no se loguea)", ruta)
 
     if not ident:
@@ -273,6 +277,9 @@ def _procesar_webhook_generico(handler, nombre_handler: str):
     else:
         if nombre_handler == "RRHH":
             from handlers.rrhh import DS_ID as DS
+            page_id = nc.find_page_by_rut_generico(ident, DS, prop_busqueda)
+        elif nombre_handler == "TICKETS":
+            from handlers.tickets import DS_ID as DS
             page_id = nc.find_page_by_rut_generico(ident, DS, prop_busqueda)
         else:
             page_id = nc.find_page_by_rut(ident)
@@ -288,6 +295,19 @@ def _procesar_webhook_generico(handler, nombre_handler: str):
 def webhook_rrhh():
     """Webhook del botón 'Enviar Correo RRHH' en RRHH JUNIO 2026."""
     return _procesar_webhook_generico(rrhh_handler.procesar, "RRHH")
+
+
+_TICKETS_TIPOS = {"avance", "completado", "cobranza"}
+
+
+@app.post("/webhook/tickets/<tipo>")
+def webhook_tickets(tipo):
+    """Webhook de los botones de Tickets - Servicios. <tipo> elige la plantilla."""
+    if tipo not in _TICKETS_TIPOS:
+        abort(404, f"tipo de correo tickets desconocido: {tipo}")
+    return _procesar_webhook_generico(
+        lambda page_id: tickets_handler.procesar(page_id, tipo), "TICKETS"
+    )
 
 
 @app.post("/enviar-f29")

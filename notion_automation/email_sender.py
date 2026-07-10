@@ -297,6 +297,7 @@ def render(
     template: str = "f29_email",
     titulo_override: str = "", mensaje_override: str = "",
     bloque_fecha_override: str = "", linea_fecha_override: str = "",
+    extra_vars: dict | None = None,
 ) -> tuple[str, str]:
     """Carga la plantilla y reemplaza los marcadores. Devuelve (html, txt)."""
     if titulo_override:
@@ -353,6 +354,8 @@ def render(
         txt_path = TEMPLATES / "f29_email.txt"
     html = html_path.read_text(encoding="utf-8")
     txt = txt_path.read_text(encoding="utf-8")
+    if extra_vars:
+        vars_.update({k: (v if isinstance(v, str) else str(v)) for k, v in extra_vars.items()})
     for k, v in vars_.items():
         html = html.replace("{{" + k + "}}", v)
         txt = txt.replace("{{" + k + "}}", v)
@@ -402,6 +405,7 @@ def enviar(
     logo_url: str | None = None,
     template: str = "f29_email",
     asunto: str | None = None,
+    extra_vars: dict | None = None,
 ) -> str:
     """Envía el correo por SMTP de Gmail. El remitente es el asesor del cliente.
     Devuelve el email del remitente usado (para log sin PII del destinatario)."""
@@ -463,6 +467,7 @@ def enviar(
             nombre, mes, monto, asesor_firma, contacto, logo_url,
             honorarios, info_valor, info_motivo, msg_adjuntos, firma_html,
             template=template,
+            extra_vars=extra_vars,
         )
 
     # Asunto: si se pasa explícito, usarlo; si no, dinámico por mes (F29).

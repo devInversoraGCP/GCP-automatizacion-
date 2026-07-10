@@ -1,0 +1,15 @@
+Asunto: Su trámite de {{tipo}} está listo — GCP
+
+Estimado/a {{nombre_cliente}}:
+
+✓ Trámite de {{tipo}} completado
+
+{{linea_mensaje}}
+{{linea_detalle}}
+
+Saludos cordiales,
+GCP · Asesoría Contable
+
+—
+Este correo y su contenido son confidenciales y están dirigidos exclusivamente
+a {{nombre_cliente}}.
