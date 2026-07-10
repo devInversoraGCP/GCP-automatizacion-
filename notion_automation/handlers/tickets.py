@@ -21,6 +21,7 @@ ESTADO = "Estado"               # status
 ASIGNADO = "Asignado"           # person -> remitente/firma
 EMAIL_CLIENTE = "Email"         # columna nueva
 MENSAJE = "Mensaje Correo"      # columna nueva: cuerpo personalizable (rich_text)
+MONTO = "Monto"                 # columna nueva (opcional): monto a cobrar (number)
 FECHA_PROM = "Fecha prometida"  # date
 
 # Write-back (columnas nuevas)
@@ -69,6 +70,28 @@ def _bloque_mensaje(mensaje: str, estandar: str) -> tuple[str, str]:
     return html, txt
 
 
+def _bloque_monto(monto: str) -> tuple[str, str]:
+    """Tarjeta 'Total a pagar' formateada en CLP. ('', '') si no hay monto valido (>0).
+    El monto sale de la columna 'Monto' (number); si esta vacia, no se muestra tarjeta
+    (el asesor puede ponerlo en el mensaje libre)."""
+    try:
+        n = float(monto)
+    except (ValueError, TypeError):
+        n = 0.0
+    if n <= 0:
+        return "", ""
+    m = es.clp(monto)
+    html = (
+        '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" '
+        'style="margin:0 0 18px 0;"><tr><td style="background:#0B1F3A;border-radius:14px;'
+        'padding:22px 26px;"><div style="font-size:12px;font-weight:700;letter-spacing:.12em;'
+        'text-transform:uppercase;color:#8fb4ee;margin-bottom:8px;">Total a pagar</div>'
+        f'<div style="font-size:40px;font-weight:800;color:#ffffff;line-height:1;'
+        f'font-variant-numeric:tabular-nums;">{m}</div></td></tr></table>'
+    )
+    return html, f"Total a pagar: {m}"
+
+
 def _bloque_detalle(tipo_correo: str, estado: str, fecha_prom: str) -> tuple[str, str]:
     """Extra especifico del tipo. avance: Estado + Fecha; cobranza: datos bancarios GCP."""
     ph, pt = [], []
@@ -109,6 +132,7 @@ def procesar(page_id: str, tipo_correo: str) -> dict:
     cliente = nc.plain(props.get(TAREA, {}))
     email = nc.plain(props.get(EMAIL_CLIENTE, {}))
     mensaje = nc.plain(props.get(MENSAJE, {}))
+    monto = nc.plain(props.get(MONTO, {}))
     estado = (props.get(ESTADO, {}).get("status") or {}).get("name", "")
     fecha_prom = (props.get(FECHA_PROM, {}).get("date") or {}).get("start", "") or ""
     tipos = [o.get("name", "") for o in (props.get(TIPO, {}).get("multi_select") or [])]
@@ -127,9 +151,12 @@ def procesar(page_id: str, tipo_correo: str) -> dict:
     estandar = estandar_tpl.format(tipo=tipo)
     b_msg = _bloque_mensaje(mensaje, estandar)
     b_det = _bloque_detalle(tipo_correo, estado, fecha_prom)
+    # El monto solo se muestra en Cobranza (decision del usuario 10-jul).
+    b_monto = _bloque_monto(monto) if tipo_correo == "cobranza" else ("", "")
     extra_vars = {
         "tipo": tipo,
         "bloque_mensaje": b_msg[0], "linea_mensaje": b_msg[1],
+        "bloque_monto": b_monto[0], "linea_monto": b_monto[1],
         "bloque_detalle": b_det[0], "linea_detalle": b_det[1],
     }
     asunto = asunto_tpl.format(tipo=tipo)

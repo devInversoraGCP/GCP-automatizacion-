@@ -105,6 +105,7 @@
 |---------------|------|---------------|----------|
 | **`Email`** | email (o text) | `Email` | Correo del cliente destinatario. **Requerido** para enviar. |
 | **`Mensaje Correo`** | text | `Mensaje Correo` | **Cuerpo del correo**, redactado por el asesor por ticket. Si está vacío → texto estándar. |
+| **`Monto`** | number | `Monto` | **Opcional.** Monto a cobrar. Si está poblado, **Cobranza** muestra una tarjeta "Total a pagar: $X" formateada. Si está vacío, no se muestra (el asesor puede ponerlo en el mensaje). |
 | **`Estado Correo`** | status | `Estado Correo` | Write-back tras el envío. Crear la opción exacta **`Enviado`**. |
 | **`Fecha Envío`** | date | `Fecha Envío` | Write-back con la fecha/hora del envío. |
 | **`Enviar Avance`** | button | — | Dispara el correo de avance (§6). |
@@ -171,8 +172,12 @@ firma del asesor, pie de confidencialidad). **El cuerpo central es el `Mensaje C
 ### 4.3 · Cobranza (`tickets_cobranza`)
 - **Asunto:** `Pago pendiente — trámite de {Tipo} — GCP`
 - **Cuerpo:** saludo + **mensaje del asesor** (o estándar: "Su trámite de {Tipo} se encuentra
-  finalizado y registra un pago pendiente.") + "Puede regularizarlo mediante transferencia a:" +
-  **datos bancarios GCP** (`BANCO_GCP_HTML`).
+  finalizado y registra un pago pendiente.") + **tarjeta "Total a pagar: $X"** si la columna `Monto`
+  está poblada (formateada por el backend con `es.clp()`, se omite si `Monto` está vacío) +
+  "Puede regularizarlo mediante transferencia a:" + **datos bancarios GCP** (`BANCO_GCP_HTML`).
+- **Montos y fechas:** los datos duros salen de columnas y el backend los formatea (monto → `$180.000`
+  vía `Monto`; fecha → `dd/mm/aaaa` vía `Fecha prometida` en Avance). El mensaje libre es solo el
+  relato. Así el asesor no tipea formatos y los datos quedan registrados en Notion (decisión 10-jul).
 
 **Variables que inyecta el handler** (vía `extra_vars`, §5.2): `{{tipo}}`, `{{bloque_mensaje}}`
 (cuerpo, HTML), `{{linea_mensaje}}` (cuerpo, texto), `{{bloque_detalle}}` (Estado+fecha en avance /
@@ -211,6 +216,7 @@ ESTADO = "Estado"               # status
 ASIGNADO = "Asignado"           # person -> remitente/firma
 EMAIL_CLIENTE = "Email"         # columna nueva
 MENSAJE = "Mensaje Correo"      # columna nueva: cuerpo personalizable (rich_text)
+MONTO = "Monto"                 # columna nueva (opcional): monto a cobrar (number)
 FECHA_PROM = "Fecha prometida"  # date
 
 # Write-back (columnas nuevas)
@@ -259,6 +265,27 @@ def _bloque_mensaje(mensaje: str, estandar: str) -> tuple[str, str]:
     return html, txt
 
 
+def _bloque_monto(monto: str) -> tuple[str, str]:
+    """Tarjeta 'Total a pagar' formateada en CLP. ('', '') si no hay monto valido (>0).
+    Sale de la columna 'Monto' (number); si esta vacia, no se muestra tarjeta."""
+    try:
+        n = float(monto)
+    except (ValueError, TypeError):
+        n = 0.0
+    if n <= 0:
+        return "", ""
+    m = es.clp(monto)
+    html = (
+        '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" '
+        'style="margin:0 0 18px 0;"><tr><td style="background:#0B1F3A;border-radius:14px;'
+        'padding:22px 26px;"><div style="font-size:12px;font-weight:700;letter-spacing:.12em;'
+        'text-transform:uppercase;color:#8fb4ee;margin-bottom:8px;">Total a pagar</div>'
+        f'<div style="font-size:40px;font-weight:800;color:#ffffff;line-height:1;'
+        f'font-variant-numeric:tabular-nums;">{m}</div></td></tr></table>'
+    )
+    return html, f"Total a pagar: {m}"
+
+
 def _bloque_detalle(tipo_correo: str, estado: str, fecha_prom: str) -> tuple[str, str]:
     """Extra especifico del tipo. avance: Estado + Fecha; cobranza: datos bancarios GCP."""
     ph, pt = [], []
@@ -299,6 +326,7 @@ def procesar(page_id: str, tipo_correo: str) -> dict:
     cliente = nc.plain(props.get(TAREA, {}))
     email = nc.plain(props.get(EMAIL_CLIENTE, {}))
     mensaje = nc.plain(props.get(MENSAJE, {}))
+    monto = nc.plain(props.get(MONTO, {}))
     estado = (props.get(ESTADO, {}).get("status") or {}).get("name", "")
     fecha_prom = (props.get(FECHA_PROM, {}).get("date") or {}).get("start", "") or ""
     tipos = [o.get("name", "") for o in (props.get(TIPO, {}).get("multi_select") or [])]
@@ -317,9 +345,11 @@ def procesar(page_id: str, tipo_correo: str) -> dict:
     estandar = estandar_tpl.format(tipo=tipo)
     b_msg = _bloque_mensaje(mensaje, estandar)
     b_det = _bloque_detalle(tipo_correo, estado, fecha_prom)
+    b_monto = _bloque_monto(monto) if tipo_correo == "cobranza" else ("", "")
     extra_vars = {
         "tipo": tipo,
         "bloque_mensaje": b_msg[0], "linea_mensaje": b_msg[1],
+        "bloque_monto": b_monto[0], "linea_monto": b_monto[1],
         "bloque_detalle": b_det[0], "linea_detalle": b_det[1],
     }
     asunto = asunto_tpl.format(tipo=tipo)
@@ -537,6 +567,7 @@ Igual estructura; el bloque del cuerpo:
         <p style="margin:0 0 16px 0;font-size:15px;line-height:1.6;">Estimado/a <b>{{nombre_cliente}}</b>:</p>
 
         {{bloque_mensaje}}
+        {{bloque_monto}}
 
         <p style="margin:0 0 12px 0;font-size:14px;line-height:1.6;color:#3a4658;">
           Puede regularizar el pago mediante transferencia a la siguiente cuenta:
@@ -576,7 +607,8 @@ datos bancarios).
 
 1. **Backup** de Tickets - Servicios (export CSV antes de tocar — R1).
 2. **Crear las columnas** de §2.3 con los nombres EXACTOS: `Email` (email), `Mensaje Correo` (text),
-   `Estado Correo` (status, con opción `Enviado`), `Fecha Envío` (date).
+   `Monto` (number, opcional — para la tarjeta de Cobranza), `Estado Correo` (status, con opción
+   `Enviado`), `Fecha Envío` (date).
 3. **Crear los 3 botones** (tipo Button → *Add step* → *Send webhook*), todos con:
    - **Method:** POST
    - **Header:** `X-AuditAI-Secret` = el `WEBHOOK_SECRET` (el mismo de F29/RRHH)
