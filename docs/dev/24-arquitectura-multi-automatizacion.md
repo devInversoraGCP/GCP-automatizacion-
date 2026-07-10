@@ -17,7 +17,7 @@
 |---|---|---|---|
 | **F29 / Contable** | ✅ operativa | `POST /enviar-f29` | **inline en `app.py`** (`_procesar_page()`), NO en un handler |
 | **RRHH JUNIO 2026** | ✅ desplegada | `POST /webhook/rrhh` | `handlers/rrhh.py` (`procesar()`) |
-| **Tickets - Servicios** | 📋 no empezada | — | no existe handler ni plantilla |
+| **Tickets - Servicios** | 📋 diseñada (guía: [`doc 26`](26-automatizacion-tickets-correo.md)) | `POST /webhook/tickets/<tipo>` (previsto) | no construida aún |
 | (salud) | ✅ | `GET /health` | `app.py` |
 
 **Lo importante de entender:** la arquitectura es **mixta, no uniforme**. El F29 se construyó
@@ -176,29 +176,20 @@ def procesar(page_id: str) -> dict:
   en la base central sandbox; `ALIAS_ASESOR` mapea el select corto al asesor. Detalle completo en el
   [`doc 25`](25-automatizacion-rrhh-correo.md).
 
-### 5.3 · Tickets - Servicios — 📋 planificada (esquema real, diseño por definir)
+### 5.3 · Tickets - Servicios — 📋 diseñada, pendiente de construir
 
-- **Base:** `Tickets - Servicios` (data source `9d312147-…`). **Handler/plantilla:** aún no existen.
-- **Columnas reales (verificadas por API):** `Tarea` (title), `Descripción` (text),
-  `Tipo` (multi_select: Constitución, Cuenta Corriente, Patente Comercial, Asesoría Tributaria,
-  Declaración de Renta, Oficina Virtual, Fiscalización SII, F29, Declaración de Renta (F22),
-  Termino de Giro, Reorganización Empresarial, Recupero de IVA), `Asignado` (**person**),
-  `Estado` (status: No empezado, Prioridad, Conservador, Amoblado, por notificar, En progreso,
-  Notificación, Presentado, Rechazado, Cobranza, Listo), `Compromiso` (formula — marca atrasados),
-  `Fecha prometida` (date), `Número` (number), `Actualizado` (last_edited_time).
-
-> **🚨 Decisión pendiente antes de construir Tickets — no está resuelta en el código ni en Notion:**
-> esta base **no tiene columna de email de cliente, ni RUT, ni CLIENTE**. `Asignado` es una **persona
-> interna de GCP**, no un cliente. Es decir, el patrón "enviar correo al cliente" **no se traslada
-> directamente**. Hay que definir primero:
-> 1. **¿A quién y para qué?** ¿Es un correo/notificación al cliente (¿de dónde sale su email?), un
->    aviso interno al `Asignado`, o un recordatorio de tareas vencidas (`Compromiso`)?
-> 2. **¿Cómo se identifica la fila?** No hay RUT: sería por `page_id` o por `Tarea` (title).
-> 3. **¿Qué dispara el correo?** ¿Botón manual como F29/RRHH, o automático por `Estado`/`Compromiso`?
->
-> Hasta responder esto, cualquier detalle de columnas/plantilla para Tickets es especulación. La
-> versión anterior de este doc inventó columnas (`Compromiso`, `Fecha prometida`) que sí existen,
-> pero también asumió un flujo de correo a cliente que la base **no soporta**.
+- **Base:** `Tickets - Servicios` (data source `9d312147-…`). **Handler/plantillas:** aún no existen;
+  la guía de construcción completa (autosuficiente, verificada) está en el [`doc 26`](26-automatizacion-tickets-correo.md).
+- **Columnas reales (verificadas por API):** `Tarea` (title = **nombre del cliente**), `Descripción`
+  (text), `Tipo` (multi_select de servicios), `Asignado` (**person** = uno de los 4 asesores),
+  `Estado` (status), `Compromiso` (formula), `Fecha prometida` (date), `Número` (number), `Actualizado`
+  (last_edited_time).
+- **Decisiones tomadas (09-jul, ver doc 26 §0):** destinatario = **el cliente** (email en una nueva
+  columna `Email`); **3 plantillas** (avance / completado / cobranza) elegidas por **3 botones**;
+  identificación por `Tarea`; remitente = `Asignado` (mapea directo a `asesores_smtp.json`).
+- **Endpoints previstos:** `POST /webhook/tickets/<tipo>` con `<tipo> ∈ {avance, completado, cobranza}`.
+- **Nota:** la base NO tiene email/RUT/CLIENTE de origen — por eso se agrega la columna `Email`
+  (no hay lookup en la central posible sin RUT).
 
 ---
 
