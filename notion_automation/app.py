@@ -608,7 +608,7 @@ def health():
     return {
         "ok": True,
         "service": "auditai-f29",
-        "version": "2026-07-13.3-reset-mes",
+        "version": "2026-07-13.4-reset-notstarted",
         "webhook_secret_configurado": bool(os.environ.get("WEBHOOK_SECRET")),
         "admin_alerts_configurados": len(es.admin_emails()),
     }, 200
