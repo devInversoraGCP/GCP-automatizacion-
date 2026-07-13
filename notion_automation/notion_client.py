@@ -172,6 +172,26 @@ def get_database_title(database_id: str) -> str:
     return ""
 
 
+def get_data_source_id(database_id: str) -> str:
+    """Resuelve el data source id de una base a partir de su database_id
+    (API 2025-09-03: son IDs DISTINTOS, ver doc 28 §16 — el botón de Notion
+    manda el database_id, pero query_data_source necesita el data source id).
+    Si la base tiene varios data sources usa el primero. Si el GET falla o no
+    trae data_sources (p. ej. el id ya ERA un data source id), devuelve el id
+    tal cual, como fallback."""
+    try:
+        r = request_con_reintentos(
+            "GET", f"{API}/databases/{database_id}", headers=_headers(), timeout=30
+        )
+        r.raise_for_status()
+        ds = r.json().get("data_sources") or []
+        if ds and isinstance(ds[0], dict) and ds[0].get("id"):
+            return ds[0]["id"]
+    except Exception:
+        pass
+    return database_id
+
+
 def derivar_month_desde_base(page: dict) -> str:
     """Fallback C: si una fila llega con Month vacio, deriva el periodo del F29
     desde el titulo de la base parent. 'Contable Junio' + ultima_edicion en

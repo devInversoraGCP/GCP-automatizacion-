@@ -1,13 +1,13 @@
-# 28 · Cambio de mes y rotación manual de las páginas Contable
+# 28 · Cambio de mes y rotación de las páginas Contable
 
-> **Decisión formal de Carlos Cereceda (dueño de GCP, 13-jul-2026):** cada mes, **el mismo
-> duplica manualmente** la página Contable en Notion (menú `•••` → Duplicar) para abrir el
-> nuevo mes. **Con esa página duplicada, todo el sistema (botón "Enviar Correo F29", backend,
-> correos, write-back del Status) sigue funcionando sin que el equipo AuditAI toque código.**
+> **Contexto:** cada mes, la página Contable debe "rotar" al mes siguiente. Este documento
+> registra la decisión original de duplicación manual (§1), el diagnóstico del problema
+> encontrado (§13), las opciones evaluadas para automatizar (§14), y deja un placeholder
+> para una idea nueva del usuario (§15).
 >
-> Este documento registra la decisión, define el **checklist mensual** que ejecuta Carlos al
-> duplicar, detalla **qué hace el sistema solo vs. qué requiere Carlos** y deja la
-> **matriz de robustez** que explica por qué el cambio de mes es seguro sin re-arquitectura.
+> **Estado (13-jul-2026):** la duplicación manual tiene un **problema no resuelto** — la
+> integración Notion no se comparte con la base duplicada, por lo que el backend no puede
+> ver "Contable Julio". Ver §13 para el diagnóstico completo y §14 para las opciones.
 
 ---
 
@@ -24,15 +24,20 @@
 
 ---
 
-## §1 · Decisión formal (D-new · 13-jul-2026)
+## §1 · Decisión formal original (D-new · 13-jul-2026) — REVISADA
+
+> ⚠️ **Esta decisión está siendo revisada.** El diagnóstico del §13 reveló que la
+> duplicación manual tiene un problema estructural (la integración no se comparte).
+> Ver §14 para las opciones evaluadas y §15 para la idea nueva del usuario.
 
 | Campo | Valor |
 |---|---|
 | **Quién decide** | Carlos Cereceda (dueño de GCP) |
-| **Decisión** | Cada mes, Carlos **duplica manualmente** la página Contable del mes anterior desde la UI de Notion (menú `•••` → Duplicar). **No** se automatiza la duplicación. |
+| **Decisión original** | Cada mes, Carlos **duplica manualmente** la página Contable del mes anterior desde la UI de Notion (menú `•••` → Duplicar). |
 | **Alcance** | Páginas **Contable** (motor del correo F29). Las páginas **RRHH** y **Tickets** siguen el mismo patrón cuando roten (ver §8). |
-| **Justificación** | La duplicación nativa de Notion (1 clic) copia esquema + filas + opciones de select/status en un solo paso — más confiable que recrear la base propiedad por propiedad vía API. Carlos ya la hace como hábito contable mensual. |
-| **Implicación** | El backend **no construye `duplicar_mes.py`** (lo que era la **Fase 2 / §6 del doc 23**). Esa tarea se **cancela** (ver §9). El backend sí queda **robustecido para reconocer el mes nuevo** automáticamente. |
+| **Justificación original** | La duplicación nativa de Notion (1 clic) copia esquema + filas + opciones de select/status en un solo paso. |
+| **Problema descubierto** | La duplicación manual **NO copia la integración (connection)**. La nueva base queda huérfana — el backend no puede verla. Ver §13. |
+| **Implicación** | La decisión original **no es suficiente**. Se necesitan cambios ya sea en el proceso de Carlos (compartir integración) o en la arquitectura (API-based duplication). Ver §14. |
 
 > 📝 **Esto sustituye la "Fase 2 — Duplicación mensual" del doc 23 §6.** La automatización A
 > (duplicar) queda cancelada por decisión de negocio; la automatización B (correo) sigue siendo
@@ -88,6 +93,10 @@ Contable <Mes>** sin configuración.
    - Renombrar la copia a **`Contable <Mes>`** (ej.: `Contable Julio`). El nombre **debe seguir
      el patrón `Contable <NombreMes>`** (capitalizado en español, sin año) — el backend
      `derivar_month_desde_base()` lo parsea así.
+   - ⚠️ **PROBLEMA CONOCIDO (§13):** la duplicación manual NO comparte la integración.
+     Después de duplicar, la base queda huérfana. **Solución temporal:** compartir la
+     integración manualmente (`•••` → Connections → AuditAI). Ver §14 para soluciones
+     permanentes.
 2. **Verificar que copió el esquema completo.**
    - Comprobar que están todas las columnas: `Customers`, `Rut`, `Email`, `Month`,
      `Impuestos`, `Honorarios Pendientes`, `Valor-Info adicional`, `Motivo-Info adicional`,
@@ -336,15 +345,16 @@ Las páginas **RRHH** y **Tickets - Servicios** seguirán el **mismo patrón** c
 
 ---
 
-## §9 · Tareas canceladas / actualizadas por esta decisión
+## §9 · Tareas canceladas / actualizadas / reabiertas por esta decisión
 
 | Tarea | Estado anterior | Estado tras este doc | Motivo |
 |---|---|---|---|
-| `duplicar_mes.py` (Fase 2 del doc 23) | pendiente | **❌ CANCELADA** | Carlos duplica manualmente. MVP-first: no se construye el script. |
-| Línea N.3 del checklist maestro `11` | pendiente | **Actualizada:** se referencia este doc 28. |
-| "Disparo de la Fase A — botón generador del mes nuevo o job agendado" (doc 23 §6.2) | pendiente | **❌ CANCELADA** | Ya no hay script que disparar. |
+| `duplicar_mes.py` (Fase 2 del doc 23) | pendiente | **❌ CANCELADA** (original) → **🔄 REABIERTA** (§14.Opción B/C) | La duplicación manual tiene el problema de §13. La API-based duplication vuelve a ser relevante. |
+| Línea N.3 del checklist maestro `11` | pendiente | **Actualizada:** se referencia este doc 28. | — |
+| "Disparo de la Fase A — botón generador del mes nuevo o job agendado" (doc 23 §6.2) | pendiente | **🔄 REABIERTA** (§14.Opción C) | El cron job vuelve a ser relevante si se elige Opción C. |
 | Detección de clientes nuevos (paso 5 del doc 23 §6.1) | pendiente | **Pendiente** como operación contable de GCP, **no del backend**. Si GCP la pide automatizada, construir un script ad-hoc (no toca `app.py`). |
 | Bulk-set Month por página nueva | pendiente | **Operación opcional del backend** (§3 paso 5), no crítica. |
+| Compartir integración con base duplicada | nuevo | **Pendiente** (§14.Opción A) — paso manual que Carlos debe hacer si se elige esa opción. |
 
 ---
 
@@ -430,13 +440,208 @@ Esto confirma que **ambos meses coexisten** sin romperse (gracias a la identific
 - 🔜 "¿Conviene un `reset_mes.py` para resetear `Status`/`Impuestos`/flags masivamente al
   duplicar?" → **decisión pendiente de GCP.** Es 1 script nuevo, no toca el backend. Si GCP lo
   pide, se construye; si no, queda como operación manual.
-- 🔜 "¿Commutamos el历史上的 Contable Mayo/Junio a solo-lectura para evitar emails accidentales
+- 🔜 "¿Commutamos los Contable Mayo/Junio a solo-lectura para evitar emails accidentales
   en meses viejos?" → decisión de GCP (no urgente; los write-back no son destructivos).
 - 🔜 "¿Llevamos un `registry.csv` de Contables?" → §6, opcional.
+- 🔜 **"¿Cómo automatizar la rotación de mes para que Carlos no tenga que hacer nada extra?"**
+  → §13-14 de este doc. **Problema principal no resuelto:** la integración no se comparte
+  al duplicar. Ver opciones A-D en §14.
+- 🔜 **"¿Cuál es la idea nueva del usuario para resolver la rotación?"** → §15, pendiente
+  de documentar en nueva conversación.
 
 ---
 
-## §12 · Referencias
+## §13 · Diagnóstico: por qué "Contable Julio" no funcionó (13-jul-2026, debug en vivo)
+
+> **Contexto:** Carlos duplicó "Contable Junio" → renombró a "Contable Julio" → apretó el botón
+> de `ZZ_TEST AuditAI` → el correo siguió diciendo "Junio 2026". Se borró y re-duplicó; el
+> resultado fue el mismo. Se ejecutó un diagnóstico completo contra la API de Notion.
+
+### §13.a · Hallazgo 1: la integración NO se duplica
+
+**Descubrimiento clave:** cuando Carlos duplica una página en Notion, **la integración
+(conexión / connection) NO se copia**. Las integraciones son permisos a nivel de workspace,
+no contenido de la página.
+
+| Concepto | Se duplica con la página | Requiere acción manual |
+|---|---|---|
+| Filas (rows) | ✅ Sí | No |
+| Columnas (propiedades) | ✅ Sí (excepto `button` — ver §13.c) | No |
+| Select options, status | ✅ Sí | No |
+| **Integraciones (connections)** | **❌ NO** | **Sí — compartir manualmente** |
+| Configuración del botón (webhook) | ❌ No siempre | Configurar en UI |
+
+**Implicación:** la nueva base "Contable Julio" queda **huérfana** — la integración AuditAI
+no puede verla. Cuando el webhook llega con `parent.database_id` apuntando a "Contable Julio",
+`get_database_title()` falla (403 o 404) y el backend no puede derivar el mes desde el título.
+
+### §13.b · Hallazgo 2: "Contable Julio" NO aparece en la API
+
+Se ejecutó `_diag_notion.py` (script temporal en `notion_automation/`) que busca todas las
+bases de datos visibles para la integración:
+
+```
+=== query='Contable Jul' => 0 DBs, 14 pages ===
+  [PAGE] 50912147... name='Julio Jaque'   parent: database_id=39612147... (Contable Junio)
+  [PAGE] 5b512147... name='Julio Jaque'   parent: database_id=73a12147... (otra base)
+  ...
+  (Todos son filas de clientes llamados "Julio", NO bases "Contable Julio")
+```
+
+**Resultado:** la API de Notion **no ve ninguna base llamada "Contable Julio"**. Solo ve
+"Contable Junio" (`39612147-b3ea-80e7-98e6-dbe3de45b76e`). Las 100 primeras páginas
+resultado son todas filas de bases existentes (Contable Junio, RRHH, etc.).
+
+**Confirmación adicional:** al hacer `GET /v1/databases/39612147-...` se verifica:
+```
+parent: {'type': 'workspace', 'workspace': True}  ← es una base de nivel workspace
+title: 'Contable Junio'
+```
+
+### §13.c · Hallazgo 3: el botón `button` — limitaciones de la API
+
+La API de Notion **sí declara** `button` como tipo de propiedad válido en el schema de
+creación de bases (`buttonPropertyConfigurationRequest`). Sin embargo:
+
+- **Crear la propiedad** `button` vía API: **posible** (schema lo permite)
+- **Configurar la acción del botón** (webhook URL, headers, body): **NO posible** vía API —
+  el campo `button` es un objeto vacío `{}`
+- **Duplicar un botón existente** (UI): Notion copia la configuración del botón al duplicar
+  la base
+
+**Implicación para automatización:** si se crea la base via API, el botón existe pero está
+sin configurar. Carlos tendría que configurar la acción del botón en la UI (1 paso manual).
+Si se duplica via UI, el botón se copia con su configuración — pero la integración no se copia
+(§13.a).
+
+### §13.d · Resumen del problema
+
+```text
+┌─────────────────────────────────────────────────────────────────────┐
+│                    PARADOJA DE LA ROTACIÓN                          │
+│                                                                     │
+│  Duplicar via UI:                                                   │
+│    ✅ Botón se copia con configuración                              │
+│    ❌ Integración NO se copia → backend no puede ver la nueva base  │
+│                                                                     │
+│  Crear via API:                                                     │
+│    ✅ Integración tiene acceso automático                           │
+│    ❌ Botón se crea sin configuración → Carlos debe configurarlo     │
+│                                                                     │
+│  → NO EXISTE una solución que haga ambas cosas automaticamente     │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## §14 · Opciones evaluadas para automatizar la rotación
+
+> **Objetivo:** que los trabajadores de GCP (Carlos) no tengan que hacer nada de gestión
+> extra. Lo mínimo aceptable: duplicar + renombrar. Lo ideal: duplicación automática.
+
+### Opción A · Compartir integración después de duplicar (manual)
+
+| Campo | Valor |
+|---|---|
+| **Flujo** | Carlos duplica → renombra → abre `•••` → Connections → agrega AuditAI |
+| **Pasos de Carlos** | 3 (duplicar, renombrar, compartir) |
+| **Ventaja** | Simple, funciona inmediatamente |
+| **Desventaja** | Paso extra manual, propenso a olvidos; si se olvida, el correo no funciona |
+| **¿Automatizable?** | No — la API de Notion no permite agregar connections a una página existente |
+
+### Opción B · Duplicación via API + botón manual (semi-automática)
+
+| Campo | Valor |
+|---|---|
+| **Flujo** | Script crea base via API → copia filas → Carlos configura botón en UI |
+| **Pasos de Carlos** | 1-2 (configurar botón + probar) |
+| **Ventaja** | La integración tiene acceso automático; reduce trabajo a 1 paso |
+| **Desventaja** | El botón requiere configuración manual (webhook URL, headers, body); la configuración del botón no es trivial de documentar para alguien no-técnico |
+| **¿Automatizable?** | La creación de la base + copia de filas: sí (script). La config del botón: no |
+
+### Opción C · Duplicación automática via cron + botón manual (semi-automática)
+
+| Campo | Valor |
+|---|---|
+| **Flujo** | Cron job ejecuta script al fin de mes → crea base + copia filas → notifica a Carlos para configurar botón |
+| **Pasos de Carlos** | 1 (configurar botón tras notificación) |
+| **Ventaja** | Mínimo esfuerzo para Carlos; la creación es automática |
+| **Desventaja** | Necesita cron (Render o servicio externo); el botón sigue siendo manual |
+| **¿Automatizable?** | Creación: sí. Cron: sí (Render cron, cron-job.org, etc.). Botón: no |
+
+### Opción D · Notion MCP `notion_duplicate_database` (futuro)
+
+| Campo | Valor |
+|---|---|
+| **Flujo** | MCP server duplica la base con todo el esquema (incluyendo config del botón) |
+| **Pasos de Carlos** | 0 (todo automático) |
+| **Ventaja** | Solución completa: duplica todo incluyendo botón |
+| **Desventaja** | Requiere instalar y configurar el MCP server `w-10-m/notion-mcp`; no está en nuestro entorno actual; es un proyecto adicional |
+| **¿Automatizable?** | Potencialmente sí, si el MCP soporta duplicación completa |
+
+### Comparativa resumen
+
+| Opción | Pasos Carlos | Botón | Integración | Complejidad técnica |
+|---|---|---|---|---|
+| **A** (compartir) | 3 | ✅ auto | manual | Baja |
+| **B** (API + manual) | 1-2 | manual | ✅ auto | Media |
+| **C** (cron + manual) | 1 | manual | ✅ auto | Media-Alta |
+| **D** (MCP) | 0 | ✅ auto | ✅ auto | Alta (instalar MCP) |
+
+### Recomendación actual
+
+**Ninguna opción es perfecta hoy.** La paradoja (§13.d) impide una solución 100% automática
+con las herramientas actuales. La mejor opción depende de la prioridad:
+
+- **Si prioridad es mínimo esfuerzo para Carlos:** Opción C (cron + 1 paso manual)
+- **Si prioridad es simplicidad técnica:** Opción A (compartir integración)
+- **Si prioridad es automatización total:** Opción D (investigar MCP)
+
+> 📝 **Estado:** el usuario tiene una **idea nueva** (no documentada aún) que podría resolver
+> el problema de forma diferente. Ver §15.
+
+---
+
+## §15 · Idea nueva del usuario — documentada e implementada en doc 29
+
+> **Estado (13-jul-2026):** la idea quedó documentada y con plan aprobado en
+> [`29-reset-mes-automatizado.md`](29-reset-mes-automatizado.md); las Fases 1 y 2
+> (endpoint `/reset-mes` + tests) ya están implementadas.
+
+**La idea (decisión final):** la base original **NUNCA se mueve** — así la integración
+de Notion nunca se pierde y se disuelve la paradoja de §13.d:
+
+1. **Duplicar** la base original → la copia "(1)" queda como respaldo del mes cerrado.
+2. **Renombrar** la base original al mes nuevo (ej. "Contable Junio" → "Contable Julio").
+3. **Resetear** los datos operativos con el botón "Reset Mes" (nuevo endpoint
+   `POST /reset-mes` del backend, con checkbox "Confirmar Reset" como safety switch).
+
+La duplicación via UI ya no importa que no conserve la integración: la copia es solo
+respaldo pasivo; la base viva (con botón + integración) es siempre la misma. El paso 4
+manual de §3 ("resetear campos del mes a mano") queda reemplazado por el botón.
+
+Detalles, esquema de campos (estáticos vs dinámicos), plan e implementación: **doc 29**.
+
+---
+
+## §16 · IDs de referencia (diagnóstico 13-jul-2026)
+
+Para futuras referencias, estos son los IDs relevantes descubiertos durante el diagnóstico:
+
+| Entidad | ID | Notas |
+|---|---|---|
+| Contable Junio (database) | `39612147-b3ea-80e7-98e6-dbe3de45b76e` | Base operativa actual |
+| Contable Junio (data_source) | `09b12147-b3ea-8337-a218-87538eab23fc` | Data source de Contable Junio |
+| ZZ_TEST AuditAI (page) | `39612147-b3ea-810f-b761-d610a3be1ce3` | Fila de prueba en Contable Junio |
+| RRHH (database, nuevo ID) | `38712147-b3ea-80f9-9484-e0ad99c94a26` | RRHH tiene nuevo ID (cambiado) |
+| Contable Julio | **NO EXISTE** | No fue creada o fue borrada; la API no la ve |
+
+> ⚠️ **Nota sobre RRHH:** el ID de la base RRHH cambió de `9c512147-...` a `38712147-...`.
+> Verificar `handlers/rrhh.py` al momento de implementar rotación de RRHH.
+
+---
+
+## §17 · Referencias
 
 - [`../../AGENTS.md`](../../AGENTS.md) — reglas no negociables (Notion en lectura por defecto,
   PII, etc.).
@@ -449,6 +654,10 @@ Esto confirma que **ambos meses coexisten** sin romperse (gracias a la identific
   general del backend; este doc complementa con robustez específica para rotación de mes.
 - [`11-checklist-maestro.md`](11-checklist-maestro.md) §N.3 — actualizado para referencia este
   doc.
+- Notion API docs: `POST /v1/databases` (create), `POST /v1/pages` (create page),
+  `buttonPropertyConfigurationRequest` (schema de botón — acción no configurable via API).
+- `w-10-m/notion-mcp` — MCP server con `notion_duplicate_database` (duplicación completa
+  incluyendo config de botón). **No instalado** en nuestro entorno.
 
 ---
 

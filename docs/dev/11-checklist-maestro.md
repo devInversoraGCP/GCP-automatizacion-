@@ -544,6 +544,17 @@ Trasladadas de [`05-decisiones-y-preguntas.md`](05-decisiones-y-preguntas.md); c
       §10.2 y §10.3 del doc 28) — **operación de 30 segundos + 1 clic de prueba**.
 - [ ] ~~`duplicar_mes.py` con `--dry-run` correcto~~ — ❌ **CANCELADO** por decisión
       de negocio (Carlos duplica a mano). Ver doc 28 §9.
+- [ ] **Reset automático de mes** (endpoint + botón + checkbox) — plan e implementación
+      en [`29`](29-reset-mes-automatizado.md):
+  - [x] Endpoint `POST /reset-mes` en `app.py` (Contable; corre en hilo de fondo,
+        checkbox "Confirmar Reset" en fila de control `RESET_MES` obligatorio) — 13-jul-2026
+  - [x] Helper `nc.get_data_source_id()` (database_id → data source id)
+  - [x] Tests `tests/test_reset_mes.py` (16/16; suite completa 101/101)
+  - [ ] Columna checkbox "Confirmar Reset" en Contable (la crea el usuario en la UI)
+  - [ ] Fila de control `⚙️ RESET_MES` en Contable (la crea el usuario; ordenar vistas para que quede arriba)
+  - [ ] Botón "Reset Mes" en Contable (webhook a `/reset-mes` con headers `X-Reset-Tipo`/`X-Reset-DB`; lo crea el usuario en la UI)
+  - [ ] Verificar nombre exacto del status "sin empezar" en Notion + prueba E2E
+  - [ ] Fase 3: extender a RRHH y Tickets (`RESET_RRHH` / `RESET_TICKETS`)
 
 ### N.4 · Endurecer y llevar a la nube (Fase 3 del doc 23, pendiente)
 - [ ] Backend en la nube con URL estable (Render — manual en `MIGRACION-A-RENDER.md`),

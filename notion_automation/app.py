@@ -443,6 +443,162 @@ def enviar_f29():
     return resultado, 200
 
 
+# --- Reset de mes (doc 29) -------------------------------------------------
+# Al rotar el mes (doc 28 §15: duplicar respaldo + renombrar la base original),
+# las filas conservan los valores operativos del mes anterior. El botón
+# "Reset Mes" limpia SOLO los campos dinámicos; los estáticos (Customers, Rut,
+# Clave SII, Email, asesor, adjuntos, ...) NUNCA se tocan.
+#
+# Limpiar una propiedad via PATCH requiere el payload vacío del TIPO correcto
+# (rich_text -> lista vacía, number/date -> null); un null "crudo" a nivel de
+# propiedad es un 400 de la API de Notion.
+RESET_CONTABLE = {
+    "Month": {"rich_text": []},
+    "Impuestos": {"number": None},
+    "Status": {"status": {"name": "sin empezar"}},
+    "Ventas": {"checkbox": False},
+    "Compras": {"checkbox": False},
+    "Pre-Imptos": {"checkbox": False},
+    "PreImp": {"checkbox": False},
+    "ARec": {"status": {"name": "sin empezar"}},
+    "Control Solicitudes": {"status": {"name": "sin empezar"}},
+    "emision de boletas": {"status": {"name": "sin empezar"}},
+    "solicitud/informe /boletas": {"status": {"name": "sin empezar"}},
+    "Honorarios Pendientes": {"number": None},
+    "Valor-Info adicional": {"number": None},
+    "Motivo-Info adicional": {"rich_text": []},
+    "Fecha Envío": {"date": None},
+    "Confirmar Reset": {"checkbox": False},
+}
+RESET_RRHH: dict = {}      # Fase 3 (doc 29) — definir según esquema RRHH
+RESET_TICKETS: dict = {}   # Fase 3 (doc 29) — definir según esquema Tickets
+RESET_POR_TIPO = {"contable": RESET_CONTABLE, "rrhh": RESET_RRHH, "tickets": RESET_TICKETS}
+
+P_CONFIRMAR_RESET = "Confirmar Reset"   # checkbox — safety switch OBLIGATORIO
+FILA_CONTROL_RESET = "RESET_MES"        # la confirmación se marca en esta fila de
+                                        # control (título que CONTENGA "RESET_MES",
+                                        # p. ej. "⚙️ RESET_MES"). Es una fila dedicada,
+                                        # distinta de ZZ_TEST (pruebas de correo).
+
+# Un reset por base a la vez: ~330 PATCHes tardan ~2 min y corren en un hilo de
+# fondo (gunicorn en Render corre con timeout default de 30s, ver render.yaml:
+# una request síncrona de 2 min mataría el worker y bloquearía los webhooks F29).
+_resets_activos: set[str] = set()
+_resets_lock = threading.Lock()
+
+
+def _titulo_fila(props: dict) -> str:
+    """Texto de la propiedad title de una fila (Customers/RUT/Tarea según base)."""
+    for prop in props.values():
+        if isinstance(prop, dict) and prop.get("type") == "title":
+            return nc.plain(prop)
+    return ""
+
+
+def _reset_aplicar(tipo: str, ds_id: str, campos_reset: dict, filas: list[dict]) -> dict:
+    """Aplica el reset fila por fila (corre en un hilo de fondo). Tolerante:
+    escribe solo las columnas que existen en cada fila (doc 24 §5.1) y un fallo
+    en una fila no aborta el resto. Si hubo fallos, avisa al admin. No loguea
+    PII (solo page_ids y conteos)."""
+    reseteadas, fallidas = 0, 0
+    try:
+        for fila in filas:
+            page_id = fila.get("id", "")
+            props = fila.get("properties", {}) or {}
+            updates = {c: v for c, v in campos_reset.items() if c in props}
+            if not (page_id and updates):
+                continue
+            try:
+                nc.update_props(page_id, updates)
+                reseteadas += 1
+            except Exception as exc:
+                fallidas += 1
+                log.warning("reset-mes: fallo al resetear fila · page_id=%s · %s", page_id, exc)
+        log.info(
+            "reset-mes completado · tipo=%s · filas_reseteadas=%d · filas_fallidas=%d",
+            tipo, reseteadas, fallidas,
+        )
+        if fallidas:
+            alertas.avisar_excepcion_admin(
+                "RESET", ds_id,
+                RuntimeError(f"reset-mes tipo={tipo}: {fallidas} filas fallaron ({reseteadas} OK)"),
+            )
+    except Exception as exc:
+        alertas.avisar_excepcion_admin("RESET", ds_id, exc)
+    finally:
+        with _resets_lock:
+            _resets_activos.discard(ds_id)
+    return {"ok": True, "tipo": tipo, "filas_reseteadas": reseteadas, "filas_fallidas": fallidas}
+
+
+def _lanzar_reset(tipo: str, ds_id: str, campos_reset: dict, filas: list[dict]) -> None:
+    """Arranca el reset en un hilo daemon (el endpoint responde enseguida)."""
+    threading.Thread(
+        target=_reset_aplicar, args=(tipo, ds_id, campos_reset, filas), daemon=True
+    ).start()
+
+
+@app.post("/reset-mes")
+def reset_mes():
+    """Webhook del botón 'Reset Mes' (doc 29). Valida el checkbox 'Confirmar
+    Reset' en la fila ZZ_TEST y resetea los campos dinámicos de TODAS las filas
+    de la base, en un hilo de fondo. Responde 202 con el total de filas."""
+    tiene_secreto = bool(request.headers.get("X-AuditAI-Secret"))
+    log.info("request recibida · path=/reset-mes · tiene_secreto=%s", tiene_secreto)
+
+    _validar_secreto()
+
+    # El botón "Send webhook" de Notion NO permite configurar el body (manda
+    # los datos de la fila automáticamente); tipo y database_id viajan en
+    # HEADERS custom. El body queda como fallback (curl / tests / futuro).
+    data = request.get_json(force=True, silent=True) or {}
+    tipo = (request.headers.get("X-Reset-Tipo") or data.get("tipo") or "").strip().lower()
+    db_id = (
+        request.headers.get("X-Reset-DB")
+        or data.get("database_id")
+        or data.get("data_source_id")
+        or ""
+    ).strip()
+
+    if tipo not in RESET_POR_TIPO:
+        abort(400, f"tipo desconocido: {tipo!r} (esperado: contable, rrhh o tickets)")
+    if not db_id:
+        abort(400, "database_id requerido en el body del botón")
+    campos_reset = RESET_POR_TIPO[tipo]
+    if not campos_reset:
+        abort(400, f"reset de tipo {tipo!r} aún no implementado (doc 29, Fase 3)")
+
+    try:
+        ds_id = nc.get_data_source_id(db_id)
+        filas = nc.query_data_source(ds_id, {"page_size": 100})
+    except HTTPException:
+        raise
+    except Exception as exc:
+        alertas.avisar_excepcion_admin("RESET", db_id, exc)
+        return {"ok": False, "motivo": "error leyendo la base; administrador notificado"}, 500
+
+    # Safety switch OBLIGATORIO (doc 29): checkbox en la fila de control ZZ_TEST.
+    fila_control = next(
+        (f for f in filas if FILA_CONTROL_RESET in _titulo_fila(f.get("properties", {}) or {})),
+        None,
+    )
+    if fila_control is None:
+        abort(400, f"no se encontró la fila de control {FILA_CONTROL_RESET!r} en la base; el reset la requiere")
+    confirmado = (fila_control.get("properties", {}).get(P_CONFIRMAR_RESET) or {}).get("checkbox", False)
+    if not confirmado:
+        abort(400, f"Marcá el checkbox {P_CONFIRMAR_RESET!r} en la fila {FILA_CONTROL_RESET} primero")
+
+    with _resets_lock:
+        if ds_id in _resets_activos:
+            log.info("reset-mes duplicado ignorado (ya hay un reset en curso) · tipo=%s", tipo)
+            return {"ok": True, "duplicado": True, "motivo": "ya hay un reset en curso para esta base"}, 200
+        _resets_activos.add(ds_id)
+
+    _lanzar_reset(tipo, ds_id, campos_reset, filas)
+    log.info("reset-mes lanzado en fondo · tipo=%s · filas_totales=%d", tipo, len(filas))
+    return {"ok": True, "en_proceso": True, "tipo": tipo, "filas_totales": len(filas)}, 202
+
+
 @app.get("/health")
 def health():
     # Solo booleanos/conteos, nunca valores (sin PII). Permite diagnosticar
@@ -452,7 +608,7 @@ def health():
     return {
         "ok": True,
         "service": "auditai-f29",
-        "version": "2026-07-13.2-diag",
+        "version": "2026-07-13.3-reset-mes",
         "webhook_secret_configurado": bool(os.environ.get("WEBHOOK_SECRET")),
         "admin_alerts_configurados": len(es.admin_emails()),
     }, 200
