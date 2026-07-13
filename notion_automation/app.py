@@ -136,18 +136,23 @@ def _procesar_page(page_id: str) -> dict:
     # de la fila queda como fallback solo si el título no se puede parsear
     # (caso base sin el patrón "Contable <Mes>"). Ver doc 28 §4.
     mes_fila = mes
-    mes = nc.derivar_month_desde_base(page)
-    mes_derivado = bool(mes)
-    if not mes:
-        mes = mes_fila
-    if mes_derivado and mes_fila and mes_fila != mes:
-        log.info("discrepancia mes (prevalece el titulo de la base) · page_id=%s", page_id)
+    mes_titulo = nc.derivar_month_desde_base(page)
+    mes = mes_titulo or mes_fila
+    mes_origen = "titulo_base" if mes_titulo else ("month_fila" if mes_fila else "vacio")
 
-    # Log sin PII
+    # Log diagnostico del cambio de mes (doc 28 §4.a). El mes NO es PII
+    # (es un periodo publico "Julio 2026"). db_id tampoco. nos ayuda a
+    # detectar si get_database_title no esta retornando lo esperado.
+    db_id = (page.get("parent") or {}).get("database_id", "")
+    log.info(
+        "diagnostico mes · page_id=%s db_id=%s mes_fila=%r mes_titulo=%r mes_final=%r origen=%s",
+        page_id, db_id, mes_fila, mes_titulo, mes, mes_origen,
+    )
+
+    # Log sin PII (resto)
     log.info(
         "page_id=%s cliente=%r asesor=%r mes_present=%s mes_origen=%s hono_present=%s info_valor_present=%s info_motivo_present=%s msg_adj_present=%s adjuntos_n=%d",
-        page_id, nombre, nombre_asesor, bool(mes),
-        "titulo_base" if mes_derivado else ("month_fila" if mes else "vacio"),
+        page_id, nombre, nombre_asesor, bool(mes), mes_origen,
         bool(honorarios), bool(info_valor), bool(info_motivo), bool(msg_adjuntos), len(adjuntos),
     )
 
@@ -447,6 +452,7 @@ def health():
     return {
         "ok": True,
         "service": "auditai-f29",
+        "version": "2026-07-13.2-diag",
         "webhook_secret_configurado": bool(os.environ.get("WEBHOOK_SECRET")),
         "admin_alerts_configurados": len(es.admin_emails()),
     }, 200
