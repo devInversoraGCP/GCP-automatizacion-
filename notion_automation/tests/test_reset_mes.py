@@ -158,6 +158,43 @@ class TestResetAplicar:
             A._reset_aplicar("contable", DS_ID, A.RESET_CONTABLE, [fila])
         assert set(m.call_args[0][1]) == {"Impuestos"}
 
+    def test_matching_tolerante_a_mayusculas_y_espacios(self):
+        # esquema REAL de Contable Junio (13-jul-2026): 'Confirmar reset' con r
+        # minúscula y 'emision de boletas ' con espacio final. El reset debe
+        # encontrarlas igual y escribir con el nombre REAL de la columna.
+        fila = {
+            "id": PID_1,
+            "properties": {
+                "Confirmar reset": {"type": "checkbox", "checkbox": True},
+                "emision de boletas ": {"type": "status", "status": {"name": "Listo"}},
+            },
+        }
+        with patch.object(nc, "update_props") as m:
+            A._reset_aplicar("contable", DS_ID, A.RESET_CONTABLE, [fila])
+        updates = m.call_args[0][1]
+        assert updates["Confirmar reset"] == {"checkbox": False}
+        assert updates["emision de boletas "] == {"status": {"name": "Sin empezar"}}
+
+    def test_checkbox_confirmar_reset_con_minuscula_tambien_vale(self, client):
+        # la columna real se llama 'Confirmar reset' (r minúscula)
+        fila_control = _fila(PID_ZZ, "RESET_MES")
+        fila_control["properties"].pop("Confirmar Reset")
+        fila_control["properties"]["Confirmar reset"] = {"type": "checkbox", "checkbox": True}
+        with patch.object(nc, "get_data_source_id", return_value=DS_ID), \
+             patch.object(nc, "query_data_source", return_value=[fila_control]), \
+             patch.object(A, "_lanzar_reset") as m:
+            r = client.post("/reset-mes", json=BODY, headers=H)
+        assert r.status_code == 202 and m.called
+
+    def test_base_sin_columna_confirmar_reset_da_400(self, client):
+        fila_control = _fila(PID_ZZ, "RESET_MES")
+        fila_control["properties"].pop("Confirmar Reset")
+        with patch.object(nc, "get_data_source_id", return_value=DS_ID), \
+             patch.object(nc, "query_data_source", return_value=[fila_control]), \
+             patch.object(A, "_lanzar_reset") as m:
+            r = client.post("/reset-mes", json=BODY, headers=H)
+        assert r.status_code == 400 and not m.called
+
     def test_fallo_en_una_fila_no_aborta_el_resto_y_avisa_admin(self):
         filas = [_fila(PID_1, "Uno"), _fila(PID_2, "Dos")]
         with patch.object(nc, "update_props", side_effect=[RuntimeError("boom"), None]), \

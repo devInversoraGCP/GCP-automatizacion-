@@ -452,6 +452,11 @@ def enviar_f29():
 # Limpiar una propiedad via PATCH requiere el payload vacío del TIPO correcto
 # (rich_text -> lista vacía, number/date -> null); un null "crudo" a nivel de
 # propiedad es un 400 de la API de Notion.
+# Nombres de status verificados contra el esquema REAL de Contable Junio via
+# API (13-jul-2026): "Status" usa "Not started" (default); "ARec" y "emision
+# de boletas" usan "Sin empezar". Ventas/Compras/Control Solicitudes/
+# solicitud-informe NO existen en Contable Junio: quedan por si aparecen en
+# bases de otros meses (el matching tolerante los saltea si no están).
 RESET_CONTABLE = {
     "Month": {"rich_text": []},
     "Impuestos": {"number": None},
@@ -460,10 +465,10 @@ RESET_CONTABLE = {
     "Compras": {"checkbox": False},
     "Pre-Imptos": {"checkbox": False},
     "PreImp": {"checkbox": False},
-    "ARec": {"status": {"name": "Not started"}},
-    "Control Solicitudes": {"status": {"name": "Not started"}},
-    "emision de boletas": {"status": {"name": "Not started"}},
-    "solicitud/informe /boletas": {"status": {"name": "Not started"}},
+    "ARec": {"status": {"name": "Sin empezar"}},
+    "Control Solicitudes": {"status": {"name": "Sin empezar"}},
+    "emision de boletas": {"status": {"name": "Sin empezar"}},
+    "solicitud/informe /boletas": {"status": {"name": "Sin empezar"}},
     "Honorarios Pendientes": {"number": None},
     "Valor-Info adicional": {"number": None},
     "Motivo-Info adicional": {"rich_text": []},
@@ -495,6 +500,18 @@ def _titulo_fila(props: dict) -> str:
     return ""
 
 
+def _clave_prop(props: dict, nombre: str) -> str | None:
+    """Nombre REAL de una propiedad, tolerando mayúsculas y espacios al borde.
+    En el esquema real de Contable Junio (verificado 13-jul-2026 via API) hay
+    'Confirmar reset' (r minúscula) y 'emision de boletas ' (espacio al final):
+    un match exacto los perdería en silencio."""
+    objetivo = nombre.strip().lower()
+    for k in props:
+        if isinstance(k, str) and k.strip().lower() == objetivo:
+            return k
+    return None
+
+
 def _reset_aplicar(tipo: str, ds_id: str, campos_reset: dict, filas: list[dict]) -> dict:
     """Aplica el reset fila por fila (corre en un hilo de fondo). Tolerante:
     escribe solo las columnas que existen en cada fila (doc 24 §5.1) y un fallo
@@ -505,7 +522,14 @@ def _reset_aplicar(tipo: str, ds_id: str, campos_reset: dict, filas: list[dict])
         for fila in filas:
             page_id = fila.get("id", "")
             props = fila.get("properties", {}) or {}
-            updates = {c: v for c, v in campos_reset.items() if c in props}
+            # matching tolerante: escribe con el nombre REAL de la columna
+            # ('Confirmar reset', 'emision de boletas ') aunque difiera en
+            # mayúsculas o espacios del nombre canónico del RESET dict
+            updates = {}
+            for campo, valor in campos_reset.items():
+                real = _clave_prop(props, campo)
+                if real:
+                    updates[real] = valor
             if not (page_id and updates):
                 continue
             try:
@@ -584,7 +608,11 @@ def reset_mes():
     )
     if fila_control is None:
         abort(400, f"no se encontró la fila de control {FILA_CONTROL_RESET!r} en la base; el reset la requiere")
-    confirmado = (fila_control.get("properties", {}).get(P_CONFIRMAR_RESET) or {}).get("checkbox", False)
+    props_control = fila_control.get("properties", {}) or {}
+    clave_confirmar = _clave_prop(props_control, P_CONFIRMAR_RESET)
+    if not clave_confirmar:
+        abort(400, f"la base no tiene la columna checkbox {P_CONFIRMAR_RESET!r}; creala primero")
+    confirmado = (props_control.get(clave_confirmar) or {}).get("checkbox", False)
     if not confirmado:
         abort(400, f"Marcá el checkbox {P_CONFIRMAR_RESET!r} en la fila {FILA_CONTROL_RESET} primero")
 
@@ -608,7 +636,7 @@ def health():
     return {
         "ok": True,
         "service": "auditai-f29",
-        "version": "2026-07-13.4-reset-notstarted",
+        "version": "2026-07-13.5-reset-esquema-real",
         "webhook_secret_configurado": bool(os.environ.get("WEBHOOK_SECRET")),
         "admin_alerts_configurados": len(es.admin_emails()),
     }, 200

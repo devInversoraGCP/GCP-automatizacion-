@@ -361,11 +361,21 @@ Al implementar contra el código real del backend surgieron 4 ajustes necesarios
    Notion no permite "fijar" filas en las vistas: para que quede siempre visible,
    ordenar las vistas para que aparezca arriba (el prefijo "⚙️" ayuda).
 
-✅ **Resuelto (13-jul-2026):** el usuario verificó en Notion que el status neutro
-se llama **`Not started`** (no "sin empezar" como asumía el plan). `RESET_CONTABLE`
-usa `{"status": {"name": "Not started"}}` en los 5 campos de status. Si algún
-status custom (ARec, Control Solicitudes, boletas) tuviera otro set de opciones,
-se vería como `filas_fallidas=N` en el log + alerta al admin.
+5. **Esquema REAL de Contable Junio verificado via API (13-jul-2026)** — difiere
+   del plan en varios puntos, todos manejados:
+
+   | Plan (doc 29) | Realidad (API) | Manejo |
+   |---|---|---|
+   | `Status` → "sin empezar" | Neutro es **`Not started`** (default) | `RESET_CONTABLE` corregido |
+   | `ARec`, `emision de boletas` → "sin empezar" | Neutro es **`Sin empezar`** (S mayúscula) | `RESET_CONTABLE` corregido |
+   | `emision de boletas` | La columna real es `'emision de boletas '` (**espacio al final**) | matching tolerante `_clave_prop()` |
+   | `Confirmar Reset` | El usuario la creó como `'Confirmar reset'` (r minúscula) | matching tolerante `_clave_prop()` |
+   | `Ventas`, `Compras`, `Control Solicitudes`, `solicitud/informe /boletas` | **No existen** en Contable Junio | el reset las saltea sin error (quedan en el dict por si existen en otros meses) |
+
+   `_clave_prop()` matchea nombres de columna ignorando mayúsculas y espacios al
+   borde, y escribe el PATCH con el nombre REAL de la columna. Si la base no tiene
+   la columna checkbox `Confirmar reset`, el endpoint responde 400 con instrucción
+   de crearla (antes fallaba con el mensaje engañoso de "marcá el checkbox").
 
 **Archivos tocados:** `notion_automation/app.py` (endpoint + `RESET_CONTABLE` +
 `_reset_aplicar`/`_lanzar_reset`), `notion_automation/notion_client.py`
