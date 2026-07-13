@@ -11,6 +11,8 @@ Sin Notion (prueba local directa):
 from __future__ import annotations
 import os
 import sys
+import time
+import threading
 import logging
 from logging.handlers import RotatingFileHandler
 from flask import Flask, request, abort
@@ -58,6 +60,39 @@ def _validar_secreto():
     if request.headers.get("X-AuditAI-Secret") != secreto_esperado:
         log.warning("secreto invalido o ausente · path=%s · 401", request.path)
         abort(401)
+
+
+# --- Idempotencia anti-doble-correo (Fase 2.2, doc 27, H5) ---
+# Un doble-click (o un reintento del cliente) no debe mandar dos correos al mismo
+# destinatario. Se reserva el page_id al entrar; si el envio tuvo EXITO, la
+# reserva vive DEDUPE_VENTANA_S y un segundo request lo ignora. Si el envio
+# FALLO, se libera enseguida para permitir un reintento legitimo (no hubo correo
+# que duplicar). Memoria del proceso: con gunicorn sync (1 worker, el default de
+# este deploy) las requests son secuenciales, asi que el dict basta. Limitacion
+# conocida: con varios workers/procesos el dedupe no se comparte entre ellos.
+DEDUPE_VENTANA_S = 60
+_dedupe_lock = threading.Lock()
+_dedupe: dict[str, float] = {}
+
+
+def _dedupe_reservar(page_id: str) -> bool:
+    """True si se reservo (seguir procesando); False si es un duplicado reciente
+    (ignorar). Limpia de paso las reservas vencidas."""
+    ahora = time.time()
+    with _dedupe_lock:
+        for pid in [p for p, t in _dedupe.items() if ahora - t > DEDUPE_VENTANA_S]:
+            del _dedupe[pid]
+        if page_id in _dedupe:
+            return False
+        _dedupe[page_id] = ahora
+        return True
+
+
+def _dedupe_liberar(page_id: str) -> None:
+    """Libera la reserva (tras un fallo) para permitir un reintento inmediato."""
+    with _dedupe_lock:
+        _dedupe.pop(page_id, None)
+
 
 # Nombres EXACTOS de las propiedades en Contable Junio (ver esquema confirmado)
 P_NOMBRE = "Customers"
@@ -305,7 +340,16 @@ def _procesar_webhook_generico(handler, nombre_handler: str):
                 log.warning("%s no encontrado · %s", prop_busqueda, nombre_handler)
                 abort(404, f"no se encontro fila con ese {prop_busqueda} en {nombre_handler}")
 
-        resultado = handler(page_id)
+        if not _dedupe_reservar(page_id):
+            log.info("duplicado ignorado (dedupe <%ds) · %s", DEDUPE_VENTANA_S, nombre_handler)
+            return {"ok": True, "duplicado": True, "motivo": "ya procesado hace segundos, se ignora"}, 200
+        exito = False
+        try:
+            resultado = handler(page_id)
+            exito = bool(resultado.get("ok"))
+        finally:
+            if not exito:
+                _dedupe_liberar(page_id)
     except HTTPException:
         raise
     except Exception as exc:
@@ -369,7 +413,16 @@ def enviar_f29():
                 log.warning("RUT no encontrado en Contable Junio (RUT no se loguea)")
                 abort(404, "no se encontro fila con ese Rut")
 
-        resultado = _procesar_page(page_id)
+        if not _dedupe_reservar(page_id):
+            log.info("duplicado ignorado (dedupe <%ds) · F29", DEDUPE_VENTANA_S)
+            return {"ok": True, "duplicado": True, "motivo": "ya procesado hace segundos, se ignora"}, 200
+        exito = False
+        try:
+            resultado = _procesar_page(page_id)
+            exito = bool(resultado.get("ok"))
+        finally:
+            if not exito:
+                _dedupe_liberar(page_id)
     except HTTPException:
         raise
     except Exception as exc:

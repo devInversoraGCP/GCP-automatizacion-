@@ -20,6 +20,7 @@ import re
 import base64
 import mimetypes
 import requests
+from http_util import request_con_reintentos
 from html import escape as _escape
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
@@ -608,7 +609,11 @@ def _enviar_via_sendgrid(api_key, remitente_email, asesor_firma, destinatario,
     if attachments:
         payload["attachments"] = attachments
 
-    r = requests.post(
+    # Reintentos ante 5xx/429/timeout transitorios de SendGrid (Fase 2, H6): un
+    # hipo no debe perder el correo. El 403 (remitente no verificado) NO se
+    # reintenta (es 4xx definitivo) -> cae directo al ValueError de abajo.
+    r = request_con_reintentos(
+        "POST",
         "https://api.sendgrid.com/v3/mail/send",
         headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
         json=payload, timeout=30,

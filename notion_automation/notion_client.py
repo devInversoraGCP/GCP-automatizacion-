@@ -3,6 +3,7 @@ Credenciales solo en memoria (R3): nunca imprime Clave SII, Rut ni Email."""
 from __future__ import annotations
 import os
 import requests
+from http_util import request_con_reintentos
 
 API = "https://api.notion.com/v1"
 VER = "2025-09-03"
@@ -24,7 +25,7 @@ def _headers() -> dict:
 
 
 def get_page(page_id: str) -> dict:
-    r = requests.get(f"{API}/pages/{page_id}", headers=_headers(), timeout=30)
+    r = request_con_reintentos("GET", f"{API}/pages/{page_id}", headers=_headers(), timeout=30)
     r.raise_for_status()
     return r.json()
 
@@ -75,7 +76,8 @@ def files(prop: dict) -> list[dict]:
 
 
 def update_props(page_id: str, properties: dict) -> None:
-    r = requests.patch(
+    r = request_con_reintentos(
+        "PATCH",
         f"{API}/pages/{page_id}",
         headers=_headers(),
         json={"properties": properties},
@@ -91,7 +93,8 @@ def query_data_source(ds_id: str, body: dict | None = None) -> list[dict]:
         payload = dict(body or {})
         if cursor:
             payload["start_cursor"] = cursor
-        r = requests.post(
+        r = request_con_reintentos(
+            "POST",
             f"{API}/data_sources/{ds_id}/query",
             headers=_headers(),
             json=payload,
@@ -145,7 +148,7 @@ def find_page_by_rut_generico(rut: str, ds_id: str, prop_rut: str = "Rut") -> st
 def get_database_title(database_id: str) -> str:
     """Obtiene el titulo plano de una base Notion (de su data source / database).
     'Contable Junio' -> 'Contable Junio'. Devuelve '' si falla."""
-    r = requests.get(f"{API}/databases/{database_id}", headers=_headers(), timeout=30)
+    r = request_con_reintentos("GET", f"{API}/databases/{database_id}", headers=_headers(), timeout=30)
     r.raise_for_status()
     data = r.json()
     titulo = data.get("title", [])

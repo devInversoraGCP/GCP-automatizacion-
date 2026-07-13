@@ -73,8 +73,8 @@ Ordenadas MVP-first: cada fila entrega valor solo y habilita la siguiente.
 | Fase | Nombre | Cierra | Esfuerzo | Depende de | Estado |
 |:----:|--------|:------:|:--------:|:----------:|:------:|
 | **0** | Higiene de seguridad urgente | H0, H9 | ½ día | — | ✅ código listo · falta rotar passwords (humano) |
-| **1** | Observabilidad ("enterarme de todo") | H1, H2, H3, H7 | 1–2 días | 0 | 🚧 1.1/1.2/1.5 ✅ · 1.3/1.4 pendientes |
-| **2** | Prevención ("a prueba de caídas") | H5, H6 | 1–2 días | 1 | 📋 pendiente |
+| **1** | Observabilidad ("enterarme de todo") | H1, H2, H3, H7 | 1–2 días | 0 | ✅ 1.1/1.2/1.5 hechas · 1.3 descartada · 1.4 pospuesta |
+| **2** | Prevención ("a prueba de caídas") | H5, H6 | 1–2 días | 1 | ✅ 2.1 reintentos + 2.2 idempotencia hechas |
 | **3** | Red de seguridad de cambios | H8 | 1–2 días | — (paralelizable) | 📋 pendiente |
 | **4** | Endurecimiento continuo | resiliencia extra | continuo | 1–3 | 📋 pendiente |
 
@@ -177,32 +177,32 @@ admin con el detalle técnico completo (traceback), ya que ahí no siempre hay u
       si un bug entra en loop de reintentos podría mandar muchos correos. Evaluar si hace falta
       cuando exista el volumen real (Fase 4 candidato, no bloqueante para cerrar 1.2)
 
-**⚠️ Pendiente humano para activar 1.1/1.2 en producción:**
-1. En Render → Environment: agregar `ADMIN_ALERT_EMAIL` = `brunel.fr99@gmail.com,carloscereceda@inversoragcp.com`
-   (sin espacios alrededor de la coma o con ellos, el parser los recorta igual).
-2. Hacer commit + push de los cambios de código (`app.py`, `email_sender.py`, `alertas.py`,
-   `handlers/rrhh.py`, `handlers/tickets.py`) para que Render los despliegue.
-3. Sin `ADMIN_ALERT_EMAIL`, el sistema sigue funcionando igual que antes (solo pierde la copia al
-   admin); no es bloqueante, pero sin esto 1.2 no está realmente "encendido".
+**✅ Activado en producción 12-jul-2026:**
+1. [x] Código desplegado (commits `c03a422` + `fa84467`, push a ambos remotos → Render).
+2. [x] `ADMIN_ALERT_EMAIL = brunel.fr99@gmail.com,carloscereceda@inversoragcp.com` seteada en Render.
+   **Verificado objetivamente:** `GET /health` responde `admin_alerts_configurados: 2` (los dos
+   correos parseados; el campo nuevo de `/health` sirve de check permanente sin exponer los correos).
+3. [x] `webhook_secret_configurado: true` en prod → Fase 0.2 desplegada sin romper los botones.
 
-### 1.3 · Registro que NO se borra (H2)
-`auditai.log` es efímero. Necesitas historial persistente. Opciones (recomiendo **A + B**):
+**✅ 1.1/1.2 CERRADAS con confianza total (12-jul):** no hizo falta una prueba de humo artificial —
+ocurrió un **fallo de envío REAL en producción** y el creador **recibió el correo de alerta**.
+Observabilidad validada end-to-end en vivo.
 
-| Opción | Qué es | Pro | Contra |
-|--------|--------|-----|--------|
-| **A · Base Notion "AuditAI · Log"** ⭐ | Cada envío/fallo = una fila (fecha, flujo, cliente, estado, motivo) | Vive donde ya trabajas; cero infra nueva; filtrable | +1 escritura por request (mitigable: solo errores + resúmenes) |
-| **B · Render log stream** ⭐ | Los `print`/log que Render ya captura en su panel | Gratis, ya existe, con stacktrace | Retención corta (free ~7 días); hay que entrar al panel |
-| **C · Servicio externo** (BetterStack/Logtail/Sentry) | Logs/errores centralizados con búsqueda y alertas | Retención larga, búsqueda potente, Sentry agrupa errores | Cuenta nueva; free tier limitado |
+### 1.3 · Registro que NO se borra (H2) — ❌ DESCARTADO por decisión del creador (12-jul)
+**Decisión (12-jul):** no se construye la base de log en Notion. Razón: el creador (que es el propio
+asesor de IA que operaría el sistema, sin equipo de devs) revisará los logs **directo en el log
+stream de Render** cuando haga falta. La combinación que ya existe alcanza para su operación:
+- **Alerta por correo (1.1/1.2):** le avisa al *instante* de cada error → reacciona en el momento.
+- **Log stream de Render:** para el detalle técnico; retención ~7 días, suficiente porque reacciona
+  al toque al recibir el correo, no días después.
 
-Recomendado MVP: **A** para el registro de negocio que tú revisas (una base Notion que ves como
-cualquier otra), **B** para la traza técnica de bajo nivel. Subir a **C (Sentry)** en la Fase 4 si
-el volumen lo pide.
+Alineado con la restricción del dueño ("simple, bajo mantenimiento, sin depender de devs"). Si en el
+futuro el volumen o la rotación de personas lo pidieran, se puede retomar con **Sentry** (Fase 4).
 
 - [ ] Decisión: destino del log persistente (recomendado A+B)
-- [ ] Si A: base Notion "AuditAI · Log" creada (esquema: Fecha, Flujo, Cliente, Estado, Motivo, Endpoint)
-- [ ] Cada request (ok y fallo) deja una fila / línea persistente
+- [x] ~~base Notion de log~~ **descartada** (12-jul) — se usa el log stream de Render + las alertas por correo
 
-### 1.4 · Aviso si el backend se cae (H3)
+### 1.4 · Aviso si el backend se cae (H3) — ⏸️ pospuesto por el creador (12-jul)
 Si el backend **entero** se cae (deploy roto, OOM, crash), nada interno puede avisarte (está
 muerto): hace falta un vigía **externo**.
 
@@ -216,7 +216,13 @@ cero cuenta de terceros. Si más adelante se quiere algo más fino (chequeo cada
 Telegram/WhatsApp), se reevalúa un monitor externo liviano; pero como MVP, las alertas de Render
 cubren el caso "el backend está caído".
 
-- [ ] Notificaciones de Render activadas (deploy fallido + servicio caído) al correo que sí revisás
+> **Decisión (12-jul):** el creador lo deja "así nomás" por ahora — considera que con los correos
+> de alerta de envío ya está cubierto para su operación. ⚠️ **Matiz honesto:** las alertas de la app
+> NO cubren la caída del *backend entero* (si el proceso está muerto, no puede mandar correos). El
+> hueco H3 queda parcialmente abierto. Es config de 2 minutos en el panel de Render (Settings →
+> Notifications → "Only failure notifications") si algún día se quiere cerrar; no cuesta código.
+
+- [ ] Notificaciones de Render activadas (deploy fallido + servicio caído) — **pospuesto por el creador**
 - [ ] (Opcional futuro) monitor externo cada X min si se quiere detección más rápida
 
 ### 1.5 · Aviso de cuota / cuenta del proveedor de correo (nuevo)
@@ -246,28 +252,35 @@ silencio** (misma clase que H3). Ver [`PENDIENTES-CORREO-NUBE.md`](../../PENDIEN
 
 Que muchos fallos **ni siquiera lleguen** a ser un error visible.
 
-### 2.1 · Reintentos con backoff (H6)
-Un timeout o un 5xx transitorio de Notion/SendGrid no debería perder el correo. Plan: un helper
-`_request_con_reintentos(...)` con backoff exponencial, aplicado a las llamadas HTTP. Reglas:
-- **Reintentar:** timeouts, errores de conexión, HTTP 5xx, y **429** de Notion (respetando
-  `Retry-After`).
-- **NO reintentar:** 4xx "definitivos" (403 de SendGrid = remitente no verificado; 400 = payload
-  malo) — reintentar no ayuda y demora la alerta.
+### 2.1 · Reintentos con backoff (H6) — ✅ implementado y verificado 13-jul
+Nuevo módulo [`http_util.py`](../../notion_automation/http_util.py) con
+`request_con_reintentos(metodo, url, ...)`: 3 intentos, backoff exponencial base 0.5s (esperas
+0.5s + 1s). Reintenta timeouts, errores de conexión, HTTP 429/5xx; respeta `Retry-After`. NO
+reintenta 4xx definitivos (el 403 de SendGrid cae directo al `ValueError`). La etiqueta de log usa
+host + último segmento **sin querystring**, para no filtrar tokens.
 
-- [ ] Helper de reintentos (2–3 intentos, backoff 1s/2s/4s)
-- [ ] Aplicado a Notion (`get_page`, `update_props`, `query_data_source`) y SendGrid
-- [ ] Respeta `Retry-After` en 429; no reintenta 4xx definitivos
+- [x] Helper de reintentos (3 intentos, backoff 0.5s/1s) — verificado con tests (éxito, 503→ok,
+      403 sin reintento, timeout persistente relanza, 429 respeta Retry-After)
+- [x] Aplicado a Notion (`get_page`, `update_props`, `query_data_source`, `get_database_title`) y al
+      envío SendGrid (`_enviar_via_sendgrid`) — verificado que reintentan en integración
+- [x] Respeta `Retry-After` en 429; no reintenta 4xx definitivos
+- Nota: los avisos de error (`enviar_aviso_error`, `avisar_excepcion_admin`) quedan **best-effort
+  sin reintentos** a propósito, para no demorar la respuesta del webhook.
 
-### 2.2 · Idempotencia anti-doble-correo (H5)
-Doble-click o reintento por cold-start → dos correos al cliente. Plan (recomendado): **ventana de
-dedupe en memoria** — un `page_id` procesado hace <60 s se ignora (devuelve "duplicado, ignorado").
-Mata el 99% de los casos (doble-click, reintento) sin bloquear un reenvío intencional al día
-siguiente. Alternativa más estricta: chequear el Status antes de enviar (pero bloquea reenvíos
-legítimos).
+### 2.2 · Idempotencia anti-doble-correo (H5) — ✅ implementado y verificado 13-jul
+Dedupe en memoria por `page_id` ([`app.py`](../../notion_automation/app.py), `_dedupe_reservar` /
+`_dedupe_liberar`, ventana `DEDUPE_VENTANA_S = 60`). Lógica: se reserva al entrar; si el envío tuvo
+**éxito**, la reserva vive 60s y un segundo click devuelve `{"ok": True, "duplicado": True}` (no
+manda segundo correo). Si el envío **falló** (o hubo excepción), se libera vía `finally` → un
+reintento legítimo reprocesa (no había correo que duplicar). Cubre los 3 flujos.
 
-- [ ] Dedupe por `page_id` con ventana corta (memoria del proceso)
-- [ ] Respuesta clara "duplicado ignorado" (no cuenta como error)
-- [ ] Decisión: ¿además bloquear si Status ya == Enviado? (validar con el creador)
+- [x] Dedupe por `page_id` con ventana de 60s (memoria del proceso) — verificado en F29 y en el
+      webhook genérico (RRHH/Tickets)
+- [x] Respuesta clara "duplicado ignorado" con 200 (no cuenta como error)
+- [x] Decisión tomada: **no** bloquear por Status. La ventana en memoria mata el doble-click sin
+      bloquear un reenvío intencional posterior; más simple y no depende del valor del status.
+- Limitación conocida: con gunicorn sync 1 worker (el default de este deploy) el dict basta; con
+  varios workers el dedupe no se comparte entre procesos.
 
 ### 2.3 · Respuesta rápida al webhook (opcional)
 Notion/el navegador esperan la respuesta del botón. Con Starter always-on el cold-start ya no es un
