@@ -128,20 +128,26 @@ def _procesar_page(page_id: str) -> dict:
     adjuntos = nc.files(props.get(P_ADJUNTOS, {}))
     msg_adjuntos = nc.plain(props.get(P_MSG_ADJUNTOS, {}))
 
-    # Fallback C: si Month esta vacio, derivarlo del titulo de la base parent
-    # ("Contable Junio" -> "Junio 2026"). El asesor no debe tipear Month (Opcion A
-    # bulk-set + este fallback de emergencia). Ver doc 23 §5.2.c.
-    mes_derivado = False
+    # El mes se determina PRIORITARIAMENTE desde el título de la base parent
+    # ("Contable Julio" -> "Julio 2026"). Cuando Carlos duplica una página
+    # Contable y la renombra, las filas conservan el Month del mes anterior
+    # (Notion no resetea el valor al duplicar), pero el TÍTULO de la base sí
+    # refleja el mes nuevo. Por eso el título es la fuente principal; el Month
+    # de la fila queda como fallback solo si el título no se puede parsear
+    # (caso base sin el patrón "Contable <Mes>"). Ver doc 28 §4.
+    mes_fila = mes
+    mes = nc.derivar_month_desde_base(page)
+    mes_derivado = bool(mes)
     if not mes:
-        mes = nc.derivar_month_desde_base(page)
-        mes_derivado = bool(mes)
-        if mes_derivado:
-            log.info("Month vacio -> derivado de la base parent (no se loguea el valor)")
+        mes = mes_fila
+    if mes_derivado and mes_fila and mes_fila != mes:
+        log.info("discrepancia mes (prevalece el titulo de la base) · page_id=%s", page_id)
 
     # Log sin PII
     log.info(
-        "page_id=%s cliente=%r asesor=%r mes_present=%s mes_derivado=%s hono_present=%s info_valor_present=%s info_motivo_present=%s msg_adj_present=%s adjuntos_n=%d",
-        page_id, nombre, nombre_asesor, bool(mes), mes_derivado,
+        "page_id=%s cliente=%r asesor=%r mes_present=%s mes_origen=%s hono_present=%s info_valor_present=%s info_motivo_present=%s msg_adj_present=%s adjuntos_n=%d",
+        page_id, nombre, nombre_asesor, bool(mes),
+        "titulo_base" if mes_derivado else ("month_fila" if mes else "vacio"),
         bool(honorarios), bool(info_valor), bool(info_motivo), bool(msg_adjuntos), len(adjuntos),
     )
 
@@ -153,8 +159,8 @@ def _procesar_page(page_id: str) -> dict:
         return {"ok": False, "motivo": "fila sin Email"}
 
     if not mes:
-        _alertar_error("Fila sin mes (Month), necesario para calcular la fecha límite.")
-        return {"ok": False, "motivo": "fila sin Month (necesario para fecha límite)"}
+        _alertar_error("Fila sin mes (ni Month ni título de la base parent con patrón 'Contable <Mes>'), necesario para calcular la fecha límite.")
+        return {"ok": False, "motivo": "fila sin mes (ni Month ni título parseable de la base parent), necesario para fecha límite"}
 
     try:
         remitente = es.enviar(

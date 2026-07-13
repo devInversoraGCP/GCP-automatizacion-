@@ -524,9 +524,26 @@ Trasladadas de [`05-decisiones-y-preguntas.md`](05-decisiones-y-preguntas.md); c
 - [ ] **App Passwords de 2 asesores restantes** (Andrea, Matilde) — pendiente tras confirmar que Sebastián, Constanza y Carlos funcionan en el botón real. Andrea y Matilde además no tienen contraseña normal de Gmail.
 - [ ] Caso borde sin Email (verificado vía `--test`, falta clic real del botón).
 
-### N.3 · Duplicación mensual (Fase 2 del doc 23, pendiente)
-- [ ] `duplicar_mes.py` con `--dry-run` correcto sobre bases de prueba (reset + nuevos por RUT).
-- [ ] Disparo definido (botón en página de control o job agendado).
+### N.3 · Rotación mensual (redirigida a doc 28) — ✅ decidido · robustez aplicada
+> **Decisión de Carlos Cereceda (13-jul-2026, doc [`28`](28-cambio-de-mes-y-rotacion-manual.md)):**
+> cada mes él mismo **duplica manualmente** la página Contable en Notion. **Se cancela
+> `duplicar_mes.py`** (Fase 2 del doc 23 §6): la duplicación nativa de Notion (1 clic) es
+> más confiable que recrear la base por API. La robustece el backend con una lista
+> `DS_CONTABLES` (más reciente primero) para el fallback por RUT.
+- [x] **Decisión formal registrada** en [`28`](28-cambio-de-mes-y-rotacion-manual.md) §1.
+- [x] **Backend robustecido para el cambio de mes:** `DS_CONTABLE_JUNIO` (single) →
+      lista `DS_CONTABLES` en `notion_client.py`; `find_page_by_rut()` itera la lista;
+      alias `DS_CONTABLE_JUNIO` mantiene compatibilidad con imports viejos.
+- [x] **Tests del cambio de mes:** `notion_automation/tests/test_cambio_mes.py` (6/6
+      pasan, valida iteración en orden, alias legacy y caso de lista vacía).
+- [x] **Flujo principal `page_id`-agnóstico:** confirmado — el webhook envía
+      `source.page_id` automáticamente (verificado en el E2E del 07-jul, doc 23 §5.4).
+      El cambio de mes NO requiere cambios de código en el flujo principal.
+- [ ] **Primer cambio de mes real** (cuando Carlos duplique `Contable Julio`):
+      anotar el nuevo `data source ID` arriba de `DS_CONTABLES` y correr E2E (pruebas
+      §10.2 y §10.3 del doc 28) — **operación de 30 segundos + 1 clic de prueba**.
+- [ ] ~~`duplicar_mes.py` con `--dry-run` correcto~~ — ❌ **CANCELADO** por decisión
+      de negocio (Carlos duplica a mano). Ver doc 28 §9.
 
 ### N.4 · Endurecer y llevar a la nube (Fase 3 del doc 23, pendiente)
 - [ ] Backend en la nube con URL estable (Render — manual en `MIGRACION-A-RENDER.md`),

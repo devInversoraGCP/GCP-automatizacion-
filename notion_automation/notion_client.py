@@ -108,24 +108,39 @@ def query_data_source(ds_id: str, body: dict | None = None) -> list[dict]:
         cursor = data["next_cursor"]
 
 
-# Data source de Contable Junio (base operativa, ver AGENTS.md)
-DS_CONTABLE_JUNIO = "09b12147-b3ea-8337-a218-87538eab23fc"
+# Contables conocidos para el fallback por RUT del handler F29.
+# MAS RECIENTE PRIMERO. Cuando Carlos duplique un mes nuevo, agregar la entrada
+# arriba de la lista (1 linea). No borrar meses anteriores (historico).
+# El flujo PRINCIPAL usa source.page_id (Notion lo envia solo); este fallback solo
+# se activa en edge cases donde el webhook llega sin page_id. Ver doc 28 §4.
+DS_CONTABLES: list[tuple[str, str]] = [
+    # ("Contable Julio",  "<nuevo_data_source_id>"),   # descomentar cuando exista
+    ("Contable Junio", "09b12147-b3ea-8337-a218-87538eab23fc"),
+]
+
+# Alias legacy: compatibilidad con imports viejos que referencien la constante
+# anterior (DS_CONTABLE_JUNIO). Apunta al primer Contable de la lista.
+DS_CONTABLE_JUNIO = DS_CONTABLES[0][1]
 
 
 def find_page_by_rut(rut: str) -> str | None:
-    """Busca el page_id por RUT en Contable Junio. Devuelve None si no hay match.
-    No loguea el RUT (PII). Asume RUT unico por cliente."""
-    body = {
-        "filter": {
-            "property": "Rut",
-            "rich_text": {"equals": rut},
-        },
-        "page_size": 5,
-    }
-    results = query_data_source(DS_CONTABLE_JUNIO, body)
-    if not results:
-        return None
-    return results[0]["id"]
+    """Busca el page_id por RUT en los Contables conocidos, en orden (mas
+    reciente primero). Devuelve None si no hay match en ninguno. No loguea el
+    RUT (PII). Asume RUT unico por cliente (un cliente no aparece en dos
+    Contables a la vez, salvo que se aprete el boton en un mes historico).
+    Ver doc 28 §4."""
+    for _nombre, ds_id in DS_CONTABLES:
+        body = {
+            "filter": {
+                "property": "Rut",
+                "rich_text": {"equals": rut},
+            },
+            "page_size": 5,
+        }
+        results = query_data_source(ds_id, body)
+        if results:
+            return results[0]["id"]
+    return None
 
 
 def find_page_by_rut_generico(rut: str, ds_id: str, prop_rut: str = "Rut") -> str | None:
