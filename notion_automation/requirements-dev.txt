@@ -1,0 +1,3 @@
+# Dependencias SOLO para desarrollo/CI (no se instalan en producción/Render).
+# Instalar: pip install -r requirements.txt -r requirements-dev.txt
+pytest>=8.0

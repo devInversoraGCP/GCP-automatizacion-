@@ -75,8 +75,8 @@ Ordenadas MVP-first: cada fila entrega valor solo y habilita la siguiente.
 | **0** | Higiene de seguridad urgente | H0, H9 | ½ día | — | ✅ código listo · falta rotar passwords (humano) |
 | **1** | Observabilidad ("enterarme de todo") | H1, H2, H3, H7 | 1–2 días | 0 | ✅ 1.1/1.2/1.5 hechas · 1.3 descartada · 1.4 pospuesta |
 | **2** | Prevención ("a prueba de caídas") | H5, H6 | 1–2 días | 1 | ✅ 2.1 reintentos + 2.2 idempotencia hechas |
-| **3** | Red de seguridad de cambios | H8 | 1–2 días | — (paralelizable) | 📋 pendiente |
-| **4** | Endurecimiento continuo | resiliencia extra | continuo | 1–3 | 📋 pendiente |
+| **3** | Red de seguridad de cambios | H8 | 1–2 días | — (paralelizable) | ✅ 74 tests + CI |
+| **4** | Endurecimiento continuo | resiliencia extra | continuo | 1–3 | 📋 pendiente (opcional) |
 
 > **Recomendación:** hacer **0 → 1 → 2 → 3** en ese orden. La Fase 0 es bloqueante (fuga de
 > credenciales activa). La Fase 1 es la que más se parece a *"enterarme del detalle de cada error"*
@@ -297,30 +297,42 @@ nada hasta medir** — probablemente los reintentos (2.1) bastan.
 
 Lo que te quita el **miedo a tocar el código** sin romper lo que anda.
 
-### 3.1 · Suite de tests (H8)
-Empezar por las **funciones puras** (alto retorno, cero mocks):
-`fecha_limite`, `fecha_limite_rrhh`, `clp`, `_variantes`, `_combinar_info`, `_es_habil`, `_norm`,
-`_es_uuid`, `_buscar_clave`, `_extraer_plano_notion`. Luego, con mocks de `requests`, los flujos:
-write-back tolerante, cascada de identificación, fallback de email RRHH.
+### 3.1 · Suite de tests (H8) — ✅ implementada y en verde 13-jul
+**74 tests** en [`notion_automation/tests/`](../../notion_automation/tests/) con pytest, todos
+pasando (0.3s, cero llamadas reales a Notion/SendGrid). Config: [`pytest.ini`](../../pytest.ini)
+(pythonpath a `notion_automation`), [`conftest.py`](../../notion_automation/tests/conftest.py)
+(env vars de prueba; `load_dotenv` no las pisa por `override=False`).
 
-- [ ] `tests/` con pytest; funciones puras cubiertas (incluye feriados/traslados de fecha)
-- [ ] Tests de parseo de payloads (los 3 formatos que maneja `_buscar_clave`)
-- [ ] Tests de flujo con `requests` mockeado (sin tocar Notion/SendGrid reales)
-- [ ] Golden test de fecha límite F29 y RRHH (casos borde: fin de mes, feriado, diciembre→enero)
+- [x] `test_puras.py` — funciones puras: `fecha_limite`/`fecha_limite_rrhh` (día hábil, **traslado
+      fin de semana**, cruce de año, inválidos), `clp`, `_variantes`, `_combinar_info`, `_norm`,
+      `_mes_nombre`, `_es_habil` (sábado/feriado/hábil)
+- [x] `test_parsing.py` — identificación de fila: `_es_uuid`, `_buscar_clave` (los 3 formatos),
+      `_extraer_plano_notion`, y `_estructura` (que NO filtra PII)
+- [x] `test_http_util.py` — reintentos (éxito, 503→ok, 403 sin reintento, timeout, 429 Retry-After,
+      etiqueta sin querystring)
+- [x] `test_endpoints.py` — guard 401/503, `/health`, captura de excepciones (500 + admin, `abort`
+      no dispara aviso, RUT no se filtra), dedupe (doble-click, fallo libera, excepción libera)
+- [x] `test_alertas.py` — `admin_emails`, aviso al asesor, aviso al admin con traceback, cc a los
+      2 admins sin duplicar
+- [x] `test_handlers.py` — RRHH y Tickets avisan al asesor en todo fallo conocido
 
-### 3.2 · CI (GitHub Actions)
-Correr los tests en cada push/PR **antes** de que Render redespliegue. Nota: el autoDeploy vive en
-el repo de Carlos; definir si el CI corre allí, aquí, o en ambos.
+### 3.2 · CI (GitHub Actions) — ✅ implementado 13-jul
+[`.github/workflows/tests.yml`](../../.github/workflows/tests.yml): en cada push a `main` y en cada
+PR, instala deps (`requirements.txt` + `requirements-dev.txt`) y corre `pytest` en Python 3.12.
+Como el push va a ambos remotos, el CI corre donde GitHub Actions esté habilitado (el repo del
+creador y el de Carlos). No necesita secretos (todo mockeado).
 
-- [ ] Workflow que instala deps y corre `pytest` en push/PR
-- [ ] (Opcional) gate: no auto-deploy si los tests fallan
+- [x] Workflow que instala deps y corre `pytest` en push/PR
+- [ ] (Opcional) gate de auto-deploy si fallan — Render no lo soporta nativo desde el blueprint;
+      queda como mejora futura (o mover el deploy a que dependa del check verde)
 
-### 3.3 · Smoke test post-deploy
-Tras cada deploy, un chequeo automático de que `/health` responde y (opcional) un `--test-rut`
-contra un cliente ficticio de prueba.
+### 3.3 · Smoke test post-deploy — ⏸️ ya cubierto a mano
+El chequeo de `/health` tras cada deploy ya se viene haciendo manualmente (polling que confirma
+`webhook_secret_configurado`/`admin_alerts_configurados`). Automatizarlo formalmente queda como
+opcional; no bloquea.
 
-- [ ] Smoke test de `/health` tras deploy
-- [ ] (Opcional) fila "cliente de prueba" para E2E sin molestar a clientes reales
+- [x] Smoke test de `/health` tras deploy — hecho a mano en cada deploy de este plan
+- [ ] (Opcional) automatizarlo + fila "cliente de prueba" para E2E
 
 ---
 
