@@ -361,9 +361,11 @@ Al implementar contra el código real del backend surgieron 4 ajustes necesarios
    Notion no permite "fijar" filas en las vistas: para que quede siempre visible,
    ordenar las vistas para que aparezca arriba (el prefijo "⚙️" ayuda).
 
-⚠️ **Verificar antes del E2E:** que el status se llame exactamente `sin empezar`
-en Notion (¿o `Sin empezar`?). Si el nombre no coincide, la API rechaza el PATCH
-de cada fila (se vería como `filas_fallidas=N` en el log + alerta al admin).
+✅ **Resuelto (13-jul-2026):** el usuario verificó en Notion que el status neutro
+se llama **`Not started`** (no "sin empezar" como asumía el plan). `RESET_CONTABLE`
+usa `{"status": {"name": "Not started"}}` en los 5 campos de status. Si algún
+status custom (ARec, Control Solicitudes, boletas) tuviera otro set de opciones,
+se vería como `filas_fallidas=N` en el log + alerta al admin.
 
 **Archivos tocados:** `notion_automation/app.py` (endpoint + `RESET_CONTABLE` +
 `_reset_aplicar`/`_lanzar_reset`), `notion_automation/notion_client.py`

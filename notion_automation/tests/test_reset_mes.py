@@ -1,4 +1,4 @@
-﻿"""Tests del endpoint /reset-mes (doc 29 — reset de mes automatizado).
+"""Tests del endpoint /reset-mes (doc 29 — reset de mes automatizado).
 
 Cubre: guards del payload, safety switch (checkbox 'Confirmar Reset' en la
 fila RESET_MES), preservación de campos estáticos, limpieza de campos dinámicos,
@@ -127,7 +127,7 @@ class TestResetAplicar:
         updates = m.call_args[0][1]
         assert updates["Month"] == {"rich_text": []}
         assert updates["Impuestos"] == {"number": None}
-        assert updates["Status"] == {"status": {"name": "sin empezar"}}
+        assert updates["Status"] == {"status": {"name": "Not started"}}
         assert updates["Ventas"] == {"checkbox": False}
         assert updates["Fecha Envío"] == {"date": None}
 
