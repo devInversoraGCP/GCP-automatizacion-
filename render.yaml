@@ -8,7 +8,7 @@ services:
   - type: web
     name: auditai-backend
     runtime: python
-    plan: free                       # suficiente para ~300 correos/mes (duerme tras 15 min sin trafico)
+    plan: starter                    # $7/mes always-on: SIN sleep ni cold-start. Cambiado desde 'free' (09-jul-2026). NO revertir a free o vuelve el cold-start.
     region: oregon                   # cambiable (oregon/virginia/frankfurt); Virginia suele ir bien desde Chile
     rootDir: notion_automation       # CLAVE: el codigo esta en esta subcarpeta
     buildCommand: pip install -r requirements.txt

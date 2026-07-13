@@ -32,6 +32,8 @@ LOGO_PATH = Path(__file__).parent.parent / "LOGO-GCP.png"
 
 TEMPLATES = Path(__file__).parent / "email_templates"
 ASESORES_JSON = Path(__file__).parent / "asesores_smtp.json"
+# Copia local CON credenciales (gitignored). El versionado va SIN passwords (Fase 0, doc 27).
+ASESORES_JSON_LOCAL = Path(__file__).parent / "asesores_smtp.local.json"
 ASUNTO_BASE = "Resumen impuestos"   # el asunto se completa con el mes: "Resumen impuestos Junio"
 
 _MESES = {
@@ -76,16 +78,21 @@ def _norm(s: str) -> str:
 
 
 def _cargar_asesores() -> dict:
-    """Carga las credenciales de los asesores.
+    """Carga el directorio de asesores (y sus credenciales SMTP si las hay).
 
-    Orden de prioridad (cloud-ready):
+    Orden de prioridad (Fase 0 del plan de robustez, doc 27):
     1. Env var ASESORES_SMTP_JSON (Render/Cloud Run) — el JSON completo como string.
-    2. Archivo asesores_smtp.json local (desarrollo).
-    Así el repo se clona sin credenciales y Render las inyecta por env var.
+    2. asesores_smtp.local.json (gitignored) — copia local CON passwords, solo dev.
+    3. asesores_smtp.json (versionado) — SIN passwords; en la nube basta porque
+       el envío va por SendGrid API (no usa SMTP).
+    Así el repo nunca lleva credenciales y el fallback SMTP local sigue funcionando.
     """
     raw = os.environ.get("ASESORES_SMTP_JSON")
     if raw:
         return json.loads(raw)
+    if ASESORES_JSON_LOCAL.is_file():
+        with open(ASESORES_JSON_LOCAL, encoding="utf-8") as f:
+            return json.load(f)
     with open(ASESORES_JSON, encoding="utf-8") as f:
         return json.load(f)
 
@@ -610,11 +617,23 @@ def _enviar_via_sendgrid(api_key, remitente_email, asesor_firma, destinatario,
         raise ValueError(f"SendGrid rechazo el envio (HTTP {r.status_code}): {r.text[:300]}")
 
 
+def admin_emails() -> list[str]:
+    """Lista de correos admin desde ADMIN_ALERT_EMAIL (separados por coma).
+    '' o no seteada -> lista vacia. Usado por enviar_aviso_error (cc) y por
+    alertas.avisar_excepcion_admin (destinatario)."""
+    raw = os.environ.get("ADMIN_ALERT_EMAIL", "")
+    return [e.strip() for e in raw.split(",") if e.strip()]
+
+
 def enviar_aviso_error(email_asesor: str, cliente: str, mes: str, motivo: str) -> bool:
     """Aviso automatico al asesor cuando el correo de un cliente NO se pudo enviar.
     Best-effort: nunca lanza excepcion (si el propio aviso falla, devuelve False y
     queda solo el log del backend). Requiere SENDGRID_API_KEY (nube).
-    Limite conocido: si SendGrid entero esta caido, este aviso tampoco sale."""
+    Limite conocido: si SendGrid entero esta caido, este aviso tampoco sale.
+
+    Fase 1 (doc 27, observabilidad): copia en ADMIN_ALERT_EMAIL si esta seteada,
+    para que el administrador vea TODOS los fallos (F29/RRHH/Tickets) en un solo
+    buzon, no solo el asesor de cada cliente."""
     try:
         api_key = os.environ.get("SENDGRID_API_KEY")
         if not (api_key and email_asesor):
@@ -641,8 +660,12 @@ def enviar_aviso_error(email_asesor: str, cliente: str, mes: str, motivo: str) -
             '<p style="color:#8593a8;font-size:12px;">Aviso automatico del sistema AuditAI (no responder).</p>'
             '</div>'
         )
+        personalization = {"to": [{"email": email_asesor}]}
+        admins = [a for a in admin_emails() if a.lower() != email_asesor.lower()]
+        if admins:
+            personalization["cc"] = [{"email": a} for a in admins]
         payload = {
-            "personalizations": [{"to": [{"email": email_asesor}]}],
+            "personalizations": [personalization],
             "from": {"email": remitente, "name": "AuditAI · Avisos"},
             "subject": asunto,
             "content": [

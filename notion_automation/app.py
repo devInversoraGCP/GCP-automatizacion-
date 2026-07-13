@@ -14,10 +14,12 @@ import sys
 import logging
 from logging.handlers import RotatingFileHandler
 from flask import Flask, request, abort
+from werkzeug.exceptions import HTTPException
 from dotenv import load_dotenv
 import datetime
 import notion_client as nc
 import email_sender as es
+import alertas
 import handlers.rrhh as rrhh_handler
 import handlers.tickets as tickets_handler
 
@@ -35,6 +37,27 @@ logging.basicConfig(
 log = logging.getLogger("auditai")
 
 app = Flask(__name__)
+
+# Fase 0.2 (doc 27, H9): el WEBHOOK_SECRET es OBLIGATORIO. Sin él, cualquiera
+# que conozca la URL podría disparar correos a los clientes. Si falta, los
+# webhooks responden 503 (y /health lo delata) en vez de aceptar requests.
+if not os.environ.get("WEBHOOK_SECRET"):
+    logging.getLogger("auditai").critical(
+        "WEBHOOK_SECRET NO esta configurado: los webhooks responderan 503 "
+        "hasta que se defina la env var (Render -> Environment)."
+    )
+
+
+def _validar_secreto():
+    """Valida X-AuditAI-Secret. 503 si el servidor no tiene secreto configurado
+    (config incompleta, fail-safe); 401 si el header no coincide."""
+    secreto_esperado = os.environ.get("WEBHOOK_SECRET", "")
+    if not secreto_esperado:
+        log.error("WEBHOOK_SECRET ausente en el servidor · path=%s · 503", request.path)
+        abort(503, "backend sin WEBHOOK_SECRET configurado; avisar al administrador")
+    if request.headers.get("X-AuditAI-Secret") != secreto_esperado:
+        log.warning("secreto invalido o ausente · path=%s · 401", request.path)
+        abort(401)
 
 # Nombres EXACTOS de las propiedades en Contable Junio (ver esquema confirmado)
 P_NOMBRE = "Customers"
@@ -88,16 +111,7 @@ def _procesar_page(page_id: str) -> dict:
     )
 
     def _alertar_error(motivo: str):
-        email_asesor = os.environ.get("EMAIL_FROM", "notificaciones@inversoragcp.com")
-        if nombre_asesor:
-            asesor_info = es._buscar_asesor_por_nombre(nombre_asesor)
-            if asesor_info:
-                email_asesor = asesor_info["email"]
-        try:
-            es.enviar_aviso_error(email_asesor, nombre or "Cliente Desconocido", mes or "", motivo)
-            log.info("aviso de error enviado al asesor: %s", email_asesor)
-        except Exception as e:
-            log.warning("no se pudo enviar aviso de error al asesor: %s", e)
+        alertas.avisar_fallo_asesor(nombre_asesor, nombre, mes, motivo)
 
     if not email:
         _alertar_error("Fila sin correo electrónico (Email).")
@@ -237,57 +251,67 @@ def _procesar_webhook_generico(handler, nombre_handler: str):
     tiene_secreto = bool(request.headers.get("X-AuditAI-Secret"))
     log.info("request recibida · path=%s · tiene_secreto=%s", request.path, tiene_secreto)
 
-    secreto_esperado = os.environ.get("WEBHOOK_SECRET", "")
-    if secreto_esperado:
-        if request.headers.get("X-AuditAI-Secret") != secreto_esperado:
-            log.warning("secreto invalido · path=%s · 401", request.path)
-            abort(401)
+    _validar_secreto()   # 503 si el server no tiene secreto; 401 si no coincide (H9)
 
     data = request.get_json(force=True, silent=True) or {}
     log.info("estructura payload %s: %s", nombre_handler, _estructura(data))
 
-    ident, ruta = _buscar_clave(data, ["page_id"])
-    if not ident:
-        # Payload tipo page-object (automations nuevas): data.id / entity.id
-        for k in ("data", "entity"):
-            v = data.get(k)
-            pid = v.get("id") if isinstance(v, dict) else None
-            if isinstance(pid, str) and _es_uuid(pid):
-                ident, ruta = pid, f"{k}.id"
-                break
-    if not ident:
-        ident, ruta = _buscar_clave(data, ["Rut", "rut", "RUT"])
-    # Fallback RRHH: muchas filas tienen el RUT (title) vacio -> identificar
-    # por CLIENTE (contingencia doc 25 §9). Solo si no hubo page_id ni RUT.
-    prop_busqueda = "RUT"
-    if not ident and nombre_handler == "RRHH":
-        ident, ruta = _buscar_clave(data, ["CLIENTE", "Cliente", "cliente"])
-        prop_busqueda = "CLIENTE"
-    if not ident and nombre_handler == "TICKETS":
-        ident, ruta = _buscar_clave(data, ["Tarea", "tarea", "Nombre"])
-        prop_busqueda = "Tarea"
-    log.info("identificador en ruta=%r (valor no se loguea)", ruta)
+    # Fase 1.1 (doc 27, H7): TODO lo de aca abajo va envuelto en captura de
+    # excepciones no previstas (bug, 500 de Notion, timeout raro). abort()
+    # lanza HTTPException (400/401/404/503) y esos SI deben propagar tal cual
+    # (son respuestas intencionales, no errores). page_id arranca vacio: si
+    # la excepcion ocurre antes de identificar la fila, no hay nada que
+    # loguear como identificador (evita filtrar un RUT si `ident` era PII).
+    page_id = ""
+    try:
+        ident, ruta = _buscar_clave(data, ["page_id"])
+        if not ident:
+            # Payload tipo page-object (automations nuevas): data.id / entity.id
+            for k in ("data", "entity"):
+                v = data.get(k)
+                pid = v.get("id") if isinstance(v, dict) else None
+                if isinstance(pid, str) and _es_uuid(pid):
+                    ident, ruta = pid, f"{k}.id"
+                    break
+        if not ident:
+            ident, ruta = _buscar_clave(data, ["Rut", "rut", "RUT"])
+        # Fallback RRHH: muchas filas tienen el RUT (title) vacio -> identificar
+        # por CLIENTE (contingencia doc 25 §9). Solo si no hubo page_id ni RUT.
+        prop_busqueda = "RUT"
+        if not ident and nombre_handler == "RRHH":
+            ident, ruta = _buscar_clave(data, ["CLIENTE", "Cliente", "cliente"])
+            prop_busqueda = "CLIENTE"
+        if not ident and nombre_handler == "TICKETS":
+            ident, ruta = _buscar_clave(data, ["Tarea", "tarea", "Nombre"])
+            prop_busqueda = "Tarea"
+        log.info("identificador en ruta=%r (valor no se loguea)", ruta)
 
-    if not ident:
-        abort(400, f"no se encontro page_id, Rut ni CLIENTE en el payload ({nombre_handler})")
+        if not ident:
+            abort(400, f"no se encontro page_id, Rut ni CLIENTE en el payload ({nombre_handler})")
 
-    if _es_uuid(ident):
-        page_id = ident
-        log.info("usando page_id directo · %s", nombre_handler)
-    else:
-        if nombre_handler == "RRHH":
-            from handlers.rrhh import DS_ID as DS
-            page_id = nc.find_page_by_rut_generico(ident, DS, prop_busqueda)
-        elif nombre_handler == "TICKETS":
-            from handlers.tickets import DS_ID as DS
-            page_id = nc.find_page_by_rut_generico(ident, DS, prop_busqueda)
+        if _es_uuid(ident):
+            page_id = ident
+            log.info("usando page_id directo · %s", nombre_handler)
         else:
-            page_id = nc.find_page_by_rut(ident)
-        if not page_id:
-            log.warning("%s no encontrado · %s", prop_busqueda, nombre_handler)
-            abort(404, f"no se encontro fila con ese {prop_busqueda} en {nombre_handler}")
+            if nombre_handler == "RRHH":
+                from handlers.rrhh import DS_ID as DS
+                page_id = nc.find_page_by_rut_generico(ident, DS, prop_busqueda)
+            elif nombre_handler == "TICKETS":
+                from handlers.tickets import DS_ID as DS
+                page_id = nc.find_page_by_rut_generico(ident, DS, prop_busqueda)
+            else:
+                page_id = nc.find_page_by_rut(ident)
+            if not page_id:
+                log.warning("%s no encontrado · %s", prop_busqueda, nombre_handler)
+                abort(404, f"no se encontro fila con ese {prop_busqueda} en {nombre_handler}")
 
-    resultado = handler(page_id)
+        resultado = handler(page_id)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        alertas.avisar_excepcion_admin(nombre_handler, page_id or "", exc)
+        return {"ok": False, "motivo": "error interno del servidor; administrador notificado"}, 500
+
     return resultado, 200
 
 
@@ -316,42 +340,54 @@ def enviar_f29():
     tiene_secreto = bool(request.headers.get("X-AuditAI-Secret"))
     log.info("request recibida · path=/enviar-f29 · tiene_secreto=%s", tiene_secreto)
 
-    # R4: validar secreto compartido
-    secreto_esperado = os.environ.get("WEBHOOK_SECRET", "")
-    if secreto_esperado:
-        if request.headers.get("X-AuditAI-Secret") != secreto_esperado:
-            log.warning("secreto invalido o ausente · respondiendo 401")
-            abort(401)
+    # R4 + H9: secreto compartido OBLIGATORIO (503 si el server no lo tiene)
+    _validar_secreto()
 
     data = request.get_json(force=True, silent=True) or {}
     # Dump estructural completo (solo keys y tipos, sin valores = sin PII)
     log.info("estructura payload: %s", _estructura(data))
 
-    # Identificador: priorizar page_id (de source), luego Rut en cualquier nivel
-    ident, ruta = _buscar_clave(data, ["page_id"])
-    if not ident:
-        ident, ruta = _buscar_clave(data, ["Rut", "rut", "RUT"])
-    log.info("identificador en ruta=%r (valor no se loguea)", ruta)
+    # Fase 1.1 (doc 27, H7): captura de excepciones no previstas, igual que en
+    # _procesar_webhook_generico. abort() (HTTPException) propaga tal cual.
+    page_id = ""
+    try:
+        # Identificador: priorizar page_id (de source), luego Rut en cualquier nivel
+        ident, ruta = _buscar_clave(data, ["page_id"])
+        if not ident:
+            ident, ruta = _buscar_clave(data, ["Rut", "rut", "RUT"])
+        log.info("identificador en ruta=%r (valor no se loguea)", ruta)
 
-    if not ident:
-        abort(400, "no se encontro page_id ni Rut en el payload")
+        if not ident:
+            abort(400, "no se encontro page_id ni Rut en el payload")
 
-    if _es_uuid(ident):
-        page_id = ident
-        log.info("usando page_id directo (sin query Notion)")
-    else:
-        page_id = nc.find_page_by_rut(ident)
-        if not page_id:
-            log.warning("RUT no encontrado en Contable Junio (RUT no se loguea)")
-            abort(404, "no se encontro fila con ese Rut")
+        if _es_uuid(ident):
+            page_id = ident
+            log.info("usando page_id directo (sin query Notion)")
+        else:
+            page_id = nc.find_page_by_rut(ident) or ""
+            if not page_id:
+                log.warning("RUT no encontrado en Contable Junio (RUT no se loguea)")
+                abort(404, "no se encontro fila con ese Rut")
 
-    resultado = _procesar_page(page_id)
+        resultado = _procesar_page(page_id)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        alertas.avisar_excepcion_admin("F29", page_id, exc)
+        return {"ok": False, "motivo": "error interno del servidor; administrador notificado"}, 500
+
     return resultado, 200
 
 
 @app.get("/health")
 def health():
-    return {"ok": True, "service": "auditai-f29"}, 200
+    # webhook_secret_configurado: solo un booleano (nunca el valor). Permite
+    # diagnosticar desde afuera un deploy con la env var faltante (H9).
+    return {
+        "ok": True,
+        "service": "auditai-f29",
+        "webhook_secret_configurado": bool(os.environ.get("WEBHOOK_SECRET")),
+    }, 200
 
 
 def _run_test(page_id: str):

@@ -8,6 +8,7 @@ import logging
 from datetime import datetime, timezone
 import notion_client as nc
 import email_sender as es
+import alertas
 
 log = logging.getLogger("auditai")
 
@@ -164,9 +165,13 @@ def procesar(page_id: str, tipo_correo: str) -> dict:
              tipo_correo, page_id, bool(cliente), bool(email), bool(mensaje), bool(asunto_custom), len(adjuntos), asesor)
 
     if not email:
-        return {"ok": False, "motivo": "fila sin Email (columna Email vacía)"}
+        motivo = "fila sin Email (columna Email vacía)"
+        alertas.avisar_fallo_asesor(asesor, cliente, "", motivo)
+        return {"ok": False, "motivo": motivo}
     if not cliente:
-        return {"ok": False, "motivo": "fila sin Tarea (nombre de cliente, necesario)"}
+        motivo = "fila sin Tarea (nombre de cliente, necesario)"
+        alertas.avisar_fallo_asesor(asesor, cliente, "", motivo)
+        return {"ok": False, "motivo": motivo}
 
     estandar = estandar_tpl.format(tipo=tipo)
     b_msg = _bloque_mensaje(mensaje, estandar)
@@ -197,10 +202,13 @@ def procesar(page_id: str, tipo_correo: str) -> dict:
         log.info("correo tickets/%s enviado OK · page_id=%s remitente=%s", tipo_correo, page_id, remitente)
     except ValueError as exc:
         log.error("error envio tickets · page_id=%s · %s", page_id, exc)
+        alertas.avisar_fallo_asesor(asesor, cliente, "", str(exc))
         return {"ok": False, "motivo": str(exc)}
     except Exception as exc:
         log.error("error SMTP tickets · page_id=%s · %s", page_id, exc)
-        return {"ok": False, "motivo": f"error SMTP: {exc}"}
+        motivo = f"error SMTP: {exc}"
+        alertas.avisar_fallo_asesor(asesor, cliente, "", motivo)
+        return {"ok": False, "motivo": motivo}
 
     # Write-back tolerante: solo columnas presentes en la fila (R6)
     now_iso = datetime.now(timezone.utc).isoformat()

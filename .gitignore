@@ -16,6 +16,9 @@ secrets.*
 # Apuntes locales con tokens/credenciales (NUNCA versionar)
 notion_automation/env_vars_para_render.txt
 notion_automation/temp_json.txt
+# 🔴 Credenciales SMTP locales (Fase 0, docs/dev/27). El asesores_smtp.json
+# versionado va SIN passwords; las credenciales viven SOLO en este .local.json.
+notion_automation/asesores_smtp.local.json
 
 # 🆕 Automatización Notion + correo F29 (doc 23)
 # Volcados de la API (no commitear)

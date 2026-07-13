@@ -8,6 +8,7 @@ import logging
 from datetime import datetime, timezone
 import notion_client as nc
 import email_sender as es
+import alertas
 
 log = logging.getLogger("auditai")
 
@@ -77,6 +78,7 @@ def procesar(page_id: str) -> dict:
     rut = nc.plain(props.get(RUT, {}))
     email = nc.plain(props.get(EMAIL_CLIENTE, {}))
     asistente_raw = nc.plain(props.get(ASISTENTE, {}))
+    nombre_asesor = ALIAS_ASESOR.get(es._norm(asistente_raw), asistente_raw)
     adjuntos = nc.files(props.get(ADJUNTOS, {}))
     msg_adjuntos = nc.plain(props.get(MSG_ADJUNTOS, {}))
 
@@ -90,18 +92,20 @@ def procesar(page_id: str) -> dict:
             log.info("email recuperado desde base central · page_id=%s", page_id)
 
     if not email:
-        return {"ok": False, "motivo": "fila sin Email (ni columna Email Cliente ni lookup por RUT)"}
+        motivo = "fila sin Email (ni columna Email Cliente ni lookup por RUT)"
+        alertas.avisar_fallo_asesor(nombre_asesor, nombre, "", motivo)
+        return {"ok": False, "motivo": motivo}
 
     if not nombre:
-        return {"ok": False, "motivo": "fila sin CLIENTE (necesario para el asunto y cuerpo)"}
+        motivo = "fila sin CLIENTE (necesario para el asunto y cuerpo)"
+        alertas.avisar_fallo_asesor(nombre_asesor, nombre, "", motivo)
+        return {"ok": False, "motivo": motivo}
 
     mes = nc.derivar_month_desde_base(page)
     if not mes:
         mes = "Junio 2026"
 
     asunto = f"Imposiciones {mes}- {nombre}"
-
-    nombre_asesor = ALIAS_ASESOR.get(es._norm(asistente_raw), asistente_raw)
 
     try:
         remitente = es.enviar(
@@ -121,10 +125,13 @@ def procesar(page_id: str) -> dict:
         log.info("correo RRHH enviado OK · page_id=%s remitente=%s", page_id, remitente)
     except ValueError as exc:
         log.error("error envio RRHH · page_id=%s · %s", page_id, exc)
+        alertas.avisar_fallo_asesor(nombre_asesor, nombre, mes, str(exc))
         return {"ok": False, "motivo": str(exc)}
     except Exception as exc:
         log.error("error SMTP RRHH · page_id=%s · %s", page_id, exc)
-        return {"ok": False, "motivo": f"error SMTP: {exc}"}
+        motivo = f"error SMTP: {exc}"
+        alertas.avisar_fallo_asesor(nombre_asesor, nombre, mes, motivo)
+        return {"ok": False, "motivo": motivo}
 
     # Write-back: solo columnas que existen en la fila (si falta una, no
     # aborta la otra; un PATCH con propiedad inexistente falla completo).

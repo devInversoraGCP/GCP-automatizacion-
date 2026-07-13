@@ -1,42 +1,31 @@
 {
-  "_comment": "Credenciales SMTP de los asesores de GCP. El backend envía el correo F29 DESDE la cuenta del asesor asignado a cada cliente (columna 'Adviser Accounting' en Contable Junio). El match se hace por 'nombre_norm' (minúsculas, sin tildes, sin espacios extra) contra el nombre que devuelve la API de Notion para el campo people 'Adviser Accounting'.",
-  "_security": "ARCHIVO GITIGNORED — nunca se commitea (.gitignore línea 19). No imprimir, loguear ni exponer estos valores en outputs del agente (AGENTS.md regla #2).",
+  "_comment": "Directorio de asesores de GCP (SIN credenciales). El backend envía el correo DESDE la cuenta del asesor asignado a cada cliente (columna 'Adviser Accounting' en Contable). El match se hace por 'nombre_norm' (minúsculas, sin tildes, sin espacios extra) contra el nombre que devuelve la API de Notion para el campo people.",
+  "_security": "Este archivo SÍ se versiona y por eso NO contiene passwords. En la nube el envío es por SendGrid API (no necesita SMTP). Para el fallback SMTP local, las credenciales viven en asesores_smtp.local.json (gitignored) o en la env var ASESORES_SMTP_JSON; ver _cargar_asesores() en email_sender.py. Historial: hasta el 12-jul-2026 este archivo llevaba App Passwords commiteadas — se consideran comprometidas y deben rotarse (Fase 0, docs/dev/27).",
   "_pendientes": [
     "andreagonzalez@inversoragcp.com",
     "matildemateluna@inversoragcp.com"
   ],
-  "_nota_gmail": "Gmail requiere 2FA habilitado + App Password para SMTP (no acepta la contraseña normal desde 2022). Las contraseñas de abajo son las que el usuario proporcionó; cada asesor debe generar su App Password en Cuenta Google → Seguridad → Contraseñas de aplicación y reemplazarla aquí. Cuenta @gmail.com (Carlos) = límite ~500/día; cuentas @inversoragcp.com (Workspace) = sin ese límite si el admin lo permite.",
   "constanzagaggero@inversoragcp.com": {
-    "password": "gsefbksxkdjvpbik",
-    "password_fmt": "gsef bksx kdjv pbik",
     "nombre": "Constanza Gaggero",
     "nombre_norm": "constanza gaggero",
     "tipo": "workspace",
     "pendiente": false,
-    "app_password": true,
-    "generada": "2026-07-08",
     "firma_png": "firmas/firma-constanza-gaggero.jpeg"
   },
   "andreagonzalez@inversoragcp.com": {
-    "password": null,
     "nombre": "ANDREA GONZALEZ",
     "nombre_norm": "andrea gonzalez",
     "tipo": "workspace",
     "pendiente": false
   },
   "sebastianrobles@inversoragcp.com": {
-    "password": "zugpyxmwibkxgrjh",
-    "password_fmt": "zugp yxmw ibkx grjh",
     "nombre": "Sebastián Robles",
     "nombre_norm": "sebastian robles",
     "tipo": "workspace",
     "pendiente": false,
-    "app_password": true,
-    "generada": "2026-07-07",
     "firma_png": "firmas/firma-sebastian-robles.png"
   },
   "matildemateluna@inversoragcp.com": {
-    "password": null,
     "nombre": "Matilde Mateluna",
     "nombre_norm": "matilde mateluna",
     "tipo": "workspace",
@@ -44,12 +33,10 @@
     "firma_png": "firmas/pie_matilde.jpeg"
   },
   "carloscereceda@inversoragcp.com": {
-    "password": "iqkgifehpjwpavuj",
     "nombre": "Carlos Cereceda",
     "nombre_norm": "carlos cereceda",
     "tipo": "workspace",
     "pendiente": false,
-    "app_password": true,
     "firma_png": "firmas/pie_carlos.jpeg"
   }
 }
