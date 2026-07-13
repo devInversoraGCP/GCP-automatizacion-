@@ -381,12 +381,15 @@ def enviar_f29():
 
 @app.get("/health")
 def health():
-    # webhook_secret_configurado: solo un booleano (nunca el valor). Permite
-    # diagnosticar desde afuera un deploy con la env var faltante (H9).
+    # Solo booleanos/conteos, nunca valores (sin PII). Permite diagnosticar
+    # desde afuera un deploy con env vars faltantes (H9) o el canal de alertas
+    # del admin sin configurar (Fase 1.2). admin_alerts_configurados = cuantos
+    # correos quedaron en ADMIN_ALERT_EMAIL (separados por coma).
     return {
         "ok": True,
         "service": "auditai-f29",
         "webhook_secret_configurado": bool(os.environ.get("WEBHOOK_SECRET")),
+        "admin_alerts_configurados": len(es.admin_emails()),
     }, 200
 
 
