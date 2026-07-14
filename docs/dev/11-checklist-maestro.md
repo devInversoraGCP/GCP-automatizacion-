@@ -556,6 +556,17 @@ Trasladadas de [`05-decisiones-y-preguntas.md`](05-decisiones-y-preguntas.md); c
   - [ ] Verificar nombre exacto del status "sin empezar" en Notion + prueba E2E
   - [ ] Fase 3: extender a RRHH y Tickets (`RESET_RRHH` / `RESET_TICKETS`)
 
+### N.3b · Confirmación de entrega real — SendGrid Event Webhook ([`30`](30-confirmacion-entrega-sendgrid.md)) 🆕
+> **Origen:** incidente 13-jul-2026 (crédito SendGrid agotado, correo no salió, botón "verde" igual).
+- [x] `custom_args {page_id, flujo}` en cada envío (F29/RRHH/Tickets) — 14-jul-2026
+- [x] Endpoint `POST /webhook/sendgrid` (delivered/bounce/dropped → columna `Entrega Correo` + aviso al asesor en bounce; filtro anti-BCC; batch tolerante)
+- [x] Tests `tests/test_sendgrid_webhook.py` (14 tests; suite completa 118/118)
+- [ ] Columna `Entrega Correo` (Text) en Contable (la crea el usuario en la UI)
+- [ ] Env var `SENDGRID_WEBHOOK_TOKEN` en Render
+- [ ] Configurar Event Webhook en SendGrid (URL + token; solo Delivered/Bounced/Dropped)
+- [ ] Prueba E2E con fila ZZ_TEST (ver doc 30 §4)
+- [ ] Decisión pendiente: fallos de envío → HTTP ≠200 para que el botón de Notion muestre error
+
 ### N.4 · Endurecer y llevar a la nube (Fase 3 del doc 23, pendiente)
 - [ ] Backend en la nube con URL estable (Render — manual en `MIGRACION-A-RENDER.md`),
       secretos en gestor, dominio de correo verificado.

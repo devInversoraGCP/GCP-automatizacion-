@@ -414,6 +414,7 @@ def enviar(
     template: str = "f29_email",
     asunto: str | None = None,
     extra_vars: dict | None = None,
+    custom_args: dict | None = None,
 ) -> str:
     """Envía el correo por SMTP de Gmail. El remitente es el asesor del cliente.
     Devuelve el email del remitente usado (para log sin PII del destinatario)."""
@@ -495,7 +496,7 @@ def enviar(
         _enviar_via_sendgrid(
             os.environ["SENDGRID_API_KEY"],
             remitente_email, asesor_firma, destinatario, asunto_final, html, txt, firma_png,
-            adjuntos_bin,
+            adjuntos_bin, custom_args,
         )
         return remitente_email
 
@@ -557,7 +558,8 @@ def enviar(
 
 
 def _enviar_via_sendgrid(api_key, remitente_email, asesor_firma, destinatario,
-                         asunto, html, txt, firma_png, adjuntos_bin=None):
+                         asunto, html, txt, firma_png, adjuntos_bin=None,
+                         custom_args=None):
     """Envía el correo por la API HTTPS de SendGrid (Render bloquea SMTP).
     Logo + firma van como adjuntos inline (content_id) para verse en el cuerpo.
     El remitente (remitente_email) DEBE estar verificado en SendGrid (Single
@@ -608,6 +610,12 @@ def _enviar_via_sendgrid(api_key, remitente_email, asesor_firma, destinatario,
     }
     if attachments:
         payload["attachments"] = attachments
+
+    # custom_args {page_id, flujo}: SendGrid los devuelve tal cual en cada
+    # evento del Event Webhook (doc 30) — así el evento delivered/bounce vuelve
+    # con la fila de Notion exacta a actualizar. Valores SIEMPRE string.
+    if custom_args:
+        payload["custom_args"] = {str(k): str(v) for k, v in custom_args.items()}
 
     # Reintentos ante 5xx/429/timeout transitorios de SendGrid (Fase 2, H6): un
     # hipo no debe perder el correo. El 403 (remitente no verificado) NO se

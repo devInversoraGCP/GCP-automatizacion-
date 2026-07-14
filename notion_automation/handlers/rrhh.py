@@ -121,6 +121,7 @@ def procesar(page_id: str) -> dict:
             adjuntos=adjuntos,
             template=TEMPLATE,
             asunto=asunto,
+            custom_args={"page_id": page_id, "flujo": "rrhh"},
         )
         log.info("correo RRHH enviado OK · page_id=%s remitente=%s", page_id, remitente)
     except ValueError as exc:

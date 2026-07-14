@@ -9,6 +9,7 @@ import os
 
 os.environ["WEBHOOK_SECRET"] = "test-secret"
 os.environ["NOTION_TOKEN"] = "test-token"
+os.environ["SENDGRID_WEBHOOK_TOKEN"] = "test-sg-token"
 os.environ.setdefault("EMAIL_FROM", "notificaciones@inversoragcp.com")
 # Sin ADMIN_ALERT_EMAIL por defecto: cada test que lo necesite lo setea explícito.
 os.environ.pop("ADMIN_ALERT_EMAIL", None)

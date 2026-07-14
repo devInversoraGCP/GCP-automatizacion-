@@ -179,6 +179,7 @@ def _procesar_page(page_id: str) -> dict:
             info_motivo=info_motivo,
             msg_adjuntos=msg_adjuntos,
             adjuntos=adjuntos,
+            custom_args={"page_id": page_id, "flujo": "f29"},
         )
         log.info("correo enviado OK · page_id=%s remitente=%s", page_id, remitente)
     except ValueError as exc:
@@ -627,6 +628,105 @@ def reset_mes():
     return {"ok": True, "en_proceso": True, "tipo": tipo, "filas_totales": len(filas)}, 202
 
 
+# --- Confirmación de entrega real via SendGrid Event Webhook (doc 30) ------
+# El 202 de la API de SendGrid significa "aceptado para envío", NO "entregado".
+# SendGrid postea los eventos reales (delivered / bounce / dropped) a
+# /webhook/sendgrid; cada correo viaja con custom_args {page_id, flujo}, así el
+# evento vuelve con la fila exacta de Notion a actualizar. El write-back del
+# Status al 202 se mantiene (optimista); este webhook ENRIQUECE/CORRIGE:
+# escribe la columna "Entrega Correo" (rich_text) y, si el correo rebotó,
+# avisa al asesor. Escritura tolerante: sin la columna, solo queda el log.
+P_ENTREGA = "Entrega Correo"
+EVENTOS_ENTREGA = {"delivered", "bounce", "dropped"}
+
+
+def _procesar_evento_sendgrid(ev: dict) -> bool:
+    """Procesa UN evento del Event Webhook. True si actualizó la fila.
+    Ignora eventos sin page_id (correos ajenos al backend, ej. avisos admin) y
+    eventos de las copias BCC (asesor/Carlos): solo el destinatario CLIENTE
+    (ev.email == Email de la fila) actualiza la fila. No loguea PII."""
+    tipo = ev.get("event", "")
+    page_id = str(ev.get("page_id", "") or "")
+    if tipo not in EVENTOS_ENTREGA or not _es_uuid(page_id):
+        return False
+
+    page = nc.get_page(page_id)
+    props = page.get("properties", {}) or {}
+
+    # Filtro anti-BCC: un "delivered" de la copia del asesor no debe pisar un
+    # "bounce" del cliente. Solo cuentan los eventos del email de la fila.
+    email_evento = str(ev.get("email", "") or "").strip().lower()
+    clave_email = _clave_prop(props, "Email")
+    email_fila = nc.plain(props.get(clave_email, {})).strip().lower() if clave_email else ""
+    if email_fila and email_evento and email_evento != email_fila:
+        log.info("evento sendgrid de copia BCC ignorado · evento=%s · page_id=%s", tipo, page_id)
+        return False
+
+    ts = ev.get("timestamp")
+    fecha = ""
+    if isinstance(ts, (int, float)):
+        fecha = datetime.datetime.fromtimestamp(
+            ts, datetime.timezone.utc
+        ).strftime("%d-%m-%Y %H:%M UTC")
+
+    if tipo == "delivered":
+        texto = f"✅ Entregado · {fecha}" if fecha else "✅ Entregado"
+    else:
+        razon = str(ev.get("reason", "") or "")[:200]
+        texto = f"❌ No entregado ({tipo})" + (f" · {fecha}" if fecha else "")
+        if razon:
+            texto += f" · {razon}"
+
+    clave_entrega = _clave_prop(props, P_ENTREGA)
+    if clave_entrega:
+        nc.update_props(page_id, {clave_entrega: {"rich_text": [{"text": {"content": texto}}]}})
+    else:
+        log.warning("columna %r no existe en la base de page_id=%s; entrega solo en log", P_ENTREGA, page_id)
+    log.info("evento sendgrid procesado · evento=%s · page_id=%s · flujo=%s", tipo, page_id, ev.get("flujo", ""))
+
+    if tipo != "delivered":
+        cliente = _titulo_fila(props)
+        asesores = nc.people_names(props.get("Adviser Accounting", {}) or {})
+        mes = nc.plain(props.get("Month", {}) or {})
+        alertas.avisar_fallo_asesor(
+            asesores[0] if asesores else "", cliente, mes,
+            f"El correo fue ACEPTADO por SendGrid pero NO llegó al cliente (evento: {tipo}). "
+            f"Revisá la dirección de la columna Email y reenviá. "
+            f"Detalle técnico: {str(ev.get('reason', '') or 'sin detalle')[:200]}",
+        )
+    return True
+
+
+@app.post("/webhook/sendgrid")
+def webhook_sendgrid():
+    """Event Webhook de SendGrid (doc 30). Autenticación por token compartido
+    en la query (?token=...): SendGrid no permite headers custom aquí. Procesa
+    el batch completo y responde 200 aunque algún evento falle (si no, SendGrid
+    reintenta el batch ENTERO y duplicaría los que sí se procesaron)."""
+    token = os.environ.get("SENDGRID_WEBHOOK_TOKEN", "")
+    if not token:
+        log.error("SENDGRID_WEBHOOK_TOKEN ausente en el servidor · 503")
+        abort(503, "backend sin SENDGRID_WEBHOOK_TOKEN configurado")
+    if request.args.get("token", "") != token:
+        log.warning("token invalido o ausente en /webhook/sendgrid · 401")
+        abort(401)
+
+    eventos = request.get_json(force=True, silent=True) or []
+    if isinstance(eventos, dict):
+        eventos = [eventos]
+    actualizados = 0
+    for ev in eventos:
+        if not isinstance(ev, dict):
+            continue
+        try:
+            if _procesar_evento_sendgrid(ev):
+                actualizados += 1
+        except Exception as exc:
+            log.warning("evento sendgrid fallo · evento=%s · %s", ev.get("event", ""), exc)
+    log.info("webhook sendgrid · eventos=%d · filas_actualizadas=%d", len(eventos), actualizados)
+    return {"ok": True, "eventos": len(eventos), "filas_actualizadas": actualizados}, 200
+
+
 @app.get("/health")
 def health():
     # Solo booleanos/conteos, nunca valores (sin PII). Permite diagnosticar
@@ -636,9 +736,10 @@ def health():
     return {
         "ok": True,
         "service": "auditai-f29",
-        "version": "2026-07-13.5-reset-esquema-real",
+        "version": "2026-07-14.1-entrega-webhook",
         "webhook_secret_configurado": bool(os.environ.get("WEBHOOK_SECRET")),
         "admin_alerts_configurados": len(es.admin_emails()),
+        "sendgrid_webhook_token_configurado": bool(os.environ.get("SENDGRID_WEBHOOK_TOKEN")),
     }, 200
 
 
