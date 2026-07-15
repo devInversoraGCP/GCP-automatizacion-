@@ -118,6 +118,7 @@ def _procesar_page(page_id: str) -> dict:
 
     email = nc.plain(props.get(P_EMAIL, {}))
     nombre = nc.plain(props.get(P_NOMBRE, {}))
+    rut = nc.plain(props.get("Rut", {}))
     mes = nc.plain(props.get(P_MES, {}))
     monto = nc.plain(props.get(P_MONTO, {}))
     honorarios = nc.plain(props.get(P_HONORARIOS, {}))
@@ -159,9 +160,19 @@ def _procesar_page(page_id: str) -> dict:
     def _alertar_error(motivo: str):
         alertas.avisar_fallo_asesor(nombre_asesor, nombre, mes, motivo)
 
+    # Fallback igual que RRHH: si la fila del Contable no trae Email, buscarlo
+    # por RUT en la base madre (solo lectura). Cierra los casos de filas con
+    # Email vacio cuyo correo SI existe en la central (visto 15-jul: CONSTRUGLOBAL,
+    # Neurocirugia, NATALIA, ZOE). Si la central tampoco lo tiene, se alerta.
+    if not email and rut:
+        encontrado = nc.buscar_email_en_central(rut)
+        if encontrado:
+            email = encontrado
+            log.info("email F29 recuperado desde base central · page_id=%s", page_id)
+
     if not email:
-        _alertar_error("Fila sin correo electrónico (Email).")
-        return {"ok": False, "motivo": "fila sin Email"}
+        _alertar_error("Fila sin correo electrónico (Email) y no se encontró en la base central por RUT.")
+        return {"ok": False, "motivo": "fila sin Email (ni en la fila ni en la base central)"}
 
     if not mes:
         _alertar_error("Fila sin mes (ni Month ni título de la base parent con patrón 'Contable <Mes>'), necesario para calcular la fecha límite.")

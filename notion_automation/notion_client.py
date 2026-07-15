@@ -2,11 +2,18 @@
 Credenciales solo en memoria (R3): nunca imprime Clave SII, Rut ni Email."""
 from __future__ import annotations
 import os
+import logging
 import requests
 from http_util import request_con_reintentos
 
+log = logging.getLogger("auditai")
+
 API = "https://api.notion.com/v1"
 VER = "2025-09-03"
+
+# Base madre (General Customers Data - AuditAI): fuente de correos por RUT
+# cuando la fila del Contable no trae Email. SOLO LECTURA (base sagrada).
+DS_CENTRAL = "4ff12147-b3ea-82f4-98dd-072067524cdc"
 
 _MESES_ES = {
     "enero": 1, "febrero": 2, "marzo": 3, "abril": 4, "mayo": 5, "junio": 6,
@@ -158,6 +165,33 @@ def find_page_by_rut_generico(rut: str, ds_id: str, prop_rut: str = "Rut") -> st
     if not results:
         return None
     return results[0]["id"]
+
+
+def buscar_email_en_central(rut: str) -> str | None:
+    """Busca el Email de un cliente por RUT en la base madre (SOLO LECTURA).
+    Fallback cuando la fila del Contable llega con la columna Email vacia:
+    muchos clientes tienen el correo cargado en la base central aunque falte
+    en el Contable del mes. Devuelve el primer valor no vacio de las columnas
+    email/Email/e-mail, o None. Nunca lanza: si el lookup falla, el caller
+    sigue sin email (R5). NO valida el formato — de eso se encarga
+    email_sender._validar_destinatario antes de enviar (asi un valor basura de
+    la central, ej. 'SOLO WATHSAPP', se corta igual con un motivo claro)."""
+    if not rut:
+        return None
+    try:
+        body = {"filter": {"property": "RUT", "rich_text": {"equals": rut}}, "page_size": 3}
+        results = query_data_source(DS_CENTRAL, body)
+        if not results:
+            return None
+        props = results[0].get("properties", {})
+        for col in ("email", "Email", "e-mail"):
+            val = plain(props.get(col, {}))
+            if val:
+                return val
+        return None
+    except Exception as exc:
+        log.warning("lookup email en base central fallo (se sigue sin email): %s", exc)
+        return None
 
 
 def get_database_title(database_id: str) -> str:
