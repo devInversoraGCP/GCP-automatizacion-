@@ -553,7 +553,8 @@ Trasladadas de [`05-decisiones-y-preguntas.md`](05-decisiones-y-preguntas.md); c
   - [ ] Columna checkbox "Confirmar Reset" en Contable (la crea el usuario en la UI)
   - [ ] Fila de control `⚙️ RESET_MES` en Contable (la crea el usuario; ordenar vistas para que quede arriba)
   - [ ] Botón "Reset Mes" en Contable (webhook a `/reset-mes` con headers `X-Reset-Tipo`/`X-Reset-DB`; lo crea el usuario en la UI)
-  - [ ] Verificar nombre exacto del status "sin empezar" en Notion + prueba E2E
+  - [x] Verificar nombre exacto del status ("Not started"/"Sin empezar" según columna) — 14-jul
+  - [x] **Prueba E2E exitosa (15-jul)** sobre duplicado "Contable Junio (1)": 291 filas reseteadas, 0 fallidas, estáticos intactos, checkbox auto-desmarcado. Reset asíncrono ~2 min (doc 29)
   - [ ] Fase 3: extender a RRHH y Tickets (`RESET_RRHH` / `RESET_TICKETS`)
 
 ### N.3b · Confirmación de entrega real — SendGrid Event Webhook ([`30`](30-confirmacion-entrega-sendgrid.md)) 🆕

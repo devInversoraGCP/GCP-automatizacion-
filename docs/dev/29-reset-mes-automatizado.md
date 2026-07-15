@@ -381,6 +381,23 @@ Al implementar contra el código real del backend surgieron 4 ajustes necesarios
 `_reset_aplicar`/`_lanzar_reset`), `notion_automation/notion_client.py`
 (`get_data_source_id`), `notion_automation/tests/test_reset_mes.py` (15 tests).
 
+### ✅ Prueba E2E exitosa (15-jul-2026, sobre el duplicado "Contable Junio (1)")
+
+Se probó sobre una copia (`database_id 39c12147-…`, 291 filas) para no tocar datos
+reales. Resultado verificado por API: **291 filas reseteadas, 0 fallidas**; todos
+los campos dinámicos limpios (Status→"Not started", Impuestos/Fecha Envío vacíos),
+estáticos intactos (Rut/Email), checkbox `Confirmar reset` auto-desmarcado. La
+base original no se tocó.
+
+> ⚠️ **Comportamiento asíncrono (lección operativa):** el reset corre en un hilo
+> de fondo y tarda **~1-2 min** para ~300 filas (un PATCH por fila). El botón
+> responde 202 al instante pero **las filas se actualizan gradualmente**; no se
+> ven todas reseteadas de inmediato. Avisar a Carlos: apretar UNA vez y esperar
+> ~2 min (el guard de concurrencia ignora clicks repetidos con `{"duplicado": true}`).
+> Requisito previo confirmado: la integración "Conexion opencode y notion" debe
+> estar conectada a la base (una base duplicada nace SIN la conexión → 404 hasta
+> agregarla manualmente; es la misma paradoja del doc 28 §13.d).
+
 ---
 
 ## Resumen de Archivos
