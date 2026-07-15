@@ -199,11 +199,11 @@ def procesar(page_id: str, tipo_correo: str) -> dict:
 
     if not email:
         motivo = "fila sin Email (columna Email vacía)"
-        alertas.avisar_fallo_asesor(asesor, cliente, "", motivo)
+        alertas.avisar_fallo_asesor(asesor, cliente, "", motivo, flujo=f"tickets-{tipo_correo}", page_id=page_id)
         return {"ok": False, "motivo": motivo}
     if not cliente:
         motivo = "fila sin Tarea (nombre de cliente, necesario)"
-        alertas.avisar_fallo_asesor(asesor, cliente, "", motivo)
+        alertas.avisar_fallo_asesor(asesor, cliente, "", motivo, flujo=f"tickets-{tipo_correo}", page_id=page_id)
         return {"ok": False, "motivo": motivo}
 
     estandar = estandar_tpl.format(tipo=tipo)
@@ -244,12 +244,12 @@ def procesar(page_id: str, tipo_correo: str) -> dict:
         log.info("correo tickets/%s enviado OK · page_id=%s remitente=%s", tipo_correo, page_id, remitente)
     except ValueError as exc:
         log.error("error envio tickets · page_id=%s · %s", page_id, exc)
-        alertas.avisar_fallo_asesor(asesor, cliente, "", str(exc))
+        alertas.avisar_fallo_asesor(asesor, cliente, "", str(exc), flujo=f"tickets-{tipo_correo}", page_id=page_id)
         return {"ok": False, "motivo": str(exc)}
     except Exception as exc:
         log.error("error SMTP tickets · page_id=%s · %s", page_id, exc)
         motivo = f"error SMTP: {exc}"
-        alertas.avisar_fallo_asesor(asesor, cliente, "", motivo)
+        alertas.avisar_fallo_asesor(asesor, cliente, "", motivo, flujo=f"tickets-{tipo_correo}", page_id=page_id)
         return {"ok": False, "motivo": motivo}
 
     # Write-back tolerante: solo columnas presentes en la fila (R6)

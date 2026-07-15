@@ -113,9 +113,12 @@ class TestEventos:
         assert alerta.called
         asesor, cliente, mes, motivo = alerta.call_args[0]
         assert asesor == "Sebastián Robles" and cliente == "Cliente Test"
-        assert "bounce" in motivo and "volvió a rebotar" in motivo
-        que_hacer = alerta.call_args[1]["que_hacer"]
-        assert "quedó en 'Enviado'" in que_hacer
+        assert "bounce" in motivo.lower()
+        # el contexto del rebote viaja en kwargs para que el diagnostico lo use
+        kw = alerta.call_args[1]
+        assert kw["flujo"] == "f29" and kw["page_id"] == PID
+        assert kw["extra"]["ya_reintentado"] is True
+        assert "550 mailbox" in kw["extra"]["bounce_reason"]
 
     def test_dropped_avisa_de_inmediato_sin_reintento(self, client):
         # dropped = SendGrid suprimió el envío; reintentar da lo mismo.

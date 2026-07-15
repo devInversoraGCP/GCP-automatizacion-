@@ -158,7 +158,8 @@ def _procesar_page(page_id: str) -> dict:
     )
 
     def _alertar_error(motivo: str):
-        alertas.avisar_fallo_asesor(nombre_asesor, nombre, mes, motivo)
+        alertas.avisar_fallo_asesor(nombre_asesor, nombre, mes, motivo,
+                                    flujo="f29", page_id=page_id)
 
     # Fallback igual que RRHH: si la fila del Contable no trae Email, buscarlo
     # por RUT en la base madre (solo lectura). Cierra los casos de filas con
@@ -789,14 +790,13 @@ def _procesar_evento_sendgrid(ev: dict) -> bool:
         ya_reintentado = tipo == "bounce" and page_id in _reintentos_hechos
         alertas.avisar_fallo_asesor(
             asesores[0] if asesores else "", cliente, mes,
-            f"El correo fue ACEPTADO por SendGrid pero NO llegó al cliente (evento: {tipo})."
-            + (" Ya se reintentó automáticamente una vez y volvió a rebotar." if ya_reintentado else "")
-            + f" Detalle técnico: {str(ev.get('reason', '') or 'sin detalle')[:200]}",
-            que_hacer=(
-                "corrige la dirección de la columna Email en Notion y vuelve a apretar el botón. "
-                "OJO: el Status de la fila quedó en 'Enviado' porque SendGrid había aceptado el "
-                "correo, pero al cliente NO le llegó."
-            ),
+            f"El correo fue ACEPTADO por SendGrid pero NO llegó al cliente (evento: {tipo}).",
+            flujo=str(ev.get("flujo", "") or "f29"),
+            page_id=page_id,
+            extra={
+                "bounce_reason": str(ev.get("reason", "") or "")[:200],
+                "ya_reintentado": ya_reintentado,
+            },
         )
     return True
 

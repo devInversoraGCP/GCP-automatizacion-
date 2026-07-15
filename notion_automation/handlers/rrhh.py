@@ -67,12 +67,12 @@ def procesar(page_id: str) -> dict:
 
     if not email:
         motivo = "fila sin Email (ni columna Email Cliente ni lookup por RUT)"
-        alertas.avisar_fallo_asesor(nombre_asesor, nombre, "", motivo)
+        alertas.avisar_fallo_asesor(nombre_asesor, nombre, "", motivo, flujo="rrhh", page_id=page_id)
         return {"ok": False, "motivo": motivo}
 
     if not nombre:
         motivo = "fila sin CLIENTE (necesario para el asunto y cuerpo)"
-        alertas.avisar_fallo_asesor(nombre_asesor, nombre, "", motivo)
+        alertas.avisar_fallo_asesor(nombre_asesor, nombre, "", motivo, flujo="rrhh", page_id=page_id)
         return {"ok": False, "motivo": motivo}
 
     mes = nc.derivar_month_desde_base(page)
@@ -100,12 +100,12 @@ def procesar(page_id: str) -> dict:
         log.info("correo RRHH enviado OK · page_id=%s remitente=%s", page_id, remitente)
     except ValueError as exc:
         log.error("error envio RRHH · page_id=%s · %s", page_id, exc)
-        alertas.avisar_fallo_asesor(nombre_asesor, nombre, mes, str(exc))
+        alertas.avisar_fallo_asesor(nombre_asesor, nombre, mes, str(exc), flujo="rrhh", page_id=page_id)
         return {"ok": False, "motivo": str(exc)}
     except Exception as exc:
         log.error("error SMTP RRHH · page_id=%s · %s", page_id, exc)
         motivo = f"error SMTP: {exc}"
-        alertas.avisar_fallo_asesor(nombre_asesor, nombre, mes, motivo)
+        alertas.avisar_fallo_asesor(nombre_asesor, nombre, mes, motivo, flujo="rrhh", page_id=page_id)
         return {"ok": False, "motivo": motivo}
 
     # Write-back: solo columnas que existen en la fila (si falta una, no

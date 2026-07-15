@@ -703,63 +703,32 @@ def _enviar_via_sendgrid(api_key, remitente_email, asesor_firma, destinatario,
 
 def admin_emails() -> list[str]:
     """Lista de correos admin desde ADMIN_ALERT_EMAIL (separados por coma).
-    '' o no seteada -> lista vacia. Usado por enviar_aviso_error (cc) y por
-    alertas.avisar_excepcion_admin (destinatario)."""
+    '' o no seteada -> lista vacia. Usado por enviar_aviso_dev (destinatario) y
+    por alertas.avisar_excepcion_admin (destinatario)."""
     raw = os.environ.get("ADMIN_ALERT_EMAIL", "")
     return [e.strip() for e in raw.split(",") if e.strip()]
 
 
-def enviar_aviso_error(email_asesor: str, cliente: str, mes: str, motivo: str,
-                       que_hacer: str = "") -> bool:
-    """Aviso automatico al asesor cuando el correo de un cliente NO se pudo enviar.
-    Best-effort: nunca lanza excepcion (si el propio aviso falla, devuelve False y
-    queda solo el log del backend). Requiere SENDGRID_API_KEY (nube).
-    Limite conocido: si SendGrid entero esta caido, este aviso tampoco sale.
-
-    que_hacer: instruccion para el asesor. El default aplica a fallos PRE-envio
-    (el Status no se toco); los rebotes post-aceptacion pasan su propio texto,
-    porque ahi el Status SI quedo en 'Enviado' y el default seria mentira.
-
-    Fase 1 (doc 27, observabilidad): copia en ADMIN_ALERT_EMAIL si esta seteada,
-    para que el administrador vea TODOS los fallos (F29/RRHH/Tickets) en un solo
-    buzon, no solo el asesor de cada cliente."""
+def _post_aviso(destinatarios: list[str], asunto: str, texto: str, html: str,
+                cc: list[str] | None = None) -> bool:
+    """Envía un aviso simple por la API de SendGrid (sin adjuntos ni inline).
+    Best-effort: nunca lanza; devuelve False si falta config o falla la red."""
     try:
         api_key = os.environ.get("SENDGRID_API_KEY")
-        if not (api_key and email_asesor):
+        to = [d for d in (destinatarios or []) if d]
+        if not (api_key and to):
             return False
-        que_hacer = que_hacer or (
-            "revisa la fila en Notion (Email, Month, Adviser Accounting, Adjuntos) "
-            "y vuelve a apretar el boton. El Status de la fila NO fue cambiado."
-        )
         remitente = os.environ.get("EMAIL_FROM", "notificaciones@inversoragcp.com")
-        asunto = f"AVISO: no se envio el correo F29 de {cliente}"
-        cuerpo = (
-            f"El correo del F29 de {cliente} (periodo {mes or 'desconocido'}) NO se pudo enviar.\n\n"
-            f"Motivo: {motivo}\n\n"
-            f"Que hacer: {que_hacer}\n\n"
-            "— Aviso automatico del sistema AuditAI (no responder)."
-        )
-        html = (
-            '<div style="font-family:Arial,sans-serif;max-width:560px;">'
-            '<div style="background:#fff3f3;border:1px solid #f3c2c2;border-left:4px solid #c0392b;'
-            'border-radius:10px;padding:16px 20px;">'
-            f'<p style="margin:0 0 10px 0;"><b>El correo del F29 de {_escape(cliente)}</b> '
-            f'(periodo {_escape(mes or "desconocido")}) <b>NO se pudo enviar.</b></p>'
-            f'<p style="margin:0 0 10px 0;"><b>Motivo:</b> {_escape(motivo)}</p>'
-            f'<p style="margin:0;"><b>Que hacer:</b> {_escape(que_hacer)}</p></div>'
-            '<p style="color:#8593a8;font-size:12px;">Aviso automatico del sistema AuditAI (no responder).</p>'
-            '</div>'
-        )
-        personalization = {"to": [{"email": email_asesor}]}
-        admins = [a for a in admin_emails() if a.lower() != email_asesor.lower()]
-        if admins:
-            personalization["cc"] = [{"email": a} for a in admins]
+        personalization = {"to": [{"email": d} for d in to]}
+        cc_clean = [c for c in (cc or []) if c and c.lower() not in {d.lower() for d in to}]
+        if cc_clean:
+            personalization["cc"] = [{"email": c} for c in cc_clean]
         payload = {
             "personalizations": [personalization],
             "from": {"email": remitente, "name": "AuditAI · Avisos"},
             "subject": asunto,
             "content": [
-                {"type": "text/plain", "value": cuerpo},
+                {"type": "text/plain", "value": texto},
                 {"type": "text/html", "value": html},
             ],
         }
@@ -771,3 +740,97 @@ def enviar_aviso_error(email_asesor: str, cliente: str, mes: str, motivo: str,
         return r.status_code in (200, 202)
     except Exception:
         return False
+
+
+def _lista_html(pasos: list[str]) -> str:
+    items = "".join(f'<li style="margin:0 0 6px 0;">{_escape(p)}</li>' for p in pasos)
+    return f'<ol style="margin:8px 0 0 0;padding-left:20px;color:#3a4658;font-size:14px;line-height:1.6;">{items}</ol>'
+
+
+def enviar_aviso_asesor(email_asesor: str, cliente: str, mes: str, diag) -> bool:
+    """Aviso DIDÁCTICO al asesor (contador) cuando un correo no se pudo enviar.
+    Lenguaje simple, sin tecnicismos, con pasos accionables en Notion. `diag` es
+    un diagnostico.Diagnostico. Best-effort: nunca lanza."""
+    puede = diag.puede_asesor
+    chip = ("✅ Esto lo puedes resolver tú" if puede
+            else "🔧 Esto lo resuelve el equipo técnico")
+    chip_bg = "#eaf7ee" if puede else "#eef2fb"
+    chip_bd = "#bfe3c8" if puede else "#cdd8f0"
+    chip_fg = "#1d7a3a" if puede else "#33489a"
+    asunto = f"Acción requerida: correo de {cliente} ({mes or 'sin período'})"
+
+    texto = (
+        f"{diag.titulo}\n\n"
+        f"{'Lo puedes resolver tú.' if puede else 'Lo resuelve el equipo técnico.'}\n\n"
+        f"{diag.explicacion_asesor}\n\n"
+        "Qué hacer:\n" + "".join(f"  {i}. {p}\n" for i, p in enumerate(diag.pasos_asesor, 1))
+        + "\n— Aviso automatico del sistema AuditAI (no responder)."
+    )
+    html = (
+        '<div style="font-family:Arial,Helvetica,sans-serif;max-width:600px;color:#0B1F3A;">'
+        f'<div style="display:inline-block;background:{chip_bg};border:1px solid {chip_bd};'
+        f'color:{chip_fg};font-size:12px;font-weight:700;border-radius:999px;padding:5px 12px;margin-bottom:12px;">{chip}</div>'
+        '<div style="background:#fff8f6;border:1px solid #f3d6cf;border-left:4px solid #d9663f;'
+        'border-radius:12px;padding:18px 22px;">'
+        f'<div style="font-size:17px;font-weight:800;margin:0 0 8px 0;">{_escape(diag.titulo)}</div>'
+        f'<p style="margin:0 0 14px 0;font-size:14px;line-height:1.6;color:#3a4658;">{_escape(diag.explicacion_asesor)}</p>'
+        '<div style="font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#9a4a2a;">Qué hacer</div>'
+        f'{_lista_html(diag.pasos_asesor)}'
+        '</div>'
+        f'<p style="margin:14px 2px 0;font-size:13px;color:#5a6b82;">Cliente: <b>{_escape(cliente)}</b> · Período: <b>{_escape(mes or "—")}</b></p>'
+        '<p style="color:#8593a8;font-size:12px;margin-top:6px;">Aviso automatico del sistema AuditAI (no responder).</p>'
+        '</div>'
+    )
+    return _post_aviso([email_asesor], asunto, texto, html)
+
+
+def enviar_aviso_dev(admins: list[str], cliente: str, mes: str, diag,
+                     motivo: str = "", flujo: str = "", page_id: str = "") -> bool:
+    """Aviso TÉCNICO al desarrollador/administrador: causa raíz, detalle para
+    depurar, y una query lista para pegar en un chat con un LLM y resolverlo.
+    Best-effort: nunca lanza. Si no hay admins, no envía (queda el log)."""
+    asunto = f"[DEV] Fallo {flujo or 'envío'} · {cliente} · {diag.categoria}"
+    resuelve = "Requiere corrección de DATO (asesor)" if diag.puede_asesor else "Requiere acción del DEV/config"
+
+    texto = (
+        f"Fallo de envío · categoría: {diag.categoria}\n"
+        f"Cliente: {cliente} · Período: {mes or '—'} · flujo: {flujo or '—'} · page_id: {page_id or '—'}\n"
+        f"Clasificación: {resuelve}\n\n"
+        f"MOTIVO (crudo): {motivo}\n\n"
+        f"CAUSA RAÍZ:\n{diag.causa_raiz}\n\n"
+        f"DETALLE:\n{diag.detalle_dev}\n\n"
+        f"QUERY PARA RESOLVER CON UN LLM (copiar y pegar en el chat):\n{diag.query_llm}\n\n"
+        "— AuditAI · canal DEV (no responder)."
+    )
+    html = (
+        '<div style="font-family:Arial,Helvetica,sans-serif;max-width:680px;color:#0B1F3A;">'
+        '<div style="display:inline-block;background:#eef2fb;border:1px solid #cdd8f0;color:#33489a;'
+        'font-size:12px;font-weight:700;border-radius:999px;padding:5px 12px;margin-bottom:12px;">🔧 Canal DEV</div>'
+        f'<div style="font-size:17px;font-weight:800;margin:0 0 4px 0;">{_escape(diag.titulo)}</div>'
+        f'<p style="margin:0 0 14px 0;font-size:13px;color:#5a6b82;">'
+        f'categoría <b>{_escape(diag.categoria)}</b> · {_escape(resuelve)}</p>'
+        '<table style="border-collapse:collapse;font-size:13px;color:#3a4658;margin:0 0 14px 0;">'
+        f'<tr><td style="padding:2px 10px 2px 0;color:#8593a8;">Cliente</td><td style="padding:2px 0;"><b>{_escape(cliente)}</b></td></tr>'
+        f'<tr><td style="padding:2px 10px 2px 0;color:#8593a8;">Período</td><td style="padding:2px 0;">{_escape(mes or "—")}</td></tr>'
+        f'<tr><td style="padding:2px 10px 2px 0;color:#8593a8;">Flujo</td><td style="padding:2px 0;">{_escape(flujo or "—")}</td></tr>'
+        f'<tr><td style="padding:2px 10px 2px 0;color:#8593a8;">page_id</td><td style="padding:2px 0;font-family:monospace;">{_escape(page_id or "—")}</td></tr>'
+        '</table>'
+        f'{_bloque_dev("Motivo (crudo)", motivo)}'
+        f'{_bloque_dev("Causa raíz", diag.causa_raiz)}'
+        f'{_bloque_dev("Detalle para depurar", diag.detalle_dev)}'
+        '<div style="font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#33489a;margin:16px 0 6px;">Query para resolver con un LLM</div>'
+        '<pre style="white-space:pre-wrap;word-break:break-word;background:#0B1F3A;color:#e7edf7;'
+        f'border-radius:10px;padding:14px 16px;font-family:Consolas,Menlo,monospace;font-size:12.5px;line-height:1.5;margin:0;">{_escape(diag.query_llm)}</pre>'
+        '<p style="color:#8593a8;font-size:12px;margin-top:12px;">AuditAI · canal DEV (no responder).</p>'
+        '</div>'
+    )
+    return _post_aviso(admins, asunto, texto, html)
+
+
+def _bloque_dev(titulo: str, valor: str) -> str:
+    if not (valor or "").strip():
+        return ""
+    return (
+        f'<div style="font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#5a6b82;margin:12px 0 4px;">{_escape(titulo)}</div>'
+        f'<div style="font-size:13.5px;color:#3a4658;line-height:1.55;background:#f4f6fa;border:1px solid #dfe5ee;border-radius:8px;padding:10px 14px;">{_escape(valor)}</div>'
+    )

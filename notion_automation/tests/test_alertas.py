@@ -18,20 +18,43 @@ class TestAdminEmails:
 
 class TestAvisarFalloAsesor:
     def test_resuelve_email_del_asesor(self):
-        with patch.object(es, "enviar_aviso_error", return_value=True) as m:
+        with patch.object(es, "enviar_aviso_asesor", return_value=True) as m, \
+             patch.object(es, "enviar_aviso_dev", return_value=True):
             alertas.avisar_fallo_asesor("Sebastián Robles", "CLIENTE X", "Junio 2026", "sin Email")
         args = m.call_args[0]
         assert args[0] == "sebastianrobles@inversoragcp.com"
-        assert args[1] == "CLIENTE X" and args[2] == "Junio 2026" and args[3] == "sin Email"
+        assert args[1] == "CLIENTE X" and args[2] == "Junio 2026"
+        # el 4º arg es el Diagnostico ya clasificado
+        assert args[3].categoria == "sin_email"
 
     def test_asesor_desconocido_usa_email_from(self):
-        with patch.object(es, "enviar_aviso_error", return_value=True) as m:
+        with patch.object(es, "enviar_aviso_asesor", return_value=True) as m, \
+             patch.object(es, "enviar_aviso_dev", return_value=True):
             alertas.avisar_fallo_asesor("", "CLIENTE X", "", "motivo")
         assert m.call_args[0][0] == os.environ.get("EMAIL_FROM", "notificaciones@inversoragcp.com")
 
+    def test_manda_tecnico_al_dev_si_hay_admins(self, monkeypatch):
+        monkeypatch.setenv("ADMIN_ALERT_EMAIL", "dev@x.com")
+        with patch.object(es, "enviar_aviso_asesor", return_value=True), \
+             patch.object(es, "enviar_aviso_dev", return_value=True) as m:
+            alertas.avisar_fallo_asesor("Sebastián Robles", "X", "Junio 2026", "sin Email",
+                                        flujo="f29", page_id="pid-1")
+        assert m.called
+        admins, cliente, mes, diag = m.call_args[0]
+        assert admins == ["dev@x.com"] and diag.categoria == "sin_email"
+        assert m.call_args.kwargs["page_id"] == "pid-1"
+
+    def test_sin_admins_no_manda_tecnico(self, monkeypatch):
+        monkeypatch.delenv("ADMIN_ALERT_EMAIL", raising=False)
+        with patch.object(es, "enviar_aviso_asesor", return_value=True), \
+             patch.object(es, "enviar_aviso_dev", return_value=True) as m:
+            alertas.avisar_fallo_asesor("Sebastián Robles", "X", "Junio 2026", "sin Email")
+        assert not m.called
+
     def test_nunca_propaga_excepcion(self):
         # best-effort: si el envío del aviso revienta, no debe propagarse
-        with patch.object(es, "enviar_aviso_error", side_effect=RuntimeError("caído")):
+        with patch.object(es, "enviar_aviso_asesor", side_effect=RuntimeError("caído")), \
+             patch.object(es, "enviar_aviso_dev", side_effect=RuntimeError("caído")):
             alertas.avisar_fallo_asesor("Carlos Cereceda", "X", "Y", "Z")  # no debe lanzar
 
 
@@ -65,21 +88,53 @@ class TestAvisarExcepcionAdmin:
             alertas.avisar_excepcion_admin("F29", "p3", ValueError("x"))  # no debe lanzar
 
 
-class TestCcAdminEnAvisoError:
-    def test_cc_a_los_dos_admins(self, monkeypatch):
-        monkeypatch.setenv("SENDGRID_API_KEY", "fake")
-        monkeypatch.setenv("ADMIN_ALERT_EMAIL", "a@x.com,b@y.com")
-        with patch.object(es.requests, "post") as m:
-            m.return_value = MagicMock(status_code=202)
-            es.enviar_aviso_error("sebastianrobles@inversoragcp.com", "X", "Junio 2026", "m")
-        cc = {c["email"] for c in m.call_args.kwargs["json"]["personalizations"][0]["cc"]}
-        assert cc == {"a@x.com", "b@y.com"}
+class TestEnviarAvisoAsesor:
+    def _diag(self, **kw):
+        import diagnostico
+        return diagnostico.diagnosticar("La columna Email no es una direccion de correo valida",
+                                        cliente="CLIENTE X", **kw)
 
-    def test_no_duplica_si_asesor_es_admin(self, monkeypatch):
+    def test_va_solo_al_asesor_y_no_incluye_query_llm(self, monkeypatch):
         monkeypatch.setenv("SENDGRID_API_KEY", "fake")
-        monkeypatch.setenv("ADMIN_ALERT_EMAIL", "a@x.com,carlos@z.com")
         with patch.object(es.requests, "post") as m:
             m.return_value = MagicMock(status_code=202)
-            es.enviar_aviso_error("carlos@z.com", "X", "Junio 2026", "m")
-        cc = [c["email"] for c in m.call_args.kwargs["json"]["personalizations"][0]["cc"]]
-        assert cc == ["a@x.com"]  # carlos (destinatario) no se duplica en cc
+            es.enviar_aviso_asesor("seba@inversoragcp.com", "CLIENTE X", "Junio 2026", self._diag())
+        p = m.call_args.kwargs["json"]["personalizations"][0]
+        assert [t["email"] for t in p["to"]] == ["seba@inversoragcp.com"]
+        assert "cc" not in p   # el asesor NO recibe copia técnica
+        cuerpo = m.call_args.kwargs["json"]["content"][0]["value"]
+        # el correo del asesor no debe traer la query para el LLM ni page_id crudo
+        assert "QUERY PARA RESOLVER" not in cuerpo and "MCP de Notion" not in cuerpo
+
+    def test_didactico_incluye_pasos(self, monkeypatch):
+        monkeypatch.setenv("SENDGRID_API_KEY", "fake")
+        with patch.object(es.requests, "post") as m:
+            m.return_value = MagicMock(status_code=202)
+            es.enviar_aviso_asesor("seba@inversoragcp.com", "CLIENTE X", "Junio 2026", self._diag())
+        cuerpo = m.call_args.kwargs["json"]["content"][0]["value"]
+        assert "Qué hacer" in cuerpo and "columna Email" in cuerpo
+
+
+class TestEnviarAvisoDev:
+    def _diag(self):
+        import diagnostico
+        return diagnostico.diagnosticar("La columna Email no es una direccion de correo valida",
+                                        flujo="f29", cliente="CLIENTE X", page_id="pid-42")
+
+    def test_va_a_los_admins_con_causa_raiz_y_query(self, monkeypatch):
+        monkeypatch.setenv("SENDGRID_API_KEY", "fake")
+        with patch.object(es.requests, "post") as m:
+            m.return_value = MagicMock(status_code=202)
+            es.enviar_aviso_dev(["a@x.com", "b@y.com"], "CLIENTE X", "Junio 2026", self._diag(),
+                                motivo="motivo crudo", flujo="f29", page_id="pid-42")
+        to = {t["email"] for t in m.call_args.kwargs["json"]["personalizations"][0]["to"]}
+        assert to == {"a@x.com", "b@y.com"}
+        cuerpo = m.call_args.kwargs["json"]["content"][0]["value"]
+        assert "CAUSA RAÍZ" in cuerpo and "QUERY PARA RESOLVER" in cuerpo
+        assert "pid-42" in cuerpo and "motivo crudo" in cuerpo
+
+    def test_sin_admins_no_envia(self, monkeypatch):
+        monkeypatch.setenv("SENDGRID_API_KEY", "fake")
+        with patch.object(es.requests, "post") as m:
+            assert es.enviar_aviso_dev([], "X", "Junio 2026", self._diag()) is False
+        assert not m.called
