@@ -103,40 +103,61 @@ class TestNorm:
         assert es._norm("  Carlos   Cereceda  ") == "carlos cereceda"
 
 
-class TestValidarDestinatario:
+class TestValidarDestinatarios:
     """La celda Email de Notion no valida nada: el backend debe cortar los
     valores que no son correos ANTES de llamar a SendGrid (caso real de
-    producción: la celda traía un RUT + usuario SII, 15-jul-2026)."""
+    producción: la celda traía un RUT + usuario SII, 15-jul-2026). Además la
+    celda puede traer VARIOS correos (Hydroming): la 1ra dirección es el 'to' y
+    el resto van en CC."""
 
     def test_email_valido_pasa_y_queda_limpio(self):
-        assert es._validar_destinatario("  cliente@empresa.cl ") == "cliente@empresa.cl"
+        assert es._validar_destinatarios("  cliente@empresa.cl ") == ["cliente@empresa.cl"]
 
     def test_rut_y_usuario_rechazado(self):
         # El caso RENOFAT: credenciales pegadas en la columna Email
         with pytest.raises(ValueError, match="Email"):
-            es._validar_destinatario("8.568.094-3 / nicojuan2")
+            es._validar_destinatarios("8.568.094-3 / nicojuan2")
 
     def test_vacio_rechazado(self):
         with pytest.raises(ValueError):
-            es._validar_destinatario("")
+            es._validar_destinatarios("")
 
-    def test_dos_correos_rechazados(self):
+    def test_varios_correos_por_coma(self):
+        assert es._validar_destinatarios("a@b.cl, c@d.cl") == ["a@b.cl", "c@d.cl"]
+
+    def test_varios_correos_por_espacio_y_barra(self):
+        # El formato en que un asesor escribió varios correos en una celda:
+        # separados por espacio y barra (dominio ficticio, sin PII real).
+        raw = "uno@example.com dos@example.com / cobranza@example.com"
+        assert es._validar_destinatarios(raw) == [
+            "uno@example.com", "dos@example.com", "cobranza@example.com",
+        ]
+
+    def test_deduplica_sin_perder_orden(self):
+        assert es._validar_destinatarios("a@b.cl, A@B.CL, c@d.cl") == ["a@b.cl", "c@d.cl"]
+
+    def test_una_direccion_invalida_en_la_lista_rechaza_todo(self):
         with pytest.raises(ValueError):
-            es._validar_destinatario("a@b.cl; c@d.cl")
+            es._validar_destinatarios("a@b.cl, esto-no-es-correo")
 
     def test_sin_dominio_rechazado(self):
         with pytest.raises(ValueError):
-            es._validar_destinatario("cliente@empresa")
-
-    def test_espacio_interno_rechazado(self):
-        with pytest.raises(ValueError):
-            es._validar_destinatario("cli ente@empresa.cl")
+            es._validar_destinatarios("cliente@empresa")
 
     def test_mensaje_no_filtra_el_valor_de_la_celda(self):
         # El motivo termina en los logs (sin PII): no debe incluir la celda
         with pytest.raises(ValueError) as exc:
-            es._validar_destinatario("8.568.094-3 / nicojuan2")
+            es._validar_destinatarios("8.568.094-3 / nicojuan2")
         assert "nicojuan2" not in str(exc.value)
+
+
+class TestParseDestinatarios:
+    def test_separadores_mixtos(self):
+        assert es.parse_destinatarios("a@b.cl,c@d.cl; e@f.cl") == ["a@b.cl", "c@d.cl", "e@f.cl"]
+
+    def test_vacio_da_lista_vacia(self):
+        assert es.parse_destinatarios("") == []
+        assert es.parse_destinatarios(None) == []
 
 
 class TestEsHabil:

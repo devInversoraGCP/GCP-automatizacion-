@@ -741,11 +741,15 @@ def _procesar_evento_sendgrid(ev: dict) -> bool:
     props = page.get("properties", {}) or {}
 
     # Filtro anti-BCC: un "delivered" de la copia del asesor no debe pisar un
-    # "bounce" del cliente. Solo cuentan los eventos del email de la fila.
+    # "bounce" del cliente. Cuentan los eventos de CUALQUIER dirección de la
+    # celda Email del cliente (puede tener varias: destinatario + CC, ej.
+    # Hydroming); las copias BCC (asesor/Carlos) no están en esa celda.
     email_evento = str(ev.get("email", "") or "").strip().lower()
     clave_email = _clave_prop(props, "Email")
-    email_fila = nc.plain(props.get(clave_email, {})).strip().lower() if clave_email else ""
-    if email_fila and email_evento and email_evento != email_fila:
+    emails_fila = {
+        e.lower() for e in es.parse_destinatarios(nc.plain(props.get(clave_email, {})))
+    } if clave_email else set()
+    if emails_fila and email_evento and email_evento not in emails_fila:
         log.info("evento sendgrid de copia BCC ignorado · evento=%s · page_id=%s", tipo, page_id)
         return False
 

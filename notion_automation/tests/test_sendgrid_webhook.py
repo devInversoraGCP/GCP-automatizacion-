@@ -167,6 +167,19 @@ class TestEventos:
         assert r.get_json()["filas_actualizadas"] == 0
         assert not m.called
 
+    def test_delivered_a_una_direccion_cc_del_cliente_cuenta(self, client):
+        # Celda Email con varias direcciones (Hydroming): un delivered a la 2da
+        # (que viajó en CC) es un evento legítimo del cliente, no una copia BCC.
+        page = _page()
+        page["properties"]["Email"] = {
+            "type": "email", "email": "cliente@test.com, segundo@test.com"}
+        ev = _evento("delivered", email="segundo@test.com")
+        with patch.object(nc, "get_page", return_value=page), \
+             patch.object(nc, "update_props") as m:
+            r = client.post(URL_OK, json=[ev])
+        assert r.get_json()["filas_actualizadas"] == 1
+        assert m.called
+
     def test_evento_sin_page_id_se_ignora(self, client):
         ev = {"event": "delivered", "email": EMAIL_CLIENTE, "timestamp": 1784140800}
         with patch.object(nc, "get_page") as g, patch.object(nc, "update_props") as m:
@@ -259,3 +272,45 @@ class TestCustomArgs:
                 "Asunto", "<p>html</p>", "txt", None, None,
             )
         assert "custom_args" not in capturado
+
+
+class TestCC:
+    """La celda Email con varias direcciones (Hydroming): 1ra = to, resto = CC.
+    SendGrid exige que to/cc/bcc no compartan direcciones."""
+
+    def _capturar_payload(self, cc):
+        capturado = {}
+
+        def _fake(metodo, url, **kw):
+            capturado.update(kw.get("json") or {})
+            class R:
+                status_code = 202
+                text = ""
+            return R()
+
+        with patch.object(es, "request_con_reintentos", side_effect=_fake):
+            es._enviar_via_sendgrid(
+                "SG.key", "asesor@gcp.cl", "Asesor", "cliente@test.com",
+                "Asunto", "<p>html</p>", "txt", None, None, None, cc,
+            )
+        return capturado["personalizations"][0]
+
+    def test_cc_va_en_el_payload(self):
+        p = self._capturar_payload(["dos@test.com", "tres@test.com"])
+        assert p["to"] == [{"email": "cliente@test.com"}]
+        assert p["cc"] == [{"email": "dos@test.com"}, {"email": "tres@test.com"}]
+
+    def test_sin_cc_no_agrega_la_clave(self):
+        p = self._capturar_payload(None)
+        assert "cc" not in p
+
+    def test_cc_no_repite_ni_al_destinatario_ni_al_bcc(self):
+        # CC que coincide con el destinatario o con una copia BCC no debe
+        # duplicarse (SendGrid rechazaria to/cc/bcc con la misma direccion).
+        p = self._capturar_payload(["cliente@test.com", es.BCC_EXTRA[0]])
+        assert "cc" not in p or all(
+            c["email"].lower() != "cliente@test.com" for c in p.get("cc", [])
+        )
+        bcc = {b["email"].lower() for b in p.get("bcc", [])}
+        cc = {c["email"].lower() for c in p.get("cc", [])}
+        assert bcc.isdisjoint(cc)   # ninguna direccion en cc y bcc a la vez

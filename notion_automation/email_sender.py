@@ -78,29 +78,53 @@ def _norm(s: str) -> str:
     return " ".join(s.split())
 
 
-# Una (1) dirección: sin espacios, sin ';' ni ',' (no se aceptan listas),
-# un solo @ y dominio con punto. Suficiente para cortar los datos que no son
-# correos (un RUT, un usuario SII, dos correos pegados) antes de ir a SendGrid.
-_EMAIL_VALIDO_RE = re.compile(r"^[^@\s;,]+@[^@\s;,]+\.[A-Za-z]{2,}$")
+# Una (1) dirección individual: sin espacios ni separadores de lista, un solo
+# @ y dominio con punto. Se aplica a CADA dirección de la celda por separado.
+_EMAIL_VALIDO_RE = re.compile(r"^[^@\s;,/]+@[^@\s;,/]+\.[A-Za-z]{2,}$")
+# Separadores admitidos en la celda Email para listar varias direcciones:
+# coma, punto y coma, barra y espacios (asi soporta lo que ya escriben los
+# asesores, ej. Hydroming: "a@x.cl b@y.cl / cobranza@x.cl").
+_SEP_DEST_RE = re.compile(r"[,;/\s]+")
 
 
-def _validar_destinatario(destinatario: str) -> str:
-    """Valida el formato del destinatario ANTES de llamar a SendGrid.
+def parse_destinatarios(raw: str) -> list[str]:
+    """Divide la celda Email en direcciones individuales (sin validar formato).
+    Sirve tanto para el envío como para el filtro anti-BCC del webhook: cualquier
+    dirección de la celda cuenta como destinatario legítimo del cliente."""
+    return [x for x in _SEP_DEST_RE.split((raw or "").strip()) if x]
+
+
+def _validar_destinatarios(raw: str) -> list[str]:
+    """Valida la columna Email ANTES de llamar a SendGrid y devuelve la lista de
+    direcciones (la 1ra es el 'to', el resto van en CC). Deduplica sin perder el
+    orden. Lanza ValueError si no hay ninguna o si ALGUNA no es un correo válido.
 
     Notion no valida su columna Email: si la celda trae otro dato (visto en
     producción: un RUT + usuario SII), SendGrid rechaza con un 400 críptico en
-    inglés y de paso recibe ese dato sensible. Acá se corta antes, con un
-    motivo claro para el aviso al asesor. El mensaje NO incluye el valor de la
-    celda porque el motivo termina en los logs (política sin PII)."""
-    d = (destinatario or "").strip()
-    if not _EMAIL_VALIDO_RE.match(d):
+    inglés y de paso recibe ese dato sensible. Acá se corta antes, con un motivo
+    claro para el aviso al asesor. El mensaje NO incluye el valor de la celda
+    porque el motivo termina en los logs (política sin PII)."""
+    tokens = parse_destinatarios(raw)
+    if not tokens:
         raise ValueError(
-            "La columna Email de la fila no contiene una direccion de correo valida "
-            "(el valor parece otro dato: un RUT, un usuario, o varios correos juntos). "
-            "Corrige la celda Email en Notion y vuelve a apretar el boton. "
-            "El correo NO se envio."
+            "La columna Email de la fila está vacía o no contiene una direccion de correo. "
+            "Corrige la celda Email en Notion y vuelve a apretar el boton. El correo NO se envio."
         )
-    return d
+    for t in tokens:
+        if not _EMAIL_VALIDO_RE.match(t):
+            raise ValueError(
+                "La columna Email de la fila contiene un valor que no es una direccion de correo "
+                "valida (parece otro dato: un RUT, un usuario, o texto suelto). Si son varios "
+                "correos, sepáralos con coma. Corrige la celda Email en Notion y vuelve a apretar "
+                "el boton. El correo NO se envio."
+            )
+    seen, out = set(), []
+    for t in tokens:
+        k = t.lower()
+        if k not in seen:
+            seen.add(k)
+            out.append(t)
+    return out
 
 
 def _cargar_asesores() -> dict:
@@ -442,8 +466,12 @@ def enviar(
     custom_args: dict | None = None,
 ) -> str:
     """Envía el correo por SMTP de Gmail. El remitente es el asesor del cliente.
-    Devuelve el email del remitente usado (para log sin PII del destinatario)."""
-    destinatario = _validar_destinatario(destinatario)
+    Devuelve el email del remitente usado (para log sin PII del destinatario).
+
+    `destinatario` puede traer VARIAS direcciones (la celda Email de Notion con
+    coma/espacio/;///): la 1ra es el 'to' y el resto van en CC (caso Hydroming)."""
+    _dests = _validar_destinatarios(destinatario)
+    destinatario, cc_dests = _dests[0], _dests[1:]
     contacto = contacto or os.environ.get("EMAIL_CONTACTO", "contacto@gcp.cl")
     logo_url = logo_url or os.environ.get("LOGO_URL", "https://gcp.cl/logo.png")
 
@@ -522,7 +550,7 @@ def enviar(
         _enviar_via_sendgrid(
             os.environ["SENDGRID_API_KEY"],
             remitente_email, asesor_firma, destinatario, asunto_final, html, txt, firma_png,
-            adjuntos_bin, custom_args,
+            adjuntos_bin, custom_args, cc_dests,
         )
         return remitente_email
 
@@ -538,6 +566,8 @@ def enviar(
     msg["Subject"] = asunto_final
     msg["From"] = f"{asesor_firma} · GCP <{remitente_email}>"
     msg["To"] = destinatario
+    if cc_dests:
+        msg["Cc"] = ", ".join(cc_dests)
     alt = MIMEMultipart("alternative")
     alt.attach(MIMEText(txt, "plain", "utf-8"))
     alt.attach(MIMEText(html, "html", "utf-8"))
@@ -568,12 +598,17 @@ def enviar(
         msg.attach(_part)
 
     pass_clean = remitente_pass.replace(" ", "")
-    # BCC al asesor + extra (BCC_EXTRA) sin header visible.
+    # Sobre real: destinatario + CC visibles + BCC (asesor + BCC_EXTRA) ocultos.
+    # Se deduplica por si un CC coincide con el asesor/Carlos.
+    _ya = {destinatario.lower()}
     rcpt = [destinatario]
-    if remitente_email.lower() != destinatario.lower():
-        rcpt.append(remitente_email)
-    for _bcc in BCC_EXTRA:
-        if _bcc.lower() != destinatario.lower():
+    for _cc in cc_dests:
+        if _cc.lower() not in _ya:
+            _ya.add(_cc.lower())
+            rcpt.append(_cc)
+    for _bcc in [remitente_email, *BCC_EXTRA]:
+        if _bcc.lower() not in _ya:
+            _ya.add(_bcc.lower())
             rcpt.append(_bcc)
     context = ssl.create_default_context()
     with smtplib.SMTP_SSL("smtp.gmail.com", 465, context=context, timeout=30) as server:
@@ -585,11 +620,12 @@ def enviar(
 
 def _enviar_via_sendgrid(api_key, remitente_email, asesor_firma, destinatario,
                          asunto, html, txt, firma_png, adjuntos_bin=None,
-                         custom_args=None):
+                         custom_args=None, cc=None):
     """Envía el correo por la API HTTPS de SendGrid (Render bloquea SMTP).
     Logo + firma van como adjuntos inline (content_id) para verse en el cuerpo.
     El remitente (remitente_email) DEBE estar verificado en SendGrid (Single
-    Sender o dominio), si no SendGrid responde 403."""
+    Sender o dominio), si no SendGrid responde 403.
+    `cc`: direcciones adicionales del cliente en copia visible (caso Hydroming)."""
     attachments = []
 
     def _inline(path, cid, filename, ctype):
@@ -613,15 +649,24 @@ def _enviar_via_sendgrid(api_key, remitente_email, asesor_firma, destinatario,
             "type": _mime, "filename": _name, "disposition": "attachment",
         })
 
-    # BCC al asesor + extra (BCC_EXTRA): copia exacta.
-    # SendGrid exige que to/cc/bcc no se repitan, por eso el guard con set.
+    # CC visible: direcciones extra del cliente (celda Email con varios correos),
+    # sin repetir el destinatario principal.
+    cc_clean, _vistos = [], {destinatario.lower()}
+    for _cc in (cc or []):
+        if _cc.lower() not in _vistos:
+            _vistos.add(_cc.lower())
+            cc_clean.append(_cc)
+
+    # BCC al asesor + extra (BCC_EXTRA): copia oculta. SendGrid exige que
+    # to/cc/bcc no compartan direcciones, por eso se excluyen las ya usadas.
     bcc_set = set()
-    if remitente_email.lower() != destinatario.lower():
-        bcc_set.add(remitente_email.lower())
+    bcc_set.add(remitente_email.lower())
     for _bcc in BCC_EXTRA:
         bcc_set.add(_bcc.lower())
-    bcc_set.discard(destinatario.lower())
+    bcc_set -= _vistos   # fuera destinatario y cualquier CC ya incluido
     personalization = {"to": [{"email": destinatario}]}
+    if cc_clean:
+        personalization["cc"] = [{"email": e} for e in cc_clean]
     if bcc_set:
         personalization["bcc"] = [{"email": e} for e in sorted(bcc_set)]
 
