@@ -78,6 +78,31 @@ def _norm(s: str) -> str:
     return " ".join(s.split())
 
 
+# Una (1) dirección: sin espacios, sin ';' ni ',' (no se aceptan listas),
+# un solo @ y dominio con punto. Suficiente para cortar los datos que no son
+# correos (un RUT, un usuario SII, dos correos pegados) antes de ir a SendGrid.
+_EMAIL_VALIDO_RE = re.compile(r"^[^@\s;,]+@[^@\s;,]+\.[A-Za-z]{2,}$")
+
+
+def _validar_destinatario(destinatario: str) -> str:
+    """Valida el formato del destinatario ANTES de llamar a SendGrid.
+
+    Notion no valida su columna Email: si la celda trae otro dato (visto en
+    producción: un RUT + usuario SII), SendGrid rechaza con un 400 críptico en
+    inglés y de paso recibe ese dato sensible. Acá se corta antes, con un
+    motivo claro para el aviso al asesor. El mensaje NO incluye el valor de la
+    celda porque el motivo termina en los logs (política sin PII)."""
+    d = (destinatario or "").strip()
+    if not _EMAIL_VALIDO_RE.match(d):
+        raise ValueError(
+            "La columna Email de la fila no contiene una direccion de correo valida "
+            "(el valor parece otro dato: un RUT, un usuario, o varios correos juntos). "
+            "Corrige la celda Email en Notion y vuelve a apretar el boton. "
+            "El correo NO se envio."
+        )
+    return d
+
+
 def _cargar_asesores() -> dict:
     """Carga el directorio de asesores (y sus credenciales SMTP si las hay).
 
@@ -418,6 +443,7 @@ def enviar(
 ) -> str:
     """Envía el correo por SMTP de Gmail. El remitente es el asesor del cliente.
     Devuelve el email del remitente usado (para log sin PII del destinatario)."""
+    destinatario = _validar_destinatario(destinatario)
     contacto = contacto or os.environ.get("EMAIL_CONTACTO", "contacto@gcp.cl")
     logo_url = logo_url or os.environ.get("LOGO_URL", "https://gcp.cl/logo.png")
 

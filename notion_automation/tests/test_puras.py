@@ -2,6 +2,7 @@
 Cero mocks: son deterministas. Un error acá manda fechas o montos incorrectos
 a los clientes, así que son de los tests de mayor valor."""
 import datetime
+import pytest
 import email_sender as es
 
 
@@ -100,6 +101,42 @@ class TestNorm:
 
     def test_espacios_extra(self):
         assert es._norm("  Carlos   Cereceda  ") == "carlos cereceda"
+
+
+class TestValidarDestinatario:
+    """La celda Email de Notion no valida nada: el backend debe cortar los
+    valores que no son correos ANTES de llamar a SendGrid (caso real de
+    producción: la celda traía un RUT + usuario SII, 15-jul-2026)."""
+
+    def test_email_valido_pasa_y_queda_limpio(self):
+        assert es._validar_destinatario("  cliente@empresa.cl ") == "cliente@empresa.cl"
+
+    def test_rut_y_usuario_rechazado(self):
+        # El caso RENOFAT: credenciales pegadas en la columna Email
+        with pytest.raises(ValueError, match="Email"):
+            es._validar_destinatario("8.568.094-3 / nicojuan2")
+
+    def test_vacio_rechazado(self):
+        with pytest.raises(ValueError):
+            es._validar_destinatario("")
+
+    def test_dos_correos_rechazados(self):
+        with pytest.raises(ValueError):
+            es._validar_destinatario("a@b.cl; c@d.cl")
+
+    def test_sin_dominio_rechazado(self):
+        with pytest.raises(ValueError):
+            es._validar_destinatario("cliente@empresa")
+
+    def test_espacio_interno_rechazado(self):
+        with pytest.raises(ValueError):
+            es._validar_destinatario("cli ente@empresa.cl")
+
+    def test_mensaje_no_filtra_el_valor_de_la_celda(self):
+        # El motivo termina en los logs (sin PII): no debe incluir la celda
+        with pytest.raises(ValueError) as exc:
+            es._validar_destinatario("8.568.094-3 / nicojuan2")
+        assert "nicojuan2" not in str(exc.value)
 
 
 class TestEsHabil:
