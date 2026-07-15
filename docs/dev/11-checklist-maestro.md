@@ -555,7 +555,10 @@ Trasladadas de [`05-decisiones-y-preguntas.md`](05-decisiones-y-preguntas.md); c
   - [ ] Botón "Reset Mes" en Contable (webhook a `/reset-mes` con headers `X-Reset-Tipo`/`X-Reset-DB`; lo crea el usuario en la UI)
   - [x] Verificar nombre exacto del status ("Not started"/"Sin empezar" según columna) — 14-jul
   - [x] **Prueba E2E exitosa (15-jul)** sobre duplicado "Contable Junio (1)": 291 filas reseteadas, 0 fallidas, estáticos intactos, checkbox auto-desmarcado. Reset asíncrono ~2 min (doc 29)
-  - [ ] Fase 3: extender a RRHH y Tickets (`RESET_RRHH` / `RESET_TICKETS`)
+  - [x] **Fase 3 RRHH (15-jul):** `RESET_RRHH` implementado (montos, Estado Correo, Fecha envío, Previred/Liquidaciones→Not started, Adjuntos+Comentario del mes; estáticos y Nº. Trab. intactos). Tests 120/120
+    - [ ] Columna `Confirmar reset` + fila `RESET_MES` (title=RUT) + botón `Reset mes` en RRHH (los crea el usuario; `X-Reset-Tipo: rrhh`, `X-Reset-DB: 38712147-b3ea-80f9-9484-e0ad99c94a26`)
+    - [ ] Prueba E2E RRHH (idealmente sobre un duplicado primero)
+  - [ ] Fase 3 Tickets: PENDIENTE (no rota por mes; definir alcance — solo Estado Correo vs +montos; NO resetear el `Estado` del trámite)
 
 ### N.3b · Confirmación de entrega real — SendGrid Event Webhook ([`30`](30-confirmacion-entrega-sendgrid.md)) 🆕
 > **Origen:** incidente 13-jul-2026 (crédito SendGrid agotado, correo no salió, botón "verde" igual).

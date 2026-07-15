@@ -476,8 +476,27 @@ RESET_CONTABLE = {
     "Fecha Envío": {"date": None},
     "Confirmar Reset": {"checkbox": False},
 }
-RESET_RRHH: dict = {}      # Fase 3 (doc 29) — definir según esquema RRHH
-RESET_TICKETS: dict = {}   # Fase 3 (doc 29) — definir según esquema Tickets
+# RRHH JUNIO 2026 — nombres y opciones de status verificados contra el esquema
+# real via API (15-jul-2026). El título de la base es "RUT" (no "Customers"),
+# pero _titulo_fila() encuentra la propiedad title por su tipo, así que la fila
+# de control RESET_MES funciona igual. Se resetean los campos del mes (montos,
+# estados del flujo, correo, adjuntos del mes); NO se tocan los estáticos:
+# CLIENTE, RUT, Email, ASISTENTE, USUARIO/CLAVE (Previred), DTGO, Nº. Trab.
+RESET_RRHH = {
+    "MONTO IMPOSICIONES|": {"number": None},   # el '|' es parte del nombre real
+    "IMPUESTO ÚNICO": {"number": None},
+    "Estado Correo": {"status": {"name": "Sin empezar"}},
+    "Fecha envío": {"date": None},
+    "Previred": {"status": {"name": "Not started"}},
+    "Liquidaciones": {"status": {"name": "Not started"}},
+    "Adjuntos": {"files": []},                 # liquidaciones del mes → se limpian
+    "Comentario-Adjuntos": {"rich_text": []},
+    "Confirmar reset": {"checkbox": False},
+}
+RESET_TICKETS: dict = {}   # Fase 3 (doc 29) — PENDIENTE: Tickets no rota por mes
+                           # (cada fila es un trámite individual). Decisión aplazada
+                           # por el usuario (15-jul); el tipo "tickets" da 400 hasta
+                           # definir el alcance (solo Estado Correo vs correo+montos).
 RESET_POR_TIPO = {"contable": RESET_CONTABLE, "rrhh": RESET_RRHH, "tickets": RESET_TICKETS}
 
 P_CONFIRMAR_RESET = "Confirmar Reset"   # checkbox — safety switch OBLIGATORIO
@@ -736,7 +755,7 @@ def health():
     return {
         "ok": True,
         "service": "auditai-f29",
-        "version": "2026-07-14.1-entrega-webhook",
+        "version": "2026-07-15.1-reset-rrhh",
         "webhook_secret_configurado": bool(os.environ.get("WEBHOOK_SECRET")),
         "admin_alerts_configurados": len(es.admin_emails()),
         "sendgrid_webhook_token_configurado": bool(os.environ.get("SENDGRID_WEBHOOK_TOKEN")),

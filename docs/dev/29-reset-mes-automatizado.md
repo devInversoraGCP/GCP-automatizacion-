@@ -166,11 +166,24 @@ RESET_CONTABLE = {
 }
 
 RESET_RRHH = {
-    # Definir según esquema de RRHH
+    # IMPLEMENTADO (15-jul-2026, Fase 3). Nombres/status verificados por API.
+    "MONTO IMPOSICIONES|": {"number": None},   # el '|' es parte del nombre
+    "IMPUESTO ÚNICO": {"number": None},
+    "Estado Correo": {"status": {"name": "Sin empezar"}},
+    "Fecha envío": {"date": None},
+    "Previred": {"status": {"name": "Not started"}},
+    "Liquidaciones": {"status": {"name": "Not started"}},
+    "Adjuntos": {"files": []},                 # liquidaciones del mes
+    "Comentario-Adjuntos": {"rich_text": []},
+    "Confirmar reset": {"checkbox": False},
+    # NO se tocan: CLIENTE, RUT, Email, ASISTENTE, USUARIO/CLAVE, DTGO, Nº. Trab.
 }
 
 RESET_TICKETS = {
-    # Definir según esquema de Tickets
+    # PENDIENTE (decisión aplazada 15-jul): Tickets no rota por mes — cada fila
+    # es un trámite individual. El campo "Estado" es el seguimiento real del
+    # trámite y NO debe resetearse. Alcance a definir: solo "Estado Correo" +
+    # "Fecha envío" (reenvío de correos) vs. + montos. tipo="tickets" da 400.
 }
 ```
 

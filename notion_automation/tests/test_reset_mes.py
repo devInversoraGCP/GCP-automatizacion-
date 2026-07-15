@@ -62,11 +62,8 @@ class TestGuardsPayload:
         r = client.post("/reset-mes", json={"tipo": "contable"}, headers=H)
         assert r.status_code == 400
 
-    def test_tipo_rrhh_aun_no_implementado_da_400(self, client):
-        r = client.post("/reset-mes", json={"tipo": "rrhh", "database_id": DB_ID}, headers=H)
-        assert r.status_code == 400
-
     def test_tipo_tickets_aun_no_implementado_da_400(self, client):
+        # Tickets sigue pendiente (RESET_TICKETS vacío) -> 400
         r = client.post("/reset-mes", json={"tipo": "tickets", "database_id": DB_ID}, headers=H)
         assert r.status_code == 400
 
@@ -220,4 +217,73 @@ class TestConcurrencia:
             r = client.post("/reset-mes", json=BODY, headers=H)
         assert r.status_code == 200
         assert r.get_json().get("duplicado") is True
+        assert not m.called
+
+
+# --- Fase 3: RRHH (doc 29) --------------------------------------------------
+RRHH_DB = "38712147-b3ea-80f9-9484-e0ad99c94a26"
+RRHH_DS = "9c512147-b3ea-8256-a570-871254c13b3d"
+
+
+def _fila_rrhh(page_id: str, rut_titulo: str, confirmar: bool = False) -> dict:
+    """Fila RRHH: el title es 'RUT' (no 'Customers'). Estáticos + dinámicos."""
+    return {
+        "id": page_id,
+        "properties": {
+            # estáticos — jamás se resetean
+            "RUT": {"type": "title", "title": [{"plain_text": rut_titulo}]},
+            "CLIENTE": {"type": "rich_text", "rich_text": [{"plain_text": "Empresa X"}]},
+            "USUARIO": {"type": "rich_text", "rich_text": [{"plain_text": "user-previred"}]},
+            "CLAVE": {"type": "rich_text", "rich_text": [{"plain_text": "secreta"}]},
+            "Nº. Trab.": {"type": "number", "number": 5},
+            # dinámicos — se resetean
+            "MONTO IMPOSICIONES|": {"type": "number", "number": 500000},
+            "IMPUESTO ÚNICO": {"type": "number", "number": 12000},
+            "Estado Correo": {"type": "status", "status": {"name": "Listo"}},
+            "Fecha envío": {"type": "date", "date": {"start": "2026-06-13"}},
+            "Previred": {"type": "status", "status": {"name": "Pagadas"}},
+            "Liquidaciones": {"type": "status", "status": {"name": "Done"}},
+            "Adjuntos": {"type": "files", "files": [{"name": "liq.pdf", "type": "file"}]},
+            "Comentario-Adjuntos": {"type": "rich_text", "rich_text": [{"plain_text": "nota"}]},
+            "Confirmar reset": {"type": "checkbox", "checkbox": confirmar},
+        },
+    }
+
+
+class TestResetRRHH:
+    def test_tipo_rrhh_lanza_el_reset(self, client):
+        filas = [_fila_rrhh(PID_ZZ, "RESET_MES", confirmar=True)]
+        with patch.object(nc, "get_data_source_id", return_value=RRHH_DS), \
+             patch.object(nc, "query_data_source", return_value=filas), \
+             patch.object(A, "_lanzar_reset") as m:
+            r = client.post("/reset-mes", json={"tipo": "rrhh", "database_id": RRHH_DB}, headers=H)
+        assert r.status_code == 202
+        tipo, ds_id, campos, _ = m.call_args[0]
+        assert tipo == "rrhh" and campos is A.RESET_RRHH
+
+    def test_rrhh_resetea_dinamicos_y_preserva_estaticos(self):
+        with patch.object(nc, "update_props") as m:
+            A._reset_aplicar("rrhh", RRHH_DS, A.RESET_RRHH, [_fila_rrhh(PID_1, "12.345.678-9")])
+        updates = m.call_args[0][1]
+        # dinámicos reseteados
+        assert updates["MONTO IMPOSICIONES|"] == {"number": None}
+        assert updates["IMPUESTO ÚNICO"] == {"number": None}
+        assert updates["Estado Correo"] == {"status": {"name": "Sin empezar"}}
+        assert updates["Previred"] == {"status": {"name": "Not started"}}
+        assert updates["Liquidaciones"] == {"status": {"name": "Not started"}}
+        assert updates["Adjuntos"] == {"files": []}
+        assert updates["Comentario-Adjuntos"] == {"rich_text": []}
+        assert updates["Fecha envío"] == {"date": None}
+        # estáticos intactos
+        for estatico in ("RUT", "CLIENTE", "USUARIO", "CLAVE", "Nº. Trab."):
+            assert estatico not in updates
+
+    def test_rrhh_fila_control_por_rut_title(self, client):
+        # la fila de control se detecta por el title (RUT), no por 'Customers'
+        filas = [_fila_rrhh(PID_ZZ, "RESET_MES", confirmar=False)]
+        with patch.object(nc, "get_data_source_id", return_value=RRHH_DS), \
+             patch.object(nc, "query_data_source", return_value=filas), \
+             patch.object(A, "_lanzar_reset") as m:
+            r = client.post("/reset-mes", json={"tipo": "rrhh", "database_id": RRHH_DB}, headers=H)
+        assert r.status_code == 400  # checkbox sin marcar
         assert not m.called
