@@ -2,9 +2,10 @@ Asunto: Su trámite de {{tipo}} está listo — GCP
 
 Estimado/a {{nombre_cliente}}:
 
-✓ Trámite de {{tipo}} completado
+{{linea_banner}}
 
 {{linea_mensaje}}
+{{linea_monto}}
 {{linea_detalle}}
 
 Saludos cordiales,

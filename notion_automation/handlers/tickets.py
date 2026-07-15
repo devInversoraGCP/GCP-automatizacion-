@@ -81,10 +81,19 @@ def _linea(texto_html: str) -> str:
             f'{texto_html}</p>')
 
 
-def _bloque_monto(monto: str, fecha_limite: str) -> tuple[str, str]:
-    """Bloque de cobro (solo Cobranza): tarjeta 'Total a pagar' formateada en CLP +
-    'Fecha límite de pago' si esta poblada. Cada parte es opcional; si el monto esta
-    vacio no hay tarjeta (el asesor puede ponerlo en el mensaje libre)."""
+_BANCO_TABLA_HTML = (
+    '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" '
+    'style="margin:0 0 18px 0;"><tr><td style="background:#eef4ff;border:1px solid #d3e0f5;'
+    'border-left:4px solid #0B1F3A;border-radius:10px;padding:14px 18px;font-size:14px;'
+    'color:#3a4658;line-height:1.6;">{banco_html}</td></tr></table>'
+).format(banco_html=es.BANCO_GCP_HTML)
+
+
+def _bloque_monto(monto: str, fecha_limite: str, titulo: str = "Total a pagar") -> tuple[str, str]:
+    """Tarjeta de monto (Cobranza: 'Total a pagar' + 'Fecha límite de pago'; Completado
+    de Constitución: 'Honorario a pagar', sin fecha límite — pasar fecha_limite="").
+    Cada parte es opcional; si el monto esta vacio no hay tarjeta (el asesor puede
+    ponerlo en el mensaje libre)."""
     ph, pt = [], []
     try:
         n = float(monto)
@@ -96,11 +105,11 @@ def _bloque_monto(monto: str, fecha_limite: str) -> tuple[str, str]:
             '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" '
             'style="margin:0 0 12px 0;"><tr><td style="background:#0B1F3A;border-radius:14px;'
             'padding:22px 26px;"><div style="font-size:12px;font-weight:700;letter-spacing:.12em;'
-            'text-transform:uppercase;color:#8fb4ee;margin-bottom:8px;">Total a pagar</div>'
+            f'text-transform:uppercase;color:#8fb4ee;margin-bottom:8px;">{titulo}</div>'
             f'<div style="font-size:40px;font-weight:800;color:#ffffff;line-height:1;'
             f'font-variant-numeric:tabular-nums;">{m}</div></td></tr></table>'
         )
-        pt.append(f"Total a pagar: {m}")
+        pt.append(f"{titulo}: {m}")
     fl = _fmt_fecha(fecha_limite)
     if fl:
         ph.append(_linea(f'<b>Fecha límite de pago:</b> {fl}.'))
@@ -108,28 +117,49 @@ def _bloque_monto(monto: str, fecha_limite: str) -> tuple[str, str]:
     return "".join(ph), "\n".join(pt)
 
 
-def _bloque_detalle(tipo_correo: str, estado: str, fecha_prom: str, n_adjuntos: int) -> tuple[str, str]:
+def _bloque_banner_completado(tipo: str, es_constitucion: bool) -> tuple[str, str]:
+    """Banner superior de Completado: felicitaciones si el trámite es Constitución
+    (hito importante para el cliente), check generico para el resto de los tipos."""
+    if es_constitucion:
+        texto = "🎉 ¡Felicitaciones! Su empresa ha sido constituida exitosamente."
+    else:
+        texto = f"✓ Trámite de {tipo} completado"
+    ph = (
+        '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 18px 0;">'
+        '<tr><td style="background:#e8f5ee;border-left:4px solid #1c7c4a;border-radius:10px;'
+        f'padding:12px 16px;font-size:14px;font-weight:700;color:#1c7c4a;">{es._escape(texto)}</td></tr></table>'
+    )
+    return ph, texto
+
+
+def _bloque_detalle(tipo_correo: str, estado: str, fecha_prom: str, n_adjuntos: int,
+                     es_constitucion: bool = False) -> tuple[str, str]:
     """Extra especifico del tipo:
     - avance: Estado actual + Fecha comprometida
-    - completado: Fecha comprometida
+    - completado: Fecha comprometida; + datos bancarios GCP si es Constitución (honorario)
     - cobranza: datos bancarios GCP
     - todos: aviso de adjuntos si los hay."""
     ph, pt = [], []
     if tipo_correo == "avance" and estado:
         ph.append(_linea(f'<b>Estado actual:</b> {es._escape(estado)}.'))
         pt.append(f"Estado actual: {estado}.")
-    if tipo_correo in ("avance", "completado"):
+    # La fecha comprometida no aplica en Constitución (el trámite ya se completó):
+    # solo en Avance y en Completado de tipos no-especiales.
+    if tipo_correo == "avance" or (tipo_correo == "completado" and not es_constitucion):
         f = _fmt_fecha(fecha_prom)
         if f:
             ph.append(_linea(f'<b>Fecha comprometida:</b> {f}.'))
             pt.append(f"Fecha comprometida: {f}.")
     if tipo_correo == "cobranza":
+        ph.append(_BANCO_TABLA_HTML)
+        pt.append(es.BANCO_GCP_TXT)
+    if tipo_correo == "completado" and es_constitucion:
         ph.append(
-            '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" '
-            'style="margin:0 0 18px 0;"><tr><td style="background:#eef4ff;border:1px solid #d3e0f5;'
-            'border-left:4px solid #0B1F3A;border-radius:10px;padding:14px 18px;font-size:14px;'
-            f'color:#3a4658;line-height:1.6;">{es.BANCO_GCP_HTML}</td></tr></table>'
+            '<p style="margin:0 0 12px 0;font-size:14px;line-height:1.6;color:#3a4658;">'
+            'Puede realizar la transferencia del honorario a la siguiente cuenta:</p>'
         )
+        ph.append(_BANCO_TABLA_HTML)
+        pt.append("Puede realizar la transferencia del honorario a la siguiente cuenta:")
         pt.append(es.BANCO_GCP_TXT)
     if n_adjuntos:
         s = "documento" if n_adjuntos == 1 else "documentos"
@@ -158,6 +188,9 @@ def procesar(page_id: str, tipo_correo: str) -> dict:
     estado = (props.get(ESTADO, {}).get("status") or {}).get("name", "")
     tipos = [o.get("name", "") for o in (props.get(TIPO, {}).get("multi_select") or [])]
     tipo = ", ".join(t for t in tipos if t) or "trámite"
+    # Constitución (completado): felicitaciones + "Honorario a pagar" (sin fecha
+    # límite) + datos bancarios, en vez del check generico. Ver doc 26.
+    es_constitucion = any(es._norm(t) == "constitucion" for t in tipos)
     asignados = nc.people_names(props.get(ASIGNADO, {}))
     asesor = asignados[0] if asignados else ""
 
@@ -175,11 +208,19 @@ def procesar(page_id: str, tipo_correo: str) -> dict:
 
     estandar = estandar_tpl.format(tipo=tipo)
     b_msg = _bloque_mensaje(mensaje, estandar)
-    b_det = _bloque_detalle(tipo_correo, estado, fecha_prom, len(adjuntos))
-    # El monto + fecha límite solo se muestran en Cobranza (decision del usuario 10-jul).
-    b_monto = _bloque_monto(monto, fecha_limite) if tipo_correo == "cobranza" else ("", "")
+    b_det = _bloque_detalle(tipo_correo, estado, fecha_prom, len(adjuntos), es_constitucion)
+    b_banner = _bloque_banner_completado(tipo, es_constitucion) if tipo_correo == "completado" else ("", "")
+    # El monto se muestra en Cobranza ("Total a pagar" + fecha límite) y en
+    # Completado de Constitución ("Honorario a pagar", SIN fecha límite: doc 26).
+    if tipo_correo == "cobranza":
+        b_monto = _bloque_monto(monto, fecha_limite)
+    elif tipo_correo == "completado" and es_constitucion:
+        b_monto = _bloque_monto(monto, "", titulo="Honorario a pagar")
+    else:
+        b_monto = ("", "")
     extra_vars = {
         "tipo": tipo,
+        "bloque_banner": b_banner[0], "linea_banner": b_banner[1],
         "bloque_mensaje": b_msg[0], "linea_mensaje": b_msg[1],
         "bloque_monto": b_monto[0], "linea_monto": b_monto[1],
         "bloque_detalle": b_det[0], "linea_detalle": b_det[1],

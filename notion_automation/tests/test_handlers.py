@@ -78,3 +78,62 @@ class TestTicketsAvisa:
     def test_tipo_desconocido(self):
         r = tickets.procesar("p5", "tipo_inexistente")
         assert r["ok"] is False and "desconocido" in r["motivo"]
+
+
+def _page_tickets_constitucion(monto=350000):
+    """Fila Tickets de una Constitución completada (con honorario)."""
+    p = _page_tickets(tarea="Nueva Empresa SpA")
+    p["properties"][tickets.TIPO] = {"type": "multi_select", "multi_select": [{"name": "Constitución"}]}
+    p["properties"][tickets.MONTO] = {"type": "number", "number": monto}
+    return p
+
+
+class TestTicketsConstitucion:
+    """Correo Completado especial para Constitución: banner de felicitaciones +
+    'Honorario a pagar' (sin fecha límite) + datos bancarios (doc 26)."""
+
+    def test_banner_felicitaciones_solo_en_constitucion(self):
+        _, pt_const = tickets._bloque_banner_completado("Constitución", True)
+        _, pt_gen = tickets._bloque_banner_completado("Certificado", False)
+        assert "Felicitaciones" in pt_const and "constituida" in pt_const
+        assert "Felicitaciones" not in pt_gen and "completado" in pt_gen.lower()
+
+    def test_monto_acepta_titulo_honorario(self):
+        _, pt = tickets._bloque_monto("350000", "", titulo="Honorario a pagar")
+        assert "Honorario a pagar" in pt and "$350.000" in pt
+
+    def test_completado_constitucion_arma_banner_honorario_y_banco(self):
+        capt = {}
+        with patch.object(nc, "get_page", return_value=_page_tickets_constitucion()), \
+             patch.object(es, "enviar", side_effect=lambda **kw: capt.update(kw) or "a@gcp.cl"), \
+             patch.object(nc, "update_props"):
+            r = tickets.procesar("pc", "completado")
+        assert r["ok"] is True
+        ev = capt["extra_vars"]
+        assert "Felicitaciones" in ev["linea_banner"]
+        assert "Honorario a pagar" in ev["linea_monto"] and "$350.000" in ev["linea_monto"]
+        assert "Santander" in ev["linea_detalle"]          # datos bancarios presentes
+        assert "Fecha límite" not in ev["linea_monto"]     # constitución: sin fecha límite
+
+    def test_completado_generico_sin_honorario_ni_felicitaciones(self):
+        capt = {}
+        # _page_tickets tiene tipo "Certificado" y MONTO None
+        with patch.object(nc, "get_page", return_value=_page_tickets()), \
+             patch.object(es, "enviar", side_effect=lambda **kw: capt.update(kw) or "a@gcp.cl"), \
+             patch.object(nc, "update_props"):
+            r = tickets.procesar("pg", "completado")
+        assert r["ok"] is True
+        ev = capt["extra_vars"]
+        assert "Felicitaciones" not in ev["linea_banner"] and "completado" in ev["linea_banner"].lower()
+        assert ev["linea_monto"] == ""                     # completado genérico: sin tarjeta de monto
+
+    def test_cobranza_conserva_total_a_pagar(self):
+        # el refactor no debe romper Cobranza: sigue diciendo "Total a pagar"
+        capt = {}
+        page = _page_tickets()
+        page["properties"][tickets.MONTO] = {"type": "number", "number": 50000}
+        with patch.object(nc, "get_page", return_value=page), \
+             patch.object(es, "enviar", side_effect=lambda **kw: capt.update(kw) or "a@gcp.cl"), \
+             patch.object(nc, "update_props"):
+            tickets.procesar("pcob", "cobranza")
+        assert "Total a pagar" in capt["extra_vars"]["linea_monto"]
