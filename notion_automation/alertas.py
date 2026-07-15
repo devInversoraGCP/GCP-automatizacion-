@@ -25,15 +25,18 @@ import email_sender as es
 log = logging.getLogger("auditai")
 
 
-def avisar_fallo_asesor(nombre_asesor: str, cliente: str, periodo: str, motivo: str) -> None:
-    """Avisa al asesor del cliente (con copia al admin) de un fallo esperado."""
+def avisar_fallo_asesor(nombre_asesor: str, cliente: str, periodo: str, motivo: str,
+                        que_hacer: str = "") -> None:
+    """Avisa al asesor del cliente (con copia al admin) de un fallo esperado.
+    que_hacer: instruccion opcional para el aviso (ver enviar_aviso_error)."""
     email_asesor = os.environ.get("EMAIL_FROM", "notificaciones@inversoragcp.com")
     if nombre_asesor:
         asesor_info = es._buscar_asesor_por_nombre(nombre_asesor)
         if asesor_info:
             email_asesor = asesor_info["email"]
     try:
-        ok = es.enviar_aviso_error(email_asesor, cliente or "Cliente Desconocido", periodo or "", motivo)
+        ok = es.enviar_aviso_error(email_asesor, cliente or "Cliente Desconocido", periodo or "", motivo,
+                                   que_hacer=que_hacer)
         log.info("aviso de fallo enviado al asesor: %s (ok=%s)", email_asesor, ok)
     except Exception as exc:
         log.warning("no se pudo enviar aviso de fallo al asesor: %s", exc)

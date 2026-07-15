@@ -40,6 +40,15 @@ def client():
     return A.app.test_client()
 
 
+@pytest.fixture(autouse=True)
+def _limpiar_reintentos():
+    """El registro de reintentos post-bounce es estado del proceso: cada test
+    parte limpio para no contaminarse entre sí."""
+    A._reintentos_hechos.clear()
+    yield
+    A._reintentos_hechos.clear()
+
+
 class TestGuardToken:
     def test_sin_token_en_servidor_da_503(self, client, monkeypatch):
         monkeypatch.delenv("SENDGRID_WEBHOOK_TOKEN", raising=False)
@@ -67,20 +76,80 @@ class TestEventos:
         texto = updates["Entrega Correo"]["rich_text"][0]["text"]["content"]
         assert texto.startswith("✅ Entregado")
 
-    def test_bounce_escribe_error_y_avisa_asesor(self, client):
-        ev = _evento("bounce", reason="550 mailbox does not exist")
+    def test_primer_bounce_agenda_reintento_sin_alarma(self, client):
+        # Caso Mockenau (15-jul): un hipo DNS no debe alarmar al asesor de una;
+        # se agenda UN reintento automático y la columna lo deja visible.
+        ev = _evento("bounce", reason="unable to get mx info")
         with patch.object(nc, "get_page", return_value=_page()), \
              patch.object(nc, "update_props") as m, \
+             patch.object(A.threading, "Timer") as timer, \
              patch.object(A.alertas, "avisar_fallo_asesor") as alerta:
             r = client.post(URL_OK, json=[ev])
         assert r.status_code == 200
         texto = m.call_args[0][1]["Entrega Correo"]["rich_text"][0]["text"]["content"]
         assert texto.startswith("❌ No entregado (bounce)")
-        assert "550 mailbox" in texto
+        assert "reintento automático" in texto
+        assert "unable to get mx info" in texto
+        assert not alerta.called
+        delay, _fn = timer.call_args[0]
+        assert delay == A.REINTENTO_BOUNCE_S
+        assert PID in A._reintentos_hechos
+
+    def test_segundo_bounce_avisa_asesor_con_status_correcto(self, client):
+        # La fila ya tuvo su reintento: el segundo bounce sí alarma, y el aviso
+        # NO dice "el Status no fue cambiado" (acá el Status sí quedó en Enviado).
+        A._reintentos_hechos.add(PID)
+        ev = _evento("bounce", reason="550 mailbox does not exist")
+        with patch.object(nc, "get_page", return_value=_page()), \
+             patch.object(nc, "update_props") as m, \
+             patch.object(A.threading, "Timer") as timer, \
+             patch.object(A.alertas, "avisar_fallo_asesor") as alerta:
+            r = client.post(URL_OK, json=[ev])
+        assert r.status_code == 200
+        texto = m.call_args[0][1]["Entrega Correo"]["rich_text"][0]["text"]["content"]
+        assert texto.startswith("❌ No entregado (bounce)")
+        assert "reintento automático" not in texto
+        assert not timer.called
         assert alerta.called
         asesor, cliente, mes, motivo = alerta.call_args[0]
         assert asesor == "Sebastián Robles" and cliente == "Cliente Test"
-        assert "bounce" in motivo
+        assert "bounce" in motivo and "volvió a rebotar" in motivo
+        que_hacer = alerta.call_args[1]["que_hacer"]
+        assert "quedó en 'Enviado'" in que_hacer
+
+    def test_dropped_avisa_de_inmediato_sin_reintento(self, client):
+        # dropped = SendGrid suprimió el envío; reintentar da lo mismo.
+        ev = _evento("dropped", reason="Bounced Address")
+        with patch.object(nc, "get_page", return_value=_page()), \
+             patch.object(nc, "update_props"), \
+             patch.object(A.threading, "Timer") as timer, \
+             patch.object(A.alertas, "avisar_fallo_asesor") as alerta:
+            client.post(URL_OK, json=[ev])
+        assert not timer.called
+        assert alerta.called
+
+    def test_bounce_con_flujo_desconocido_avisa_de_inmediato(self, client):
+        # Sin flujo reconocible no hay handler de reenvío: alarma como siempre.
+        ev = _evento("bounce", flujo="", reason="x")
+        with patch.object(nc, "get_page", return_value=_page()), \
+             patch.object(nc, "update_props"), \
+             patch.object(A.threading, "Timer") as timer, \
+             patch.object(A.alertas, "avisar_fallo_asesor") as alerta:
+            client.post(URL_OK, json=[ev])
+        assert not timer.called
+        assert alerta.called
+
+    def test_reintento_ejecuta_el_handler_del_flujo(self, client):
+        # La función agendada en el Timer reenvía usando el handler del flujo.
+        ev = _evento("bounce", reason="mx")
+        with patch.object(nc, "get_page", return_value=_page()), \
+             patch.object(nc, "update_props"), \
+             patch.object(A.threading, "Timer") as timer, \
+             patch.object(A, "_procesar_page", return_value={"ok": True}) as proc:
+            client.post(URL_OK, json=[ev])
+            _delay, fn = timer.call_args[0]
+            fn()   # ejecutar el reintento "10 min después", sincrónicamente
+        assert proc.call_args[0] == (PID,)
 
     def test_delivered_no_avisa_asesor(self, client):
         with patch.object(nc, "get_page", return_value=_page()), \
@@ -133,6 +202,26 @@ class TestEventos:
              patch.object(nc, "update_props"):
             r = client.post(URL_OK, json=_evento("delivered"))
         assert r.get_json()["filas_actualizadas"] == 1
+
+
+class TestHandlerPorFlujo:
+    """El custom_arg 'flujo' de cada correo debe mapear a su handler de reenvío."""
+
+    def test_f29(self):
+        assert A._handler_por_flujo("f29") is A._procesar_page
+
+    def test_rrhh(self):
+        import handlers.rrhh as rrhh
+        assert A._handler_por_flujo("rrhh") is rrhh.procesar
+
+    def test_tickets_pasa_el_tipo(self):
+        with patch.object(A.tickets_handler, "procesar", return_value={"ok": True}) as p:
+            A._handler_por_flujo("tickets-avance")("pid-x")
+        assert p.call_args[0] == ("pid-x", "avance")
+
+    def test_desconocidos_devuelven_none(self):
+        assert A._handler_por_flujo("") is None
+        assert A._handler_por_flujo("tickets-inexistente") is None
 
 
 class TestCustomArgs:

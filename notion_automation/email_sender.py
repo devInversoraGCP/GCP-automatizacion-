@@ -664,11 +664,16 @@ def admin_emails() -> list[str]:
     return [e.strip() for e in raw.split(",") if e.strip()]
 
 
-def enviar_aviso_error(email_asesor: str, cliente: str, mes: str, motivo: str) -> bool:
+def enviar_aviso_error(email_asesor: str, cliente: str, mes: str, motivo: str,
+                       que_hacer: str = "") -> bool:
     """Aviso automatico al asesor cuando el correo de un cliente NO se pudo enviar.
     Best-effort: nunca lanza excepcion (si el propio aviso falla, devuelve False y
     queda solo el log del backend). Requiere SENDGRID_API_KEY (nube).
     Limite conocido: si SendGrid entero esta caido, este aviso tampoco sale.
+
+    que_hacer: instruccion para el asesor. El default aplica a fallos PRE-envio
+    (el Status no se toco); los rebotes post-aceptacion pasan su propio texto,
+    porque ahi el Status SI quedo en 'Enviado' y el default seria mentira.
 
     Fase 1 (doc 27, observabilidad): copia en ADMIN_ALERT_EMAIL si esta seteada,
     para que el administrador vea TODOS los fallos (F29/RRHH/Tickets) en un solo
@@ -677,13 +682,16 @@ def enviar_aviso_error(email_asesor: str, cliente: str, mes: str, motivo: str) -
         api_key = os.environ.get("SENDGRID_API_KEY")
         if not (api_key and email_asesor):
             return False
+        que_hacer = que_hacer or (
+            "revisa la fila en Notion (Email, Month, Adviser Accounting, Adjuntos) "
+            "y vuelve a apretar el boton. El Status de la fila NO fue cambiado."
+        )
         remitente = os.environ.get("EMAIL_FROM", "notificaciones@inversoragcp.com")
         asunto = f"AVISO: no se envio el correo F29 de {cliente}"
         cuerpo = (
             f"El correo del F29 de {cliente} (periodo {mes or 'desconocido'}) NO se pudo enviar.\n\n"
             f"Motivo: {motivo}\n\n"
-            "Que hacer: revisa la fila en Notion (Email, Month, Adviser Accounting, Adjuntos) "
-            "y vuelve a apretar el boton. El Status de la fila NO fue cambiado.\n\n"
+            f"Que hacer: {que_hacer}\n\n"
             "— Aviso automatico del sistema AuditAI (no responder)."
         )
         html = (
@@ -693,9 +701,7 @@ def enviar_aviso_error(email_asesor: str, cliente: str, mes: str, motivo: str) -
             f'<p style="margin:0 0 10px 0;"><b>El correo del F29 de {_escape(cliente)}</b> '
             f'(periodo {_escape(mes or "desconocido")}) <b>NO se pudo enviar.</b></p>'
             f'<p style="margin:0 0 10px 0;"><b>Motivo:</b> {_escape(motivo)}</p>'
-            '<p style="margin:0;"><b>Que hacer:</b> revisa la fila en Notion (Email, Month, '
-            'Adviser Accounting, Adjuntos) y vuelve a apretar el boton. '
-            'El Status de la fila no fue cambiado.</p></div>'
+            f'<p style="margin:0;"><b>Que hacer:</b> {_escape(que_hacer)}</p></div>'
             '<p style="color:#8593a8;font-size:12px;">Aviso automatico del sistema AuditAI (no responder).</p>'
             '</div>'
         )

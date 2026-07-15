@@ -658,6 +658,63 @@ def reset_mes():
 P_ENTREGA = "Entrega Correo"
 EVENTOS_ENTREGA = {"delivered", "bounce", "dropped"}
 
+# --- Reintento automático ante el PRIMER bounce (evita falsas alarmas) ------
+# Caso real (15-jul-2026, Mockenau): SendGrid reportó bounce por un hipo DNS
+# del dominio del cliente ("unable to get mx info"); el reenvío manual 25 min
+# después entregó OK. Ante el PRIMER bounce de una fila se agenda UN reintento
+# automático (sin alarmar al asesor todavía); si el reintento también rebota,
+# el segundo evento bounce sí dispara el aviso. "dropped" no se reintenta:
+# significa que SendGrid suprimió el envío (lista de supresión) y reintentar
+# da el mismo resultado. Estado en memoria del proceso: si el server se
+# reinicia en la ventana, el reintento se pierde, pero la columna
+# "Entrega Correo" queda diciendo que había un reintento agendado (visible).
+REINTENTO_BOUNCE_S = 600   # 10 min: tiempo para que el DNS/MX del receptor se recupere
+_reintentos_lock = threading.Lock()
+_reintentos_hechos: set[str] = set()
+
+
+def _handler_por_flujo(flujo: str):
+    """Handler de reenvío según el custom_arg 'flujo' que viaja en cada correo
+    ('f29', 'rrhh', 'tickets-<tipo>'). None si no se reconoce."""
+    if flujo == "f29":
+        return _procesar_page
+    if flujo == "rrhh":
+        return rrhh_handler.procesar
+    if flujo.startswith("tickets-"):
+        tipo = flujo.split("-", 1)[1]
+        if tipo in _TICKETS_TIPOS:
+            return lambda page_id: tickets_handler.procesar(page_id, tipo)
+    return None
+
+
+def _agendar_reintento(page_id: str, flujo: str) -> bool:
+    """Agenda UN reintento de envío en REINTENTO_BOUNCE_S segundos (thread
+    daemon). True si quedó agendado; False si esa fila ya tuvo su reintento
+    en este proceso o el flujo no se reconoce (en ambos casos el caller debe
+    avisar al asesor como siempre)."""
+    handler = _handler_por_flujo(flujo)
+    if handler is None:
+        return False
+    with _reintentos_lock:
+        if page_id in _reintentos_hechos:
+            return False
+        _reintentos_hechos.add(page_id)
+
+    def _reintentar():
+        try:
+            resultado = handler(page_id)
+            log.info("reintento post-bounce ejecutado · page_id=%s · flujo=%s · ok=%s",
+                     page_id, flujo, resultado.get("ok"))
+        except Exception as exc:
+            log.error("reintento post-bounce fallo · page_id=%s · flujo=%s · %s", page_id, flujo, exc)
+
+    t = threading.Timer(REINTENTO_BOUNCE_S, _reintentar)
+    t.daemon = True
+    t.start()
+    log.info("reintento post-bounce agendado en %ds · page_id=%s · flujo=%s",
+             REINTENTO_BOUNCE_S, page_id, flujo)
+    return True
+
 
 def _procesar_evento_sendgrid(ev: dict) -> bool:
     """Procesa UN evento del Event Webhook. True si actualizó la fila.
@@ -688,11 +745,18 @@ def _procesar_evento_sendgrid(ev: dict) -> bool:
             ts, datetime.timezone.utc
         ).strftime("%d-%m-%Y %H:%M UTC")
 
+    # Primer bounce de la fila: reintento automático, sin alarma todavía.
+    reintento_agendado = False
+    if tipo == "bounce":
+        reintento_agendado = _agendar_reintento(page_id, str(ev.get("flujo", "") or ""))
+
     if tipo == "delivered":
         texto = f"✅ Entregado · {fecha}" if fecha else "✅ Entregado"
     else:
         razon = str(ev.get("reason", "") or "")[:200]
         texto = f"❌ No entregado ({tipo})" + (f" · {fecha}" if fecha else "")
+        if reintento_agendado:
+            texto += f" · reintento automático en {REINTENTO_BOUNCE_S // 60} min"
         if razon:
             texto += f" · {razon}"
 
@@ -703,15 +767,21 @@ def _procesar_evento_sendgrid(ev: dict) -> bool:
         log.warning("columna %r no existe en la base de page_id=%s; entrega solo en log", P_ENTREGA, page_id)
     log.info("evento sendgrid procesado · evento=%s · page_id=%s · flujo=%s", tipo, page_id, ev.get("flujo", ""))
 
-    if tipo != "delivered":
+    if tipo != "delivered" and not reintento_agendado:
         cliente = _titulo_fila(props)
         asesores = nc.people_names(props.get("Adviser Accounting", {}) or {})
         mes = nc.plain(props.get("Month", {}) or {})
+        ya_reintentado = tipo == "bounce" and page_id in _reintentos_hechos
         alertas.avisar_fallo_asesor(
             asesores[0] if asesores else "", cliente, mes,
-            f"El correo fue ACEPTADO por SendGrid pero NO llegó al cliente (evento: {tipo}). "
-            f"Revisá la dirección de la columna Email y reenviá. "
-            f"Detalle técnico: {str(ev.get('reason', '') or 'sin detalle')[:200]}",
+            f"El correo fue ACEPTADO por SendGrid pero NO llegó al cliente (evento: {tipo})."
+            + (" Ya se reintentó automáticamente una vez y volvió a rebotar." if ya_reintentado else "")
+            + f" Detalle técnico: {str(ev.get('reason', '') or 'sin detalle')[:200]}",
+            que_hacer=(
+                "corrige la dirección de la columna Email en Notion y vuelve a apretar el botón. "
+                "OJO: el Status de la fila quedó en 'Enviado' porque SendGrid había aceptado el "
+                "correo, pero al cliente NO le llegó."
+            ),
         )
     return True
 
