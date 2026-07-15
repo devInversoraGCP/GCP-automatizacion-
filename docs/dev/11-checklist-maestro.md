@@ -557,7 +557,7 @@ Trasladadas de [`05-decisiones-y-preguntas.md`](05-decisiones-y-preguntas.md); c
   - [x] **Prueba E2E exitosa (15-jul)** sobre duplicado "Contable Junio (1)": 291 filas reseteadas, 0 fallidas, estáticos intactos, checkbox auto-desmarcado. Reset asíncrono ~2 min (doc 29)
   - [x] **Fase 3 RRHH (15-jul):** `RESET_RRHH` implementado (montos, Estado Correo, Fecha envío, Previred/Liquidaciones→Not started, Adjuntos+Comentario del mes; estáticos y Nº. Trab. intactos). Tests 120/120
     - [ ] Columna `Confirmar reset` + fila `RESET_MES` (title=RUT) + botón `Reset mes` en RRHH (los crea el usuario; `X-Reset-Tipo: rrhh`, `X-Reset-DB: 38712147-b3ea-80f9-9484-e0ad99c94a26`)
-    - [ ] Prueba E2E RRHH (idealmente sobre un duplicado primero)
+    - [x] **Prueba E2E RRHH exitosa (15-jul)** sobre duplicado "RRHH JUNIO 2026 (1)": 2 filas sembradas con datos → reseteadas OK (montos vacíos, Estado Correo→Sin empezar, Previred/Liquidaciones→Not started, comentario vacío), checkbox auto-desmarcado. Confirmado que todos los nombres de columna/status matchean el esquema real.
   - [ ] Fase 3 Tickets: PENDIENTE (no rota por mes; definir alcance — solo Estado Correo vs +montos; NO resetear el `Estado` del trámite)
 
 ### N.3b · Confirmación de entrega real — SendGrid Event Webhook ([`30`](30-confirmacion-entrega-sendgrid.md)) 🆕
