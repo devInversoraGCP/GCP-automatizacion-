@@ -239,6 +239,7 @@ def procesar(page_id: str, tipo_correo: str) -> dict:
             template=plantilla,
             asunto=asunto,
             extra_vars=extra_vars,
+            custom_args={"page_id": page_id, "flujo": f"tickets-{tipo_correo}"},
         )
         log.info("correo tickets/%s enviado OK · page_id=%s remitente=%s", tipo_correo, page_id, remitente)
     except ValueError as exc:
