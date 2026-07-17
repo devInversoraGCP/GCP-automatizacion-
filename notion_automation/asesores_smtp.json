@@ -1,10 +1,7 @@
 {
   "_comment": "Directorio de asesores de GCP (SIN credenciales). El backend envía el correo DESDE la cuenta del asesor asignado a cada cliente (columna 'Adviser Accounting' en Contable). El match se hace por 'nombre_norm' (minúsculas, sin tildes, sin espacios extra) contra el nombre que devuelve la API de Notion para el campo people.",
   "_security": "Este archivo SÍ se versiona y por eso NO contiene passwords. En la nube el envío es por SendGrid API (no necesita SMTP). Para el fallback SMTP local, las credenciales viven en asesores_smtp.local.json (gitignored) o en la env var ASESORES_SMTP_JSON; ver _cargar_asesores() en email_sender.py. Historial: hasta el 12-jul-2026 este archivo llevaba App Passwords commiteadas — se consideran comprometidas y deben rotarse (Fase 0, docs/dev/27).",
-  "_pendientes": [
-    "andreagonzalez@inversoragcp.com",
-    "matildemateluna@inversoragcp.com"
-  ],
+  "_verificacion": "Dominio inversoragcp.com autenticado en SendGrid (Domain Authentication con registros DNS en Vercel, jul-2026): TODAS las cuentas @inversoragcp.com quedan verificadas y pueden enviar. Por eso todos los asesores van con pendiente:false. Ya no hay verificacion Single Sender uno por uno.",
   "constanzagaggero@inversoragcp.com": {
     "nombre": "Constanza Gaggero",
     "nombre_norm": "constanza gaggero",
