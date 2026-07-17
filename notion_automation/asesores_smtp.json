@@ -10,10 +10,11 @@
     "firma_png": "firmas/firma-constanza-gaggero.jpeg"
   },
   "andreagonzalez@inversoragcp.com": {
-    "nombre": "ANDREA GONZALEZ",
+    "nombre": "Andrea González",
     "nombre_norm": "andrea gonzalez",
     "tipo": "workspace",
-    "pendiente": false
+    "pendiente": false,
+    "firma_cargo": ["Especialista en RRHH", "Gestión y Control Tributario"]
   },
   "sebastianrobles@inversoragcp.com": {
     "nombre": "Sebastián Robles",

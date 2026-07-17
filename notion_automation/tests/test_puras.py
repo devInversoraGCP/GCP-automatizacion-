@@ -160,6 +160,35 @@ class TestParseDestinatarios:
         assert es.parse_destinatarios(None) == []
 
 
+class TestFirmaTexto:
+    """Firma de texto del asesor (sin PNG). El 'cargo' opcional reemplaza el
+    subtítulo genérico 'GCP · Asesoría Contable' (caso Andrea González)."""
+
+    def test_default_sin_cargo(self):
+        h = es._firma_texto_html("Sebastián Robles")
+        assert "<b>Sebastián Robles</b>" in h
+        assert "GCP · Asesoría Contable" in h
+
+    def test_cargo_lista_reemplaza_subtitulo(self):
+        h = es._firma_texto_html("Andrea González",
+                                 ["Especialista en RRHH", "Gestión y Control Tributario"])
+        assert "<b>Andrea González</b>" in h
+        assert "Especialista en RRHH<br/>Gestión y Control Tributario" in h
+        assert "GCP · Asesoría Contable" not in h   # el cargo reemplaza al genérico
+
+    def test_cargo_string_tambien_vale(self):
+        h = es._firma_texto_html("X", "Solo un cargo")
+        assert "Solo un cargo" in h
+
+    def test_cargo_vacio_cae_al_default(self):
+        assert "GCP · Asesoría Contable" in es._firma_texto_html("X", [])
+        assert "GCP · Asesoría Contable" in es._firma_texto_html("X", None)
+
+    def test_escapa_html(self):
+        h = es._firma_texto_html("A & B", ["<script>"])
+        assert "&amp;" in h and "<script>" not in h
+
+
 class TestEsHabil:
     def test_sabado_no_habil(self):
         assert es._es_habil(datetime.date(2026, 6, 20)) is False  # sábado

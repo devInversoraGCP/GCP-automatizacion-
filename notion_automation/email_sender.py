@@ -419,6 +419,24 @@ def render(
     return html, txt
 
 
+def _firma_texto_html(nombre: str, cargo=None) -> str:
+    """Firma de TEXTO del asesor (cuando no tiene firma PNG). Por defecto el
+    subtítulo es 'GCP · Asesoría Contable'; si el asesor define 'firma_cargo' en
+    asesores_smtp.json (una lista de líneas o un string), esas líneas reemplazan
+    el subtítulo genérico (ej. Andrea González: 'Especialista en RRHH' /
+    'Gestión y Control Tributario'). Sin firma_cargo, comportamiento idéntico al
+    anterior (retrocompatible)."""
+    if isinstance(cargo, str):
+        cargo = [cargo]
+    lineas = [str(l).strip() for l in (cargo or []) if str(l).strip()]
+    sub = "<br/>".join(_escape(l) for l in lineas) if lineas else "GCP · Asesoría Contable"
+    return (
+        f'<p style="margin:0 0 24px 0;font-size:14px;line-height:1.5;">'
+        f'<b>{_escape(nombre)}</b><br/>'
+        f'<span style="color:#5a6b82;">{sub}</span></p>'
+    )
+
+
 MAX_ADJUNTOS_MB = 15   # tope total de adjuntos (los correos rebotan pasados ~25 MB)
 
 
@@ -508,11 +526,7 @@ def enviar(
             f'style="width:600px;max-width:100%;height:auto;display:block;border:none;outline:none;margin:6px 0 8px;">'
         )
     else:
-        firma_html = (
-            f'<p style="margin:0 0 24px 0;font-size:14px;line-height:1.5;">'
-            f'<b>{asesor_firma}</b><br/>'
-            f'<span style="color:#5a6b82;">GCP · Asesoría Contable</span></p>'
-        )
+        firma_html = _firma_texto_html(asesor_firma, (asesor_info or {}).get("firma_cargo"))
 
     if template == "rrhh_email":
         d_rrhh = fecha_limite_rrhh(mes)
