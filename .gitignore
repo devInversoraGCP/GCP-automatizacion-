@@ -6,6 +6,11 @@
 # Contienen credenciales (CLAVE SII, Previred) y PII (RUT, email, Whatsapp).
 backups/
 *.bak
+# Capturas de correos/pantallas con datos de CLIENTES reales (ej. sample1.png =
+# correo real a ECOBIM STUDIO con monto y email) y grabaciones de voz de personas.
+sample*.png
+audio-carlos.ogg
+audio-*.ogg
 
 # Secretos y entorno
 .env
@@ -69,6 +74,10 @@ $RECYCLE.BIN/
 *.tmp
 scratch/
 tmp/
+# Entregables generados (regenerables desde el generador; no son fuente) y
+# scripts de diagnóstico locales (mismo criterio que spike_f29/_gen_creds.py).
+Correos-Tickets-GCP.pdf
+notion_automation/_diag_notion.py
 
 # ─── Spike F29 (prototipo robot SII) ───
 # Descargas del SII y capturas: contienen PII (RUTs de contrapartes) — NUNCA versionar
