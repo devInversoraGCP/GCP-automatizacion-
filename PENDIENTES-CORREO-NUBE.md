@@ -3,6 +3,20 @@
 > **Creado:** noche del 08-jul-2026. **Para retomar:** mañana (09-jul-2026).
 > Recordatorio de lo que quedó pendiente tras dejar el sistema **funcionando en la nube**.
 
+> ## ✅ CERRADO (17-jul-2026) — este documento es ya histórico
+> Todos los pendientes operativos de abajo están **resueltos**. Resumen del estado actual en
+> [`docs/dev/31-mejoras-robustez-correo-jul-2026.md`](docs/dev/31-mejoras-robustez-correo-jul-2026.md) §2:
+> - **TAREA 1 (activar asesores):** ✅ resuelta por la TAREA 2 — al autenticar el dominio, **todos** los
+>   `@inversoragcp.com` quedaron verificados (Constanza, Matilde, Andrea incluidas).
+> - **TAREA 2 (Domain Authentication):** ✅ hecha (registros DNS en Vercel; sin *"via sendgrid.net"*).
+> - **TAREA 3 (Render sleep):** ✅ resuelta — Render en plan **Starter ($7, always-on)**.
+> - **SendGrid Essentials:** ✅ **PAGADO** (sin riesgo de pausa al vencer el trial del 07-sep).
+> - **`ADMIN_ALERT_EMAIL`:** ✅ configurada (`/health` → `admin_alerts_configurados: 2`).
+>
+> **Único pendiente humano:** rotar las App Passwords viejas (higiene, baja prioridad — la nube usa
+> SendGrid API, no SMTP) y conseguir los correos reales de RENOFAT y STIVEN (dato de cliente).
+> El detalle histórico se conserva abajo.
+
 ## ✅ Estado actual (FUNCIONA)
 
 - **Backend en Render 24/7:** `https://auditai-backend-gubv.onrender.com` (deploy desde el repo de Carlos `gcp-dev26/GCP-automatizacion-`).

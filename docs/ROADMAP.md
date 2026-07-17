@@ -6,6 +6,8 @@ Meta final: ver [`ARQUITECTURA.md`](ARQUITECTURA.md). Cada fase produce algo fun
 
 > ✅ **Avance 30-jun-2026:** red de seguridad montada en Notion (plan Business / historial 90d / papelera 30d), snapshot CSV base en `backups/general-customers-data/2026-06-30_all.csv` (171 registros) y sandbox `General Customers Data - AuditAI` creada (copia fiel, 171 filas). Se identificaron **3 fuentes auxiliares** (Contable Mayo, RRHH Junio 2026, Tickets - Servicios) de donde recuperar la data faltante. Protocolos en [`dev/09-seguridad-y-respaldo.md`](dev/09-seguridad-y-respaldo.md) y [`dev/10-fuentes-auxiliares-notion.md`](dev/10-fuentes-auxiliares-notion.md).
 
+> 🟢 **Decisión de alcance (17-jul-2026, GCP/Carlos):** por ahora el proyecto **se consolida en la Fase 1** — *automatizar Notion + los correos automáticos* (F29, RRHH y Tickets). Ese sub-sistema está **operativo en producción y endurecido**: backend en Render (Starter, always-on), envío por SendGrid (dominio autenticado, **plan Essentials pagado**), con validación de datos, reintentos, confirmación de entrega, multi-destinatario y avisos de error a dos audiencias (asesor + dev). Detalle y estado final en [`dev/31-mejoras-robustez-correo-jul-2026.md`](dev/31-mejoras-robustez-correo-jul-2026.md). Las **Fases 2–6** (motor de cálculo, ingesta SII, auditoría, IA, BD especializada) quedan **para el futuro**, cuando GCP decida retomarlas.
+
 ```mermaid
 flowchart LR
     F0["Fase 0<br/>Cimientos<br/>(completada)"] --> F1["Fase 1<br/>Centralizar data<br/>+ reglas"]

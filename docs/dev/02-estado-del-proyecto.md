@@ -1,6 +1,15 @@
 # 02 · Estado del proyecto
 
-> Foto del proyecto al **07 de julio de 2026**. Responde tres preguntas: ¿qué hay?, ¿qué está validado?, ¿qué falta?
+> Foto del proyecto al **07 de julio de 2026** (actualizada 17-jul). Responde tres preguntas: ¿qué hay?, ¿qué está validado?, ¿qué falta?
+
+> 🟢 **Actualización 17-jul-2026 — el sub-sistema de correo está OPERATIVO y consolidado.** Por
+> decisión de GCP el proyecto se queda por ahora en la **Fase 1** (automatizar Notion + correos
+> automáticos de F29, RRHH y Tickets). Ese sistema está **en producción, endurecido y verificado en
+> vivo**: dominio `inversoragcp.com` autenticado en SendGrid, **plan Essentials pagado**, Render
+> Starter always-on, y capas de robustez/observabilidad (validación de Email, reintentos, reintento
+> ante rebote, confirmación de entrega, multi-destinatario, avisos a 2 audiencias con query para LLM).
+> Estado final y detalle en [`31-mejoras-robustez-correo-jul-2026.md`](31-mejoras-robustez-correo-jul-2026.md).
+> Las Fases 2–6 (motor de cálculo en adelante) quedan para el futuro.
 
 ## Inventario de activos
 
@@ -71,9 +80,9 @@ Plan del workspace: **Business** → historial de página **90 días**, papelera
 - *(Resuelto)* ~~Volcado de data faltante~~: ✅ Fase A+B+C ejecutada el 01-jul-2026 (ver [`13`](13-fase-c-volcado-nuevos-registros.md)).
 - *(Resuelto)* ~~Control de versiones~~: ✅ repositorio git inicializado (cierre de Fase 0).
 - *(Resuelto)* ~~Backend del correo F29~~: ✅ **E2E verificado 07-jul-2026** — `app.py`/`email_sender.py`/`notion_client.py` + columnas en Contable Junio + botón configurado. Ver [`23`](23-automatizacion-notion-contable-correo.md) §5.6.
-- **Duplicación mensual de Contable** (`duplicar_mes.py`): pendiente (Fase 2 del doc 23).
-- **Migración a la nube (Render)**: pendiente — manual listo en [`MIGRACION-A-RENDER.md`](../../MIGRACION-A-RENDER.md).
-- **App Passwords de 4 asesores**: solo Sebastián Robles tiene la suya (verificada en el E2E). Constanza, Carlos, Andrea, Matilde pendientes (Andrea y Matilde además sin contraseña normal).
+- *(Resuelto)* ~~Duplicación mensual de Contable~~ (`duplicar_mes.py`): **cancelada** — Carlos duplica la página a mano y el sistema sigue sin tocar código (ver [`28`](28-cambio-de-mes-y-rotacion-manual.md)).
+- *(Resuelto)* ~~Migración a la nube (Render)~~: ✅ backend en Render 24/7, envío por SendGrid API.
+- *(Resuelto)* ~~App Passwords de asesores~~: ✅ superadas — la nube envía por **SendGrid API** (no SMTP) y el **dominio está autenticado** → todos los `@inversoragcp.com` verificados. Pendiente menor: **rotar** las App Passwords viejas del historial (higiene, [`27`](27-robustez-observabilidad-plan.md) Fase 0).
 
 ## Fase actual
 

@@ -16,6 +16,18 @@
 > **Este documento es autosuficiente.** Un LLM debe poder ejecutarlo sin volver a investigar. Está
 > escrito paso a paso, clic a clic en la UI de Notion y con el código del backend incluido.
 
+> ## 🆕 Estado actualizado (17-jul-2026)
+> El **disparador de correo (B)** está en producción y muy endurecido. Los pendientes que este doc
+> listaba quedaron resueltos: **migración a Render** ✅ (correo por SendGrid API, no SMTP);
+> **App Passwords** ✅ superadas (la nube usa SendGrid; dominio autenticado → todos los
+> `@inversoragcp.com` verificados); **`duplicar_mes.py` (A)** ✅ **cancelada** — Carlos duplica la
+> página a mano y el sistema sigue funcionando sin tocar código (ver [`28`](28-cambio-de-mes-y-rotacion-manual.md)).
+> **Mejoras nuevas del flujo F29** (detalle en [`31`](31-mejoras-robustez-correo-jul-2026.md)):
+> - **Validación del Email** antes de SendGrid (celdas con RUT/basura se cortan con motivo claro).
+> - **Fallback de Email por RUT a la base madre** (igual que RRHH; `nc.buscar_email_en_central`).
+> - **Multi-destinatario**: la celda Email acepta varias direcciones (1ª = `to`, resto en CC).
+> - **Reintento automático ante rebote** + **avisos de error a 2 audiencias** (asesor + dev).
+
 ---
 
 ## §0 · Orden de lectura y decisiones ya tomadas

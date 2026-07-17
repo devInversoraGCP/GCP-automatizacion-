@@ -1,13 +1,17 @@
 # 27 · Robustez, tolerancia a fallos y observabilidad (plan por fases)
 
-> **Estado: 📋 plan para validar.** Este documento **no** describe algo ya construido: es la
-> hoja de ruta para blindar el backend de correos ([`../../notion_automation/`](../../notion_automation/))
-> que corre en Render 24/7. Objetivo del creador (12-jul-2026): *"un sistema tan robusto que la
-> probabilidad de errores o caídas sea mínima, y enterarme del detalle de cada error para
-> solucionarlo directamente."*
+> **Estado (actualizado 17-jul-2026): ✅ Fases 0–3 ejecutadas** (salvo la rotación de App Passwords,
+> tarea humana). Este documento fue la hoja de ruta; hoy casi todo está construido y en producción.
+> Objetivo del creador (12-jul-2026): *"un sistema tan robusto que la probabilidad de errores o
+> caídas sea mínima, y enterarme del detalle de cada error para solucionarlo directamente."*
+>
+> 🆕 **Extensión (15-17 jul):** sobre este plan se sumaron 5 capas más de robustez/observabilidad
+> (validación de Email antes de SendGrid, reintento ante rebote, fallback F29 a la base madre,
+> multi-destinatario, y **avisos a 2 audiencias** con query para LLM que cumple de lleno *"enterarme
+> del detalle para solucionarlo directamente"*). Consolidadas en
+> [`31`](31-mejoras-robustez-correo-jul-2026.md).
 >
 > Se lee después del [`24`](24-arquitectura-multi-automatizacion.md) (arquitectura del backend).
-> Nada se implementa hasta que el creador valide las fases y el orden.
 
 ## 0 · Las dos metas y la filosofía
 
@@ -238,7 +242,8 @@ silencio** (misma clase que H3). Ver [`PENDIENTES-CORREO-NUBE.md`](../../PENDIEN
 - [x] El rechazo de SendGrid por cuota/auth (403/402/429) ya llega como alerta (al asesor + admin
       en cc) gracias a 1.1/1.2: el mensaje de `ValueError` incluye el HTTP status y el `motivo`
       completo de SendGrid, así que un 403 por cuenta vencida se ve tal cual en el correo de aviso
-- [ ] ⏰ **ACCIÓN antes del 07-sep-2026:** contratar el plan Essentials en el panel de SendGrid
+- [x] ✅ **SendGrid Essentials CONTRATADO/PAGADO (17-jul-2026)** — se cierra el riesgo de pausa
+      silenciosa al vencer el trial. Ya no hay acción pendiente con fecha límite.
 - [ ] El wrapper de errores (1.1) trata el **403/402/429 de cuota** de SendGrid como alerta crítica al admin
 
 ### Criterio de aceptación de la Fase 1
@@ -375,13 +380,16 @@ La herramienta central de la meta B: para cada cosa que puede fallar, **cómo se
 
 El sistema se considera blindado cuando **todas** estas frases son ciertas:
 
-- [ ] **Ningún** fallo deja al cliente sin correo *en silencio*: o se recupera, o me llega alerta con detalle.
-- [ ] Puedo ver el historial de qué se envió y qué falló, **aunque Render se haya reiniciado**.
-- [ ] Si el backend se cae, me entero por un canal externo en **minutos**, no cuando un cliente reclama.
-- [ ] Un doble-click no manda dos correos.
-- [ ] Un hipo de red no pierde un envío.
-- [ ] Puedo cambiar el código con la confianza de una suite de tests que corre sola.
-- [ ] No hay credenciales en el repo.
+- [x] **Ningún** fallo deja al cliente sin correo *en silencio*: o se recupera (reintentos + reintento
+      post-bounce + fallback a la base madre), o me llega **alerta con detalle** (avisos a 2 audiencias, doc 31).
+- [ ] Puedo ver el historial de qué se envió y qué falló, **aunque Render se haya reiniciado**
+      (log persistente 1.3 descartado por decisión; queda el log stream de Render ~7d + las alertas en la bandeja).
+- [ ] Si el backend se cae, me entero por un canal externo en **minutos** (1.4 pospuesto; config de
+      2 min en las notificaciones de Render si se quiere cerrar).
+- [x] Un doble-click no manda dos correos (dedupe, 2.2).
+- [x] Un hipo de red no pierde un envío (reintentos con backoff, 2.1).
+- [x] Puedo cambiar el código con la confianza de una suite de tests que corre sola (**175 tests** + CI).
+- [x] No hay credenciales en el repo (Fase 0; falta solo **rotar** las viejas del historial — tarea humana).
 
 ---
 
