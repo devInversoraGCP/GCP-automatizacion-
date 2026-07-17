@@ -77,6 +77,7 @@ tmp/
 # Entregables generados (regenerables desde el generador; no son fuente) y
 # scripts de diagnóstico locales (mismo criterio que spike_f29/_gen_creds.py).
 Correos-Tickets-GCP.pdf
+Manual-Operacion-GCP.pdf
 notion_automation/_diag_notion.py
 
 # ─── Spike F29 (prototipo robot SII) ───
