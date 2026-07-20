@@ -771,7 +771,11 @@ def enviar_aviso_asesor(email_asesor: str, cliente: str, mes: str, diag) -> bool
     chip_bg = "#eaf7ee" if puede else "#eef2fb"
     chip_bd = "#bfe3c8" if puede else "#cdd8f0"
     chip_fg = "#1d7a3a" if puede else "#33489a"
-    asunto = f"Acción requerida: correo de {cliente} ({mes or 'sin período'})"
+    # Asunto = el titular del diagnóstico (dice QUÉ pasó, ej. "El correo de X
+    # salió pero NO le llegó al cliente"), para que el asesor lo entienda sin
+    # abrir. "Acción requerida" solo si él puede resolverlo; si no, "Aviso".
+    prefijo = "Acción requerida" if puede else "Aviso"
+    asunto = f"{prefijo}: {diag.titulo}"
 
     texto = (
         f"{diag.titulo}\n\n"

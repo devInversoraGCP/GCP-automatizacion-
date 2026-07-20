@@ -33,6 +33,40 @@ def _q(texto: str) -> str:
     return " ".join(texto.split())
 
 
+def _clasificar_bounce(reason: str) -> tuple[str, bool, bool]:
+    """Traduce el motivo técnico de SendGrid a una situación en lenguaje de
+    contador. Devuelve (situacion_humana, transitorio, direccion_mala):
+
+    - transitorio: hipo del servidor destino (DNS/MX/greylist/timeout). El
+      sistema reintenta solo; el asesor no toca nada.
+    - direccion_mala: la dirección no existe / está mal escrita (hard bounce).
+      El asesor debe corregir la celda Email.
+    (Si ninguno es True: buzón lleno o bloqueo, con su propia explicación.)
+    """
+    r = (reason or "").lower()
+    # Transitorio primero: DNS/MX/PTR/greylist/timeout/códigos 4.x
+    if any(s in r for s in ("mx", "dns", "ptr", "timeout", "try again",
+                            "temporar", "greylist", "deferred", "4.2.", "421")):
+        return ("El servidor de correo del cliente tuvo un problema temporal "
+                "(no es la dirección en sí).", True, False)
+    # Buzón lleno
+    if any(s in r for s in ("full", "quota", "552", "insufficient storage")):
+        return ("El buzón del cliente está lleno y por ahora no puede recibir "
+                "más correos.", False, False)
+    # Bloqueo / spam / política del dominio destino
+    if any(s in r for s in ("block", "spam", "policy", "reputation", "blacklist",
+                            "554", "content", "rejected due", "denied")):
+        return ("El servidor del cliente bloqueó el correo (probable filtro de "
+                "spam o política del dominio del cliente).", False, False)
+    # Dirección inexistente / mal escrita (hard bounce clásico)
+    if any(s in r for s in ("does not exist", "no such", "user unknown",
+                            "unknown user", "mailbox unavailable", "invalid",
+                            "550", "5.1.1", "not found", "recipient")):
+        return ("La dirección de correo no existe o está mal escrita.", False, True)
+    return ("El servidor del cliente devolvió el correo sin un motivo claro.",
+            False, False)
+
+
 def diagnosticar(
     motivo: str,
     *,
@@ -56,30 +90,59 @@ def diagnosticar(
     if extra.get("bounce_reason") or "no llegó" in m or "no llego" in m or "bounce" in m or "no entregado" in m:
         reason = str(extra.get("bounce_reason", "") or "")
         ya = bool(extra.get("ya_reintentado"))
-        transitorio = any(s in reason.lower() for s in ("mx", "dns", "ptr", "timeout", "try again", "temporar"))
-        return Diagnostico(
-            categoria="bounce",
-            titulo=f"El correo de {cli} se envió pero rebotó",
-            puede_asesor=True,
-            explicacion_asesor=(
-                "El correo salió del sistema pero el servidor del cliente lo devolvió. "
-                "Casi siempre es porque la dirección tiene un error de tipeo, ya no existe, "
-                "o el buzón del cliente está lleno."
-                + (" El sistema ya reintentó solo una vez y volvió a rebotar." if ya
-                   else " El sistema reintentará solo una vez más en unos minutos.")
-            ),
-            pasos_asesor=[
+        situacion, transitorio, direccion_mala = _clasificar_bounce(reason)
+
+        # Aclaración clave (confusión real de los asesores): "Enviado" en la fila
+        # significa que el correo SALIÓ, no que el cliente lo recibió. La verdad
+        # de si llegó está en la columna 'Entrega Correo' (✅ / ❌).
+        reintento_txt = (
+            " El sistema ya reintentó solo una vez y volvió a rebotar." if ya
+            else " El sistema reintentará solo una vez más en unos minutos; si igual no llega, verás el ❌."
+        ) if transitorio or not direccion_mala else ""
+
+        # Pasos según el tipo de rebote (no todos se resuelven igual).
+        if direccion_mala:
+            pasos = [
                 f"Abre la fila de {cli} en Notion y revisa la columna Email letra por letra "
                 "(sin espacios, sin comas de más, dominio bien escrito).",
-                "Si tienes dudas, confirma la dirección directamente con el cliente.",
-                "Corrige la celda Email si hace falta y vuelve a apretar el botón de enviar.",
-            ],
+                "Confirma la dirección correcta con el cliente si tienes dudas.",
+                "Corrige la celda Email y vuelve a apretar el botón de enviar.",
+            ]
+        elif transitorio:
+            pasos = [
+                "No necesitas hacer nada por ahora: fue un problema temporal del servidor del cliente "
+                "y el sistema reintenta solo.",
+                "Mira la columna 'Entrega Correo' de la fila en unos minutos: si queda en ✅ Entregado, llegó.",
+                "Si al rato sigue en ❌, recién ahí confirma la dirección con el cliente y reenvía.",
+            ]
+        else:  # buzón lleno o bloqueo/spam
+            pasos = [
+                f"Contacta a {cli} por otro medio (teléfono/WhatsApp) y avísale que el correo no le llegó.",
+                "Pídele que revise su carpeta de Spam/No deseado y que agregue a Contactos el remitente "
+                "para que no lo bloquee; si el buzón estaba lleno, que libere espacio.",
+                "Cuando lo confirme, vuelve a apretar el botón. Si vuelve a rebotar, avisa al equipo técnico.",
+            ]
+
+        return Diagnostico(
+            categoria="bounce",
+            titulo=f"El correo de {cli} salió pero NO le llegó al cliente (rebotó)",
+            puede_asesor=True,
+            explicacion_asesor=(
+                "Importante: que la fila diga «Enviado» significa que el correo SALIÓ del sistema, "
+                "NO que el cliente lo recibió. En este caso el correo salió pero rebotó (volvió sin "
+                f"entregarse). Motivo: {situacion}"
+                + reintento_txt
+                + " Guíate siempre por la columna «Entrega Correo» de la fila: ✅ = llegó, ❌ = no llegó."
+            ),
+            pasos_asesor=pasos,
             causa_raiz=(
                 "SendGrid emitió un evento bounce/dropped (aceptó el 202 pero el MTA destino "
                 f"rechazó la entrega). Motivo SendGrid: {reason or 'sin detalle'}. "
                 + ("Parece TRANSITORIO (DNS/MX): el reintento automático debería resolverlo."
                    if transitorio else
-                   "Parece un HARD bounce (dirección/buzón): requiere corregir el dato.")
+                   "Parece un HARD bounce (dirección/buzón): requiere corregir el dato."
+                   if direccion_mala else
+                   "Rebote por buzón lleno o bloqueo/spam del dominio destino: puede requerir contacto con el cliente.")
             ),
             detalle_dev=(
                 f"flujo={fl} · page_id={pid}. El write-back de Status quedó en 'Enviado' "

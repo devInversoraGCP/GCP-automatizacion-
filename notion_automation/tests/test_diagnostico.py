@@ -35,6 +35,25 @@ class TestCategorias:
         assert d.categoria == "bounce"
         assert "transitorio" in d.causa_raiz.lower()
 
+    def test_bounce_buzon_lleno(self):
+        d = _d("no llegó", extra={"bounce_reason": "552 5.2.2 The email account that you tried to reach is over quota"})
+        assert d.categoria == "bounce"
+        # buzón lleno: ni hard-address ni transitorio; el asesor contacta al cliente
+        assert "lleno" in d.explicacion_asesor.lower()
+        assert "hard bounce" not in d.causa_raiz.lower()
+
+    def test_bounce_bloqueo_spam(self):
+        d = _d("no llegó", extra={"bounce_reason": "554 5.7.1 Message blocked due to spam content"})
+        assert d.categoria == "bounce"
+        assert "bloque" in d.explicacion_asesor.lower()
+
+    def test_bounce_aclara_enviado_no_es_recibido(self):
+        # la mejora clave: el asesor debe entender que "Enviado" ≠ "Recibido"
+        d = _d("no llegó", extra={"bounce_reason": "550 mailbox does not exist"})
+        low = d.explicacion_asesor.lower()
+        assert "enviado" in low and "no que el cliente" in low
+        assert "entrega correo" in low  # lo apunta a la columna de la verdad
+
     def test_remitente_no_verificado(self):
         d = _d("SendGrid rechazo el envio (HTTP 403): remitente no verificado")
         assert d.categoria == "remitente_no_verificado" and d.puede_asesor is False
