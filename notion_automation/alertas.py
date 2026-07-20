@@ -72,6 +72,29 @@ def avisar_fallo_asesor(nombre_asesor: str, cliente: str, periodo: str, motivo: 
         log.warning("no se pudo enviar aviso tecnico al dev: %s", exc)
 
 
+def avisar_entrega_ok_asesor(remitente_o_nombre: str, cliente: str, periodo: str,
+                             flujo: str = "", fecha: str = "") -> None:
+    """Confirma al asesor que el correo SÍ llegó al cliente (evento 'delivered').
+    Contraparte positiva de avisar_fallo_asesor: así el asesor recibe por correo
+    tanto el «llegó» como el «no llegó». `remitente_o_nombre` puede ser el email
+    del remitente (preferido, viaja en custom_args) o un nombre a resolver en
+    asesores_smtp.json. Best-effort: nunca propaga."""
+    dest = (remitente_o_nombre or "").strip()
+    if not dest:
+        return
+    if "@" not in dest:
+        info = es._buscar_asesor_por_nombre(dest)
+        dest = info["email"] if info else ""
+    if not dest:
+        return
+    try:
+        ok = es.enviar_confirmacion_entrega_asesor(
+            dest, cliente or "el cliente", periodo or "", flujo, fecha)
+        log.info("confirmacion de entrega enviada al asesor: %s (ok=%s)", dest, ok)
+    except Exception as exc:
+        log.warning("no se pudo enviar confirmacion de entrega al asesor: %s", exc)
+
+
 def avisar_excepcion_admin(flujo: str, page_id: str, exc: Exception) -> None:
     """Avisa a los administradores (ADMIN_ALERT_EMAIL, uno o varios separados
     por coma) de una excepción NO prevista. Siempre deja el traceback completo

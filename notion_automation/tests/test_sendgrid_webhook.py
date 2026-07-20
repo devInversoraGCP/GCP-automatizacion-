@@ -154,12 +154,50 @@ class TestEventos:
             fn()   # ejecutar el reintento "10 min después", sincrónicamente
         assert proc.call_args[0] == (PID,)
 
-    def test_delivered_no_avisa_asesor(self, client):
+    def test_delivered_no_avisa_fallo(self, client):
+        # delivered nunca dispara el aviso de FALLO (ese es solo para rebotes)
         with patch.object(nc, "get_page", return_value=_page()), \
              patch.object(nc, "update_props"), \
-             patch.object(A.alertas, "avisar_fallo_asesor") as alerta:
+             patch.object(A.alertas, "avisar_fallo_asesor") as alerta, \
+             patch.object(A.alertas, "avisar_entrega_ok_asesor"):
             client.post(URL_OK, json=[_evento("delivered")])
         assert not alerta.called
+
+    def test_delivered_confirma_entrega_al_remitente(self, client):
+        # la mejora pedida: en delivered, el asesor recibe la confirmación "llegó"
+        ev = _evento("delivered", remitente="matildemateluna@inversoragcp.com")
+        with patch.object(nc, "get_page", return_value=_page()), \
+             patch.object(nc, "update_props"), \
+             patch.object(A.alertas, "avisar_entrega_ok_asesor") as conf:
+            r = client.post(URL_OK, json=[ev])
+        assert r.status_code == 200
+        assert conf.called
+        args = conf.call_args[0]
+        assert args[0] == "matildemateluna@inversoragcp.com"   # remitente
+        assert args[1] == "Cliente Test"                        # cliente (título)
+        assert args[2] == "Junio 2026"                          # período (Month)
+
+    def test_delivered_confirmacion_desactivable_por_env(self, client, monkeypatch):
+        monkeypatch.setenv("AVISAR_ENTREGA_OK", "0")
+        ev = _evento("delivered", remitente="matildemateluna@inversoragcp.com")
+        with patch.object(nc, "get_page", return_value=_page()), \
+             patch.object(nc, "update_props"), \
+             patch.object(A.alertas, "avisar_entrega_ok_asesor") as conf:
+            client.post(URL_OK, json=[ev])
+        assert not conf.called
+
+    def test_bounce_no_confirma_entrega(self, client):
+        # un rebote NO manda confirmación de "llegó" (va por el camino de fallo)
+        ev = _evento("bounce", reason="550 mailbox does not exist",
+                     remitente="matildemateluna@inversoragcp.com")
+        A._reintentos_hechos.add(PID)   # segundo bounce: no reintenta
+        with patch.object(nc, "get_page", return_value=_page()), \
+             patch.object(nc, "update_props"), \
+             patch.object(A.threading, "Timer"), \
+             patch.object(A.alertas, "avisar_fallo_asesor"), \
+             patch.object(A.alertas, "avisar_entrega_ok_asesor") as conf:
+            client.post(URL_OK, json=[ev])
+        assert not conf.called
 
     def test_evento_de_copia_bcc_se_ignora(self, client):
         # delivered de la copia del asesor NO debe pisar el estado del cliente
@@ -258,6 +296,20 @@ class TestCustomArgs:
                 {"page_id": PID, "flujo": "f29"},
             )
         assert capturado["custom_args"] == {"page_id": PID, "flujo": "f29"}
+
+    def test_enviar_inyecta_remitente_en_custom_args(self):
+        # es.enviar debe meter el remitente en custom_args para que el Event
+        # Webhook sepa a quién confirmarle la entrega.
+        import os as _os
+        capt = {}
+        with patch.dict(_os.environ, {"SENDGRID_API_KEY": "SG.k"}), \
+             patch.object(es, "_enviar_via_sendgrid",
+                          side_effect=lambda *a, **k: capt.update({"custom_args": a[9]})):
+            es.enviar(destinatario="cliente@test.com", nombre="X", mes="Junio 2026",
+                      monto="0", nombre_asesor="Sebastián Robles",
+                      custom_args={"page_id": PID, "flujo": "f29"})
+        assert capt["custom_args"]["page_id"] == PID
+        assert capt["custom_args"]["remitente"] == "sebastianrobles@inversoragcp.com"
 
     def test_sin_custom_args_no_agrega_la_clave(self):
         capturado = {}

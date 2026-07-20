@@ -801,6 +801,19 @@ def _procesar_evento_sendgrid(ev: dict) -> bool:
         log.warning("columna %r no existe en la base de page_id=%s; entrega solo en log", P_ENTREGA, page_id)
     log.info("evento sendgrid procesado · evento=%s · page_id=%s · flujo=%s", tipo, page_id, ev.get("flujo", ""))
 
+    # Confirmación POSITIVA al asesor: el correo SÍ llegó al cliente. Contraparte
+    # del aviso de rebote de abajo, para que el asesor vea "llegó / no llegó" por
+    # correo (no solo en la columna). El remitente (asesor) viaja en custom_args.
+    # Se puede silenciar con AVISAR_ENTREGA_OK=0 si resulta ruidoso (1 por correo).
+    if tipo == "delivered" and os.environ.get("AVISAR_ENTREGA_OK", "1") != "0":
+        alertas.avisar_entrega_ok_asesor(
+            str(ev.get("remitente", "") or ""),
+            _titulo_fila(props),
+            nc.plain(props.get("Month", {}) or {}),
+            str(ev.get("flujo", "") or ""),
+            fecha,
+        )
+
     if tipo != "delivered" and not reintento_agendado:
         cliente = _titulo_fila(props)
         asesores = nc.people_names(props.get("Adviser Accounting", {}) or {})

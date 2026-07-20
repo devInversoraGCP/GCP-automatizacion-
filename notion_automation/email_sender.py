@@ -557,6 +557,11 @@ def enviar(
     # Descargar adjuntos (PDFs de la columna "Adjuntos" de Notion), con tope de tamano.
     adjuntos_bin = _descargar_adjuntos(adjuntos)
 
+    # El remitente (asesor) viaja en custom_args para que el Event Webhook sepa a
+    # quien confirmarle la entrega o avisarle el rebote, sin leer columnas por
+    # flujo. Solo lo usa el envio SendGrid; el fallback SMTP local lo ignora.
+    custom_args = {**(custom_args or {}), "remitente": remitente_email}
+
     # === Envío ===
     # En la nube (Render BLOQUEA SMTP) se usa la API HTTPS de SendGrid si hay SENDGRID_API_KEY.
     # En local, si no hay key, cae al SMTP de Gmail (requiere App Password del asesor).
@@ -797,6 +802,39 @@ def enviar_aviso_asesor(email_asesor: str, cliente: str, mes: str, diag) -> bool
         '</div>'
         f'<p style="margin:14px 2px 0;font-size:13px;color:#5a6b82;">Cliente: <b>{_escape(cliente)}</b> · Período: <b>{_escape(mes or "—")}</b></p>'
         '<p style="color:#8593a8;font-size:12px;margin-top:6px;">Aviso automatico del sistema AuditAI (no responder).</p>'
+        '</div>'
+    )
+    return _post_aviso([email_asesor], asunto, texto, html)
+
+
+def enviar_confirmacion_entrega_asesor(email_asesor: str, cliente: str, periodo: str = "",
+                                       flujo: str = "", fecha: str = "") -> bool:
+    """Confirmación POSITIVA al asesor: el correo SÍ le llegó al cliente (evento
+    'delivered' de SendGrid). Es la contraparte de enviar_aviso_asesor (que avisa
+    los fallos): así el asesor recibe por correo tanto el «llegó» como el «no
+    llegó», sin tener que abrir Notion. Best-effort: nunca lanza."""
+    cuando = f" el {fecha}" if fecha else ""
+    per_html = f" · Período: {_escape(periodo)}" if periodo else ""
+    asunto = f"✅ Le llegó al cliente: correo de {cliente}" + (f" ({periodo})" if periodo else "")
+    texto = (
+        f"Buenas noticias: el correo de {cliente} fue ENTREGADO en el buzón del cliente{cuando}.\n\n"
+        f"Cliente: {cliente}" + (f"\nPeríodo: {periodo}" if periodo else "") + "\n\n"
+        "Esto confirma que el correo LLEGÓ (no necesariamente que lo haya abierto). "
+        "En Notion, la columna 'Entrega Correo' de la fila también lo muestra.\n\n"
+        "— Confirmación automática del sistema AuditAI (no responder)."
+    )
+    html = (
+        '<div style="font-family:Arial,Helvetica,sans-serif;max-width:600px;color:#0B1F3A;">'
+        '<div style="display:inline-block;background:#eaf7ee;border:1px solid #bfe3c8;'
+        'color:#1d7a3a;font-size:12px;font-weight:700;border-radius:999px;padding:5px 12px;margin-bottom:12px;">✅ Correo entregado</div>'
+        '<div style="background:#f2fbf5;border:1px solid #cdeed7;border-left:4px solid #1c7c4a;'
+        'border-radius:12px;padding:18px 22px;">'
+        f'<div style="font-size:17px;font-weight:800;margin:0 0 8px 0;">El correo de {_escape(cliente)} le llegó al cliente</div>'
+        f'<p style="margin:0;font-size:14px;line-height:1.6;color:#3a4658;">Fue entregado en el buzón del cliente{_escape(cuando)}. '
+        'Confirma que <b>llegó</b> (no necesariamente que lo haya abierto).</p>'
+        '</div>'
+        f'<p style="margin:14px 2px 0;font-size:13px;color:#5a6b82;">Cliente: <b>{_escape(cliente)}</b>{per_html}</p>'
+        '<p style="color:#8593a8;font-size:12px;margin-top:6px;">En Notion, la columna «Entrega Correo» de la fila también lo muestra. Confirmación automática de AuditAI (no responder).</p>'
         '</div>'
     )
     return _post_aviso([email_asesor], asunto, texto, html)
