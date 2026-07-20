@@ -73,57 +73,17 @@ def _bloque_monto(monto: str) -> tuple[str, str]:
     return html, txt
 
 
-# Cuenta bancaria de GCP como tarjeta ordenada (etiqueta + valor por fila).
-# Exclusiva del correo de Finanzas; no toca la constante compartida con Tickets.
-_BANCO_DATOS = [
-    ("Banco", "Banco Santander"),
-    ("Tipo de cuenta", "Cuenta Corriente"),
-    ("N° de cuenta", "0-000-8577678-9"),
-    ("RUT", "76.976.672-3"),
-    ("Titular", "Inversora GCP Ltda"),
-]
-
-
-def _banco_card_html() -> str:
-    """Tarjeta HTML con los datos bancarios en filas etiqueta/valor (email-safe:
-    tablas + estilos inline). El N° de cuenta va en monoespaciado para leerse y
-    copiarse fácil."""
-    filas = ""
-    ultima = len(_BANCO_DATOS) - 1
-    for i, (label, valor) in enumerate(_BANCO_DATOS):
-        borde = "" if i == ultima else "border-bottom:1px solid #e3ebf5;"
-        mono = ("font-family:'Courier New',Consolas,monospace;letter-spacing:.03em;"
-                if label == "N° de cuenta" else "")
-        filas += (
-            '<tr>'
-            f'<td style="padding:10px 20px;{borde}font-size:11px;color:#8593a8;'
-            f'text-transform:uppercase;letter-spacing:.06em;white-space:nowrap;">{label}</td>'
-            f'<td style="padding:10px 20px;{borde}font-size:14px;color:#16202e;'
-            f'font-weight:700;text-align:right;{mono}">{valor}</td>'
-            '</tr>'
-        )
-    return (
-        '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" '
-        'style="margin:0 0 18px 0;"><tr><td style="border:1px solid #d3e0f5;'
-        'border-radius:12px;overflow:hidden;padding:0;">'
-        '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" '
-        'style="border-collapse:collapse;background:#ffffff;">'
-        '<tr><td colspan="2" style="background:#0B1F3A;padding:13px 20px;font-size:12px;'
-        'font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#8fb4ee;">'
-        '🏦 Datos para la transferencia</td></tr>'
-        f'{filas}'
-        '</table></td></tr></table>'
-    )
-
-
-def _banco_txt() -> str:
-    """Versión texto plano de la cuenta, con etiquetas alineadas."""
-    ancho = max(len(l) for l, _ in _BANCO_DATOS)
-    return "\n".join(f"  {l.ljust(ancho)}  {v}" for l, v in _BANCO_DATOS)
-
-
-_BANCO_CARD_HTML = _banco_card_html()
-_BANCO_TXT = _banco_txt()
+# Cuenta bancaria en caja dorada (mismo estilo cálido que el bloque de honorarios
+# del F29), como prefirió el usuario. Exclusiva del correo de Finanzas.
+_BANCO_CARD_HTML = (
+    '<div style="margin:0 0 18px 0;background:#fff8ec;border:1px solid #f2e2bf;'
+    'border-left:4px solid #E7A100;border-radius:12px;padding:18px 22px;">'
+    '<div style="font-size:12px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;'
+    'color:#9a7400;margin-bottom:10px;">Datos para la transferencia</div>'
+    '<div style="font-size:14px;color:#3a4658;line-height:1.9;">'
+    f'{es.BANCO_GCP_HTML}</div></div>'
+)
+_BANCO_TXT = es.BANCO_GCP_TXT
 
 
 def procesar(page_id: str) -> dict:
