@@ -45,9 +45,9 @@ STATUS_ENVIADO = "Listo"   # opción del status en CRM (Sin empezar/En curso/Lis
 FECHA_COL = "Fecha envío"
 
 MENSAJE_ESTANDAR = (
-    "Junto con saludar, le recordamos que se encuentra pendiente el pago de los "
-    "honorarios por los servicios contables prestados por Inversora GCP. "
-    "Agradeceremos regularizar el pago a la brevedad."
+    "Junto con saludar, adjuntamos al presente correo factura de honorarios "
+    "de los servicios contables y tributarios.\n\n"
+    "Agradecemos su pronto pago."
 )
 
 
@@ -113,10 +113,11 @@ def procesar(page_id: str) -> dict:
         return {"ok": False, "motivo": "fila sin Sw"}
 
     b_monto = _bloque_monto(monto)
+    t_html = es._escape(MENSAJE_ESTANDAR).replace("\n", "<br>")
     extra_vars = {
         "bloque_mensaje": (
             '<p style="margin:0 0 18px 0;font-size:15px;line-height:1.6;color:#3a4658;">'
-            f'{es._escape(MENSAJE_ESTANDAR)}</p>'
+            f'{t_html}</p>'
         ),
         "linea_mensaje": MENSAJE_ESTANDAR,
         "bloque_monto": b_monto[0],
