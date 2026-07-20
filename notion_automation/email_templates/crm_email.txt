@@ -1,0 +1,19 @@
+Asunto: Honorarios servicios contables Inversora GCP
+
+Estimado/a {{nombre_cliente}}:
+
+{{linea_mensaje}}
+{{linea_monto}}
+
+Puede regularizar el pago mediante transferencia a la siguiente cuenta:
+{{linea_banco}}
+
+Ante cualquier consulta, puede responder este correo y con gusto le ayudaremos.
+
+Saludos cordiales,
+Finanzas · GCP
+Inversora GCP Ltda
+
+—
+Este correo y su contenido son confidenciales y están dirigidos exclusivamente
+a {{nombre_cliente}}.

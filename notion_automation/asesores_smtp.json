@@ -36,5 +36,13 @@
     "tipo": "workspace",
     "pendiente": false,
     "firma_png": "firmas/pie_carlos.jpeg"
+  },
+  "finanzas@inversoragcp.com": {
+    "_comment": "Remitente FIJO de la automatizacion CRM Comercial (cobranza de honorarios). No es un asesor-persona: es la cuenta de Finanzas desde la que salen TODOS los correos de esa pagina. Se registra aca para reutilizar la logica de remitente/firma de email_sender sin tocar el codigo. Domain Auth de inversoragcp.com verificado en SendGrid -> envia sin config extra. Firma de texto (sin PNG).",
+    "nombre": "Finanzas",
+    "nombre_norm": "finanzas",
+    "tipo": "workspace",
+    "pendiente": false,
+    "firma_cargo": ["Inversora GCP Ltda"]
   }
 }

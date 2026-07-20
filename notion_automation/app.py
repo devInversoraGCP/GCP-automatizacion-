@@ -24,6 +24,7 @@ import email_sender as es
 import alertas
 import handlers.rrhh as rrhh_handler
 import handlers.tickets as tickets_handler
+import handlers.crm as crm_handler
 
 load_dotenv()
 
@@ -343,6 +344,11 @@ def _procesar_webhook_generico(handler, nombre_handler: str):
         if not ident and nombre_handler == "TICKETS":
             ident, ruta = _buscar_clave(data, ["Tarea", "tarea", "Nombre"])
             prop_busqueda = "Tarea"
+        # CRM Comercial: identificar por 'Sw' (title). El botón de Notion no manda
+        # un page_id utilizable (doc 24 §6), así que el Sw es el camino principal.
+        if not ident and nombre_handler == "CRM":
+            ident, ruta = _buscar_clave(data, ["Sw", "sw"])
+            prop_busqueda = "Sw"
         log.info("identificador en ruta=%r (valor no se loguea)", ruta)
 
         if not ident:
@@ -358,6 +364,10 @@ def _procesar_webhook_generico(handler, nombre_handler: str):
             elif nombre_handler == "TICKETS":
                 from handlers.tickets import DS_ID as DS
                 page_id = nc.find_page_by_rut_generico(ident, DS, prop_busqueda)
+            elif nombre_handler == "CRM":
+                from handlers.crm import DS_ID as DS
+                # 'Sw' es title -> filtro title (no rich_text). Ver doc 32.
+                page_id = nc.find_page_by_title_generico(ident, DS, prop_busqueda)
             else:
                 page_id = nc.find_page_by_rut(ident)
             if not page_id:
@@ -400,6 +410,12 @@ def webhook_tickets(tipo):
     return _procesar_webhook_generico(
         lambda page_id: tickets_handler.procesar(page_id, tipo), "TICKETS"
     )
+
+
+@app.post("/webhook/crm")
+def webhook_crm():
+    """Webhook del botón de cobranza en 'CRM Comercial'. Remitente fijo Finanzas."""
+    return _procesar_webhook_generico(crm_handler.procesar, "CRM")
 
 
 @app.post("/enviar-f29")
@@ -692,6 +708,8 @@ def _handler_por_flujo(flujo: str):
         return _procesar_page
     if flujo == "rrhh":
         return rrhh_handler.procesar
+    if flujo == "crm":
+        return crm_handler.procesar
     if flujo.startswith("tickets-"):
         tipo = flujo.split("-", 1)[1]
         if tipo in _TICKETS_TIPOS:

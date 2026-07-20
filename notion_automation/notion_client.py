@@ -167,6 +167,24 @@ def find_page_by_rut_generico(rut: str, ds_id: str, prop_rut: str = "Rut") -> st
     return results[0]["id"]
 
 
+def find_page_by_title_generico(titulo: str, ds_id: str, prop_title: str) -> str | None:
+    """Busca el page_id por el valor de una propiedad TITLE en un data source.
+    A diferencia de find_page_by_rut_generico (filtro rich_text), Notion exige el
+    filtro 'title' para las columnas title (un rich_text sobre un title da 400).
+    Usado por CRM Comercial, cuyo identificador es 'Sw' (title). Ver doc 32."""
+    body = {
+        "filter": {
+            "property": prop_title,
+            "title": {"equals": titulo},
+        },
+        "page_size": 5,
+    }
+    results = query_data_source(ds_id, body)
+    if not results:
+        return None
+    return results[0]["id"]
+
+
 def buscar_email_en_central(rut: str) -> str | None:
     """Busca el Email de un cliente por RUT en la base madre (SOLO LECTURA).
     Fallback cuando la fila del Contable llega con la columna Email vacia:
