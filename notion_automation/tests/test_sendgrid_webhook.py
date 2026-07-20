@@ -258,6 +258,26 @@ class TestEventos:
         assert r.get_json()["filas_actualizadas"] == 1
 
 
+class TestFechaLocal:
+    """La hora de los avisos va en hora de Chile (America/Santiago), no UTC."""
+
+    @pytest.mark.skipif(A._TZ_CHILE is None, reason="zoneinfo/tzdata no disponible")
+    def test_julio_es_utc_menos_4(self):
+        import datetime as dt
+        ts = dt.datetime(2026, 7, 20, 18, 15, tzinfo=dt.timezone.utc).timestamp()
+        assert A._fecha_local(ts) == "20-07-2026 14:15 hrs"   # invierno CL
+
+    @pytest.mark.skipif(A._TZ_CHILE is None, reason="zoneinfo/tzdata no disponible")
+    def test_enero_es_utc_menos_3_horario_verano(self):
+        import datetime as dt
+        ts = dt.datetime(2026, 1, 15, 18, 15, tzinfo=dt.timezone.utc).timestamp()
+        assert A._fecha_local(ts) == "15-01-2026 15:15 hrs"   # verano CL (DST)
+
+    def test_timestamp_invalido_da_vacio(self):
+        assert A._fecha_local(None) == ""
+        assert A._fecha_local("no-es-numero") == ""
+
+
 class TestHandlerPorFlujo:
     """El custom_arg 'flujo' de cada correo debe mapear a su handler de reenvío."""
 

@@ -19,6 +19,11 @@ from flask import Flask, request, abort
 from werkzeug.exceptions import HTTPException
 from dotenv import load_dotenv
 import datetime
+try:
+    from zoneinfo import ZoneInfo
+    _TZ_CHILE = ZoneInfo("America/Santiago")   # maneja el horario de verano solo
+except Exception:   # zoneinfo/tzdata no disponible: _fecha_local cae a UTC
+    _TZ_CHILE = None
 import notion_client as nc
 import email_sender as es
 import alertas
@@ -746,6 +751,22 @@ def _agendar_reintento(page_id: str, flujo: str) -> bool:
     return True
 
 
+def _fecha_local(ts) -> str:
+    """Formatea un timestamp epoch (segundos, UTC) a HORA DE CHILE
+    'dd-mm-YYYY HH:MM hrs'. Usa America/Santiago (aplica el horario de verano
+    automaticamente, sin offset fijo que se rompa medio ano). Si zoneinfo/tzdata
+    no esta disponible, cae a UTC etiquetado (nunca lanza)."""
+    if not isinstance(ts, (int, float)):
+        return ""
+    dt = datetime.datetime.fromtimestamp(ts, datetime.timezone.utc)
+    if _TZ_CHILE is not None:
+        try:
+            return dt.astimezone(_TZ_CHILE).strftime("%d-%m-%Y %H:%M hrs")
+        except Exception:
+            pass
+    return dt.strftime("%d-%m-%Y %H:%M UTC")
+
+
 def _procesar_evento_sendgrid(ev: dict) -> bool:
     """Procesa UN evento del Event Webhook. True si actualizó la fila.
     Ignora eventos sin page_id (correos ajenos al backend, ej. avisos admin) y
@@ -772,12 +793,7 @@ def _procesar_evento_sendgrid(ev: dict) -> bool:
         log.info("evento sendgrid de copia BCC ignorado · evento=%s · page_id=%s", tipo, page_id)
         return False
 
-    ts = ev.get("timestamp")
-    fecha = ""
-    if isinstance(ts, (int, float)):
-        fecha = datetime.datetime.fromtimestamp(
-            ts, datetime.timezone.utc
-        ).strftime("%d-%m-%Y %H:%M UTC")
+    fecha = _fecha_local(ev.get("timestamp"))   # hora de Chile (no UTC)
 
     # Primer bounce de la fila: reintento automático, sin alarma todavía.
     reintento_agendado = False
