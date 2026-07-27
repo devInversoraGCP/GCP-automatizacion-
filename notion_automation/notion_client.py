@@ -264,6 +264,25 @@ def buscar_email_en_central(rut: str) -> str | None:
         return None
 
 
+def buscar_data_sources(query: str) -> list[dict]:
+    """Busca data sources por título (POST /v1/search, filtro data_source).
+    Devuelve los results crudos (traen id, title/name y last_edited_time). Paginado.
+    Usado para resolver dinámicamente la base del mes vigente (Contable/RRHH)."""
+    out: list[dict] = []
+    cursor = None
+    while True:
+        body: dict = {"query": query, "filter": {"property": "object", "value": "data_source"}}
+        if cursor:
+            body["start_cursor"] = cursor
+        r = request_con_reintentos("POST", f"{API}/search", headers=_headers(), json=body, timeout=30)
+        r.raise_for_status()
+        data = r.json()
+        out += data.get("results", [])
+        if not data.get("has_more"):
+            return out
+        cursor = data["next_cursor"]
+
+
 def get_database_title(database_id: str) -> str:
     """Obtiene el titulo plano de una base Notion (de su data source / database).
     'Contable Junio' -> 'Contable Junio'. Devuelve '' si falla."""

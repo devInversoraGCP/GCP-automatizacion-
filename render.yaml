@@ -49,3 +49,9 @@ services:
     envVars:
       - key: NOTION_TOKEN
         sync: false                  # pegar el MISMO token de Notion que el web service
+      # Para el aviso por correo si el cron falla (avisar_excepcion_admin). Si no
+      # se setean, el fallo queda solo en el log de Render (igual visible).
+      - key: SENDGRID_API_KEY
+        sync: false                  # mismo valor que el web service
+      - key: ADMIN_ALERT_EMAIL
+        sync: false                  # correo(s) del admin, separados por coma

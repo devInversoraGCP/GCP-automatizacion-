@@ -22,11 +22,12 @@ Uso:
 """
 from __future__ import annotations
 import os
+import re
 import json
 import logging
 import argparse
 from collections import defaultdict
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 
 from dotenv import load_dotenv
@@ -51,21 +52,95 @@ COL_ID = "ID"                       # unique_id (PK estable)
 class Fuente:
     """Una tabla operativa de solo lectura y cómo cruza con el sandbox."""
     nombre: str          # etiqueta corta (log/reporte)
-    ds_id: str           # data source (se LEE, nunca se escribe)
+    ds_id: str           # data source (se LEE, nunca se escribe); fallback si el prefijo no resuelve
     col_rut: str | None  # columna con el RUT (None si la tabla no tiene RUT)
     col_nombre: str      # columna con el nombre del cliente (title)
     rel_sandbox: str     # nombre de la relación una-vía en el SANDBOX
     origen: str          # valor para la columna select `Origen` al crear ficha nueva
+    prefijo: str | None = None  # si la base cambia por mes, prefijo del título ("Contable"/"RRHH")
 
 
-# El data source de Contable/RRHH es el del MES VIGENTE (se re-apunta al cambiar de mes,
-# ver docs/dev/18 §4). Hoy: Contable Julio y RRHH JUNIO 2026.
+# Contable/RRHH tienen base por MES: se resuelven en runtime al data source del período
+# más nuevo (prefijo). CRM/Tickets son estables (sin prefijo → usan su ds_id fijo). El
+# ds_id de Contable/RRHH queda como FALLBACK por si el search falla.
 FUENTES: list[Fuente] = [
-    Fuente("Contable", "09b12147-b3ea-8337-a218-87538eab23fc", "Rut", "Customers", "Contable Origen", "Contable"),
-    Fuente("RRHH", "9c512147-b3ea-8256-a570-871254c13b3d", "RUT", "CLIENTE", "RRHH Origen", "RRHH JUNIO 2026"),
+    Fuente("Contable", "09b12147-b3ea-8337-a218-87538eab23fc", "Rut", "Customers", "Contable Origen", "Contable", prefijo="Contable"),
+    Fuente("RRHH", "9c512147-b3ea-8256-a570-871254c13b3d", "RUT", "CLIENTE", "RRHH Origen", "RRHH JUNIO 2026", prefijo="RRHH"),
     Fuente("CRM", "2961d0d2-de59-4fd5-b340-8930f6275101", "RUT", "Sw", "CRM Origen", "CRM Comercial"),
     Fuente("Tickets", "9d312147-b3ea-83bf-b111-877c7b24db75", None, "Tarea", "Tickets Origen", "Tickets"),
 ]
+
+
+def _titulo_result(it: dict) -> str:
+    """Título de un result de búsqueda de data source (título rich_text o `name`)."""
+    t = it.get("title")
+    if isinstance(t, list):
+        s = "".join(x.get("plain_text", "") for x in t).strip()
+        if s:
+            return s
+    return (it.get("name") or "").strip()
+
+
+def _periodo_de_titulo(titulo: str, last_edited: str = "") -> tuple[int, int] | None:
+    """(año, mes) del título de una base mensual, o None si no trae mes.
+    'RRHH JUNIO 2026' -> (2026, 6); 'Contable Julio' -> (año de last_edited, 7).
+    El año explícito en el título manda; si no hay, se usa el de last_edited."""
+    mes = None
+    for tok in re.split(r"[^a-záéíóúñ]+", titulo.lower()):
+        if tok in nc._MESES_ES:
+            mes = nc._MESES_ES[tok]
+            break
+    if not mes:
+        return None
+    m = re.search(r"(20\d{2})", titulo)
+    if m:
+        anio = int(m.group(1))
+    elif last_edited[:4].isdigit():
+        anio = int(last_edited[:4])
+    else:
+        anio = 0
+    return (anio, mes)
+
+
+def resolver_ds_actual(prefijo: str, fallback_id: str) -> str:
+    """Data source de la base '<prefijo> <mes>' del PERÍODO MÁS NUEVO. Robusto al
+    cambio de mes: cuando aparece p. ej. 'RRHH JULIO 2026', se elige solo. Elige por
+    período parseado del título (NO por last_edited: hay copias viejas re-editadas).
+    Si el search falla o no hay candidatos, devuelve `fallback_id`."""
+    try:
+        results = nc.buscar_data_sources(prefijo)
+    except Exception as exc:
+        log.warning("search de '%s' falló, uso fallback: %s", prefijo, exc)
+        return fallback_id
+    mejor = None  # (anio, mes, ds_id, titulo)
+    for it in results:
+        titulo = _titulo_result(it)
+        if not titulo.lower().startswith(prefijo.lower()):
+            continue
+        per = _periodo_de_titulo(titulo, it.get("last_edited_time", ""))
+        if not per:
+            continue
+        cand = (per[0], per[1], it["id"], titulo)
+        if mejor is None or cand[:2] > mejor[:2]:
+            mejor = cand
+    if mejor:
+        log.info("fuente '%s' -> '%s' (%s)", prefijo, mejor[3], mejor[2][:8])
+        return mejor[2]
+    log.warning("no encontré base para '%s', uso fallback %s", prefijo, fallback_id[:8])
+    return fallback_id
+
+
+def fuentes_resueltas(fuentes: list[Fuente]) -> list[Fuente]:
+    """Devuelve las fuentes con el ds_id del mes vigente resuelto (para las que
+    tienen prefijo). Las estables (CRM/Tickets) quedan igual."""
+    out = []
+    for f in fuentes:
+        if f.prefijo:
+            ds = resolver_ds_actual(f.prefijo, f.ds_id)
+            out.append(f if ds == f.ds_id else replace(f, ds_id=ds))
+        else:
+            out.append(f)
+    return out
 
 # Clasificación de cada fila operativa frente al sandbox.
 MATCH_RUT = "MATCH_RUT"        # ligar a ficha existente (llave fuerte)
@@ -489,10 +564,22 @@ def main():
         fuentes = [f for f in FUENTES if f.nombre.lower() == args.fuente.lower()]
         if not fuentes:
             raise SystemExit(f"Fuente desconocida: {args.fuente}")
+    # Resolver Contable/RRHH al data source del mes vigente (robusto al cambio de mes).
+    fuentes = fuentes_resueltas(fuentes)
     if args.reporte_carlos:
         reporte_carlos(fuentes, hacer_pdf=args.pdf)
     elif args.aplicar:
-        aplicar(fuentes, dry=False)
+        try:
+            aplicar(fuentes, dry=False)
+        except Exception as exc:
+            # El cron falló: avisar al admin (best-effort) y propagar para que
+            # Render marque el job como fallido.
+            try:
+                import alertas
+                alertas.avisar_excepcion_admin("reconciliacion-cron", "", exc)
+            except Exception:
+                log.exception("además, falló el aviso de excepción del cron")
+            raise
     else:
         dry_run(fuentes)
 
