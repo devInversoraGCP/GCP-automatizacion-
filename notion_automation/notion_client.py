@@ -53,7 +53,26 @@ def plain(prop: dict) -> str:
     if t == "people":
         names = [x.get("name", "") for x in prop.get("people", [])]
         return "; ".join(names)
+    if t == "unique_id":
+        u = prop.get("unique_id") or {}
+        num = u.get("number")
+        if num is None:
+            return ""
+        pre = u.get("prefix")
+        return f"{pre}-{num}" if pre else str(num)
     return ""
+
+
+def unique_id_number(prop: dict) -> int | None:
+    """Número crudo de una propiedad unique_id (la PK estable del sandbox), o None."""
+    if prop.get("type") != "unique_id":
+        return None
+    return (prop.get("unique_id") or {}).get("number")
+
+
+def relation_ids(prop: dict) -> list[str]:
+    """page_ids referenciados por una propiedad relation (vacío si no aplica)."""
+    return [r.get("id", "") for r in prop.get("relation", []) if r.get("id")]
 
 
 def people_names(prop: dict) -> list[str]:
@@ -91,6 +110,39 @@ def update_props(page_id: str, properties: dict) -> None:
         timeout=30,
     )
     r.raise_for_status()
+
+
+def update_data_source(ds_id: str, properties: dict) -> dict:
+    """Modifica el ESQUEMA de un data source (agrega/edita columnas) vía
+    PATCH /v1/data_sources/{id} (API 2025-09-03). `properties` es el patch de
+    columnas (relation, rollup, etc.). Devuelve el JSON del data source.
+
+    ⚠️ Regla de oro: SOLO sobre el sandbox. El esquema de las 4 tablas de los
+    asesores JAMÁS se toca."""
+    r = request_con_reintentos(
+        "PATCH", f"{API}/data_sources/{ds_id}", headers=_headers(),
+        json={"properties": properties}, timeout=30,
+    )
+    r.raise_for_status()
+    return r.json()
+
+
+def create_page(ds_id: str, properties: dict) -> dict:
+    """Crea una fila en un data source (API 2025-09-03: parent por data_source_id).
+    Devuelve el JSON de la página creada (incluye 'id' y sus propiedades, con el
+    unique_id ya asignado). No loguea `properties` (PII).
+
+    ⚠️ Regla de oro del proyecto: usar SOLO sobre el sandbox. Las 4 tablas de los
+    asesores JAMÁS se escriben (ver AGENTS.md y el plan de reconciliación)."""
+    body = {
+        "parent": {"type": "data_source_id", "data_source_id": ds_id},
+        "properties": properties,
+    }
+    r = request_con_reintentos(
+        "POST", f"{API}/pages", headers=_headers(), json=body, timeout=30
+    )
+    r.raise_for_status()
+    return r.json()
 
 
 def query_data_source(ds_id: str, body: dict | None = None) -> list[dict]:

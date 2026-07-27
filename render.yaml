@@ -29,3 +29,23 @@ services:
       # ASESORES_SMTP_JSON es OPCIONAL: asesores_smtp.json esta versionado en el repo (decision 08-jul),
       # asi que Render lo lee del archivo directamente. Si prefieres inyectarlo por env var,
       # agrega aqui: - key: ASESORES_SMTP_JSON / sync: false  (tiene prioridad sobre el archivo).
+
+  # --- Cron SEMANAL: reconciliacion del sandbox (MDM) ---------------------------
+  # Alimenta el sandbox maestro desde las 4 tablas operativas (Contable/RRHH/CRM/
+  # Tickets): puebla relaciones + crea fichas nuevas. 100% automatico, sin accion
+  # de los asesores. IDEMPOTENTE. Solo escribe en el sandbox (regla de oro).
+  # Ver reconciliar.py y docs/plan. NOTA de cambio de mes: Contable se renombra en
+  # sitio (mismo data source), pero al aparecer un RRHH nuevo (ej. RRHH JULIO 2026)
+  # hay que re-apuntar FUENTES/relacion RRHH al nuevo data source (docs/dev/18 §4).
+  - type: cron
+    name: auditai-reconciliacion
+    runtime: python
+    plan: starter
+    region: oregon
+    rootDir: notion_automation
+    buildCommand: pip install -r requirements.txt
+    schedule: "0 9 * * 1"            # lunes 09:00 UTC (~05:00 Chile), semanal
+    startCommand: python reconciliar.py --aplicar
+    envVars:
+      - key: NOTION_TOKEN
+        sync: false                  # pegar el MISMO token de Notion que el web service

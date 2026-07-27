@@ -11,3 +11,6 @@ gunicorn>=23.0
 # Base de datos de zonas horarias IANA para zoneinfo (hora de Chile en los
 # avisos). Linux suele traerla en el sistema; Windows NO, por eso se instala.
 tzdata>=2024.1
+# Fuzzy matching de nombres (reconciliar.py): sugerir coincidencias probables
+# para clientes sin RUT (CRM/Tickets) que se confirman a mano (nunca auto-liga).
+rapidfuzz>=3.0
