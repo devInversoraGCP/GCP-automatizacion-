@@ -78,6 +78,22 @@ class TestEsRuido:
             assert m.es_ruido(n) is False
 
 
+class TestEnumeradorDistinto:
+    def test_spv_i_vs_ii_es_distinto(self):
+        a = m.normalizar_nombre("SOCIAL UP SPV I SPA")
+        b = m.normalizar_nombre("SOCIAL UP SPV II SPA")
+        assert m.enumerador_distinto(a, b) is True
+
+    def test_numeros_distintos(self):
+        assert m.enumerador_distinto("planta 1", "planta 2") is True
+
+    def test_sin_enumerador_no_flag(self):
+        assert m.enumerador_distinto("comercial los andes", "comercail los andes") is False
+
+    def test_mismo_enumerador_no_flag(self):
+        assert m.enumerador_distinto("grupo dos i", "grupo i") is False
+
+
 class TestCandidatosFuzzy:
     def test_tolera_orden_y_typo(self):
         uni = ["comercial los andes", "inversiones san pedro"]

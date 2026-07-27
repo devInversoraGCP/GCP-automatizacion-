@@ -143,20 +143,32 @@ def fuentes_resueltas(fuentes: list[Fuente]) -> list[Fuente]:
     return out
 
 # Clasificación de cada fila operativa frente al sandbox.
-MATCH_RUT = "MATCH_RUT"        # ligar a ficha existente (llave fuerte)
-MATCH_NOMBRE = "MATCH_NOMBRE"  # ligar a ficha existente (respaldo por nombre exacto)
-NUEVO = "NUEVO"                # RUT válido sin ficha → crear ficha maestra
-AMBIGUO = "AMBIGUO"           # 2+ fichas candidatas → revisión humana, no ligar
-SIN_FICHA = "SIN_FICHA"       # sin RUT válido y sin match por nombre → revisión
-VACIA = "VACIA"               # fila sin RUT ni nombre → se ignora
-RUIDO = "RUIDO"               # fila de control/test/basura (RESET_MES, ZZ_TEST, RUT suelto)
+# --- Auto-ligar a ficha existente (sin pasar por Carlos) ---
+MATCH_RUT = "MATCH_RUT"        # RUT idéntico (llave fuerte)
+MATCH_NOMBRE = "MATCH_NOMBRE"  # nombre normalizado idéntico
+MATCH_FUZZY = "MATCH_FUZZY"    # nombre MUY parecido (>= AUTO_UMBRAL) — Carlos autorizó confiar
+# --- Crear ficha nueva (sin pasar por Carlos) ---
+NUEVO = "NUEVO"                # RUT válido sin ficha → crear con RUT
+PROBABLE_NUEVO = "PROBABLE_NUEVO"  # sin RUT y sin parecido → cliente nuevo claro → crear
+# --- A revisión de Carlos (la lista CORTA) ---
+A_CARLOS = "A_CARLOS"          # parecido medio, empate, o enumerador distinto (I/II) → confuso
+AMBIGUO = "AMBIGUO"            # 2+ fichas exactas → revisión humana
+# --- Se ignoran ---
+VACIA = "VACIA"                # fila sin RUT ni nombre
+RUIDO = "RUIDO"                # control/test/basura (RESET_MES, ZZ_TEST, RUT suelto)
+
+# Umbrales de parecido de nombre (token_sort_ratio, 0–100). Carlos (dueño del dato,
+# 27-jul) pidió confiar en los muy parecidos y mandarle solo los confusos.
+AUTO_UMBRAL = 88     # >= AUTO → auto-ligar, SALVO enumerador distinto o empate
+CARLOS_UMBRAL = 72   # [CARLOS, AUTO) → a Carlos; < CARLOS → cliente nuevo
 
 
 @dataclass
 class Indice:
-    fichas: dict            # sandbox page_id -> {"id", "nombre_norm", "rut"}
+    fichas: dict            # sandbox page_id -> {"id", "nombre_norm", "rut", …}
     por_rut: dict           # rut_llave -> [page_id, …]
     por_nombre: dict        # nombre_norm -> [page_id, …]
+    universo: list          # lista de nombres normalizados (para el fuzzy)
 
 
 def cargar_sandbox() -> Indice:
@@ -184,22 +196,36 @@ def cargar_sandbox() -> Indice:
             por_nombre[nomk].append(pid)
     log.info("sandbox cargado: %d fichas (%d con RUT válido, %d con nombre)",
              len(fichas), len(por_rut), len(por_nombre))
-    return Indice(fichas, por_rut, por_nombre)
+    return Indice(fichas, por_rut, por_nombre, list(por_nombre.keys()))
 
 
 def clasificar(rutk: str | None, nomk: str, idx: Indice) -> tuple[str, str | None]:
     """Devuelve (clasificación, sandbox_page_id|None) para una fila operativa.
-    `rutk` ya viene validado (o None); `nomk` ya viene normalizado."""
+    `rutk` ya viene validado (o None); `nomk` ya viene normalizado.
+
+    Orden: RUT exacto → nombre exacto → fuzzy (auto-liga solo si es MUY parecido y
+    seguro; medio/empate/enumerador → Carlos) → nuevo (con o sin RUT)."""
     if rutk and rutk in idx.por_rut:
         pids = idx.por_rut[rutk]
         return (MATCH_RUT, pids[0]) if len(pids) == 1 else (AMBIGUO, None)
     if nomk and nomk in idx.por_nombre:
         pids = idx.por_nombre[nomk]
         return (MATCH_NOMBRE, pids[0]) if len(pids) == 1 else (AMBIGUO, None)
-    if rutk:
-        return (NUEVO, None)     # identidad fuerte pero sin ficha → candidata a crear
     if nomk:
-        return (SIN_FICHA, None)  # solo nombre, sin match → revisión
+        cands = mm.candidatos_fuzzy(nomk, idx.universo, limite=2, umbral=CARLOS_UMBRAL)
+        if cands:
+            mejor_nom, mejor_score = cands[0]
+            pids = idx.por_nombre.get(mejor_nom, [])
+            empate = len(cands) >= 2 and (mejor_score - cands[1][1]) <= 3
+            seguro = (mejor_score >= AUTO_UMBRAL and len(pids) == 1
+                      and not empate and not mm.enumerador_distinto(nomk, mejor_nom))
+            if seguro:
+                return (MATCH_FUZZY, pids[0])   # muy parecido y sin trampa → confiar
+            return (A_CARLOS, None)             # medio / empate / enumerador → Carlos
+    if rutk:
+        return (NUEVO, None)                    # RUT válido sin ficha → crear con RUT
+    if nomk:
+        return (PROBABLE_NUEVO, None)           # sin parecido y sin RUT → cliente nuevo
     return (VACIA, None)
 
 
@@ -255,7 +281,7 @@ def dry_run(fuentes: list[Fuente]) -> dict:
     print(f"\nSandbox: {len(idx.fichas)} fichas "
           f"({len(idx.por_rut)} con RUT válido, {len(idx.por_nombre)} con nombre). "
           f"Duplicados: {len(rut_dups)} por RUT, {len(nom_dups)} por nombre.\n")
-    encabezado = f"{'Fuente':<10} {'filas':>6} {'MATCH_RUT':>10} {'MATCH_NOM':>10} {'NUEVO':>7} {'AMBIGUO':>8} {'SIN_FICHA':>10} {'DESCARTE':>9}"
+    encabezado = f"{'Fuente':<9} {'filas':>6} {'exactos':>8} {'fuzzy':>6} {'nuevos':>7} {'aCarlos':>8} {'descarte':>9}"
     print(encabezado)
     print("-" * len(encabezado))
     for fuente in fuentes:
@@ -263,10 +289,12 @@ def dry_run(fuentes: list[Fuente]) -> dict:
         s = _resumen(res)
         reporte["fuentes"][fuente.nombre] = {"filas": len(res), **s}
         detalle[fuente.nombre] = res
+        exactos = s.get(MATCH_RUT, 0) + s.get(MATCH_NOMBRE, 0)
+        nuevos = s.get(NUEVO, 0) + s.get(PROBABLE_NUEVO, 0)
+        acarlos = s.get(A_CARLOS, 0) + s.get(AMBIGUO, 0)
         descarte = s.get(VACIA, 0) + s.get(RUIDO, 0)
-        print(f"{fuente.nombre:<10} {len(res):>6} {s.get(MATCH_RUT,0):>10} "
-              f"{s.get(MATCH_NOMBRE,0):>10} {s.get(NUEVO,0):>7} {s.get(AMBIGUO,0):>8} "
-              f"{s.get(SIN_FICHA,0):>10} {descarte:>9}")
+        print(f"{fuente.nombre:<9} {len(res):>6} {exactos:>8} {s.get(MATCH_FUZZY,0):>6} "
+              f"{nuevos:>7} {acarlos:>8} {descarte:>9}")
 
     fecha = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     ruta = os.path.join(BACKUPS_DIR, f"{fecha}_dry-run-reconciliacion.json")
@@ -276,10 +304,6 @@ def dry_run(fuentes: list[Fuente]) -> dict:
     print(f"\nDetalle (con nombres/RUT) guardado en: {ruta}")
     print("⚠️  Ese archivo tiene PII — no commitear (backups/ está en .gitignore).\n")
     return reporte
-
-
-UMBRAL_SUGERENCIA = 80   # score ≥ → "probable coincidencia" (Carlos confirma mismo/nuevo)
-UMBRAL_PISTA = 65        # score en [65,80) → pista débil que se muestra en "nuevos"
 
 
 def _ficha_por_nombre(idx: Indice, nombre_norm: str) -> tuple[str, int | None]:
@@ -301,8 +325,22 @@ def _sanitizar_latin1(s: str) -> str:
     return (s or "").encode("latin-1", "replace").decode("latin-1")
 
 
-def _render_pdf(partes_fuente, idx, tot_sug, tot_new, fecha, ruta_pdf):
-    """Renderiza el mismo contenido del .md a PDF (fpdf2, sin dependencias nativas)."""
+def _motivo_carlos(clase: str, nomk: str, cands: list) -> str:
+    """Por qué este caso necesita el ojo de Carlos (para la columna 'Motivo')."""
+    if clase == AMBIGUO:
+        return "nombre duplicado en la base"
+    if not cands:
+        return "revisar"
+    mejor_nom, score = cands[0]
+    if mm.enumerador_distinto(nomk, mejor_nom):
+        return "difiere en número (I/II, 1/2)"
+    if len(cands) >= 2 and (score - cands[1][1]) <= 3:
+        return "dos fichas casi igual de parecidas"
+    return "parecido medio"
+
+
+def _render_pdf(partes_fuente, idx, total, fecha, ruta_pdf):
+    """Renderiza la lista corta (solo dudosos) a PDF (fpdf2, sin deps nativas)."""
     from fpdf import FPDF
     pdf = FPDF(format="A4")
     pdf.set_auto_page_break(True, margin=15)
@@ -314,63 +352,53 @@ def _render_pdf(partes_fuente, idx, tot_sug, tot_new, fecha, ruta_pdf):
         pdf.set_font("Helvetica", style, size)
         pdf.multi_cell(0, h, _sanitizar_latin1(texto), new_x="LMARGIN", new_y="NEXT")
 
-    linea("Revisión de clientes para centralizar — confirmar (Carlos)", h=8, size=15, style="B")
-    linea(f"Fecha: {fecha}  ·  Total a revisar: {tot_sug + tot_new} "
-          f"({tot_sug} posibles coincidencias + {tot_new} posibles nuevos)", size=10)
-    linea("Contexto: armamos una ficha única por cliente juntando las 4 planillas (Contable, "
-          "RRHH, CRM, Tickets). Los de abajo no se pudieron ubicar solos (sin RUT, o el nombre "
-          "está escrito distinto). Marca con una X dentro de [ ]. A) mismo o nuevo. "
-          "B) nuevo (o escribe la corrección al margen).", size=9)
+    linea("Clientes a confirmar — Carlos", h=8, size=15, style="B")
+    linea(f"Fecha: {fecha}  ·  Total a revisar: {total}", size=10)
+    linea("Ya centralizamos automáticamente los que coinciden por RUT, por nombre igual o por "
+          "nombre MUY parecido. Abajo quedan SOLO los dudosos (parecido medio, empatados, o que "
+          "difieren en un número tipo I/II). Marca con una X en [ ]: Mismo = es la ficha "
+          "sugerida; Nuevo = es un cliente distinto.", size=9)
     pdf.ln(2)
-    for nombre_fuente, sugerencias, nuevos in partes_fuente:
+    for nombre_fuente, casos in partes_fuente:
         linea(nombre_fuente, h=7, size=12, style="B")
-        linea("A) Posibles coincidencias — ¿mismo cliente que la ficha sugerida?", size=9, style="B")
         pdf.set_font("Helvetica", "", 8)
-        if sugerencias:
-            with pdf.table(col_widths=(8, 42, 42, 10, 11, 11), first_row_as_headings=True,
-                           text_align=("CENTER", "LEFT", "LEFT", "CENTER", "CENTER", "CENTER")) as t:
-                t.row(["#", "Cliente en planilla", "Ficha parecida (ID)", "Par.", "Mismo", "Nuevo"])
-                for n, info in enumerate(sugerencias, 1):
+        if not casos:
+            linea("Sin casos pendientes.", size=8)
+            pdf.ln(1)
+            continue
+        with pdf.table(col_widths=(7, 33, 33, 9, 24, 8, 8), first_row_as_headings=True,
+                       text_align=("CENTER", "LEFT", "LEFT", "CENTER", "LEFT", "CENTER", "CENTER")) as t:
+            t.row(["#", "Cliente en planilla", "Ficha parecida (ID)", "Par.", "Motivo", "Mismo", "Nuevo"])
+            for n, info in enumerate(casos, 1):
+                if info["cands"]:
                     disp, idnum = _ficha_por_nombre(idx, info["cands"][0][0])
-                    idtxt = f" (ID {idnum})" if idnum is not None else ""
-                    t.row([str(n), _sanitizar_latin1(info["display"]),
-                           _sanitizar_latin1(disp + idtxt), f"{info['cands'][0][1]}%", "[  ]", "[  ]"])
-        else:
-            linea("Ninguna.", size=8)
-        linea("B) Sin coincidencia clara — ¿cliente nuevo?", size=9, style="B")
-        pdf.set_font("Helvetica", "", 8)
-        if nuevos:
-            with pdf.table(col_widths=(8, 55, 45, 12), first_row_as_headings=True,
-                           text_align=("CENTER", "LEFT", "LEFT", "CENTER")) as t:
-                t.row(["#", "Cliente en planilla", "Pista (parecido lejano)", "Nuevo"])
-                for n, info in enumerate(nuevos, 1):
-                    pista = ""
-                    if info["cands"]:
-                        d, _ = _ficha_por_nombre(idx, info["cands"][0][0])
-                        pista = f"{d} ({info['cands'][0][1]}%)"
-                    t.row([str(n), _sanitizar_latin1(info["display"]), _sanitizar_latin1(pista), "[  ]"])
-        else:
-            linea("Ninguno.", size=8)
+                    disp += f" (ID {idnum})" if idnum is not None else ""
+                    score = f"{info['cands'][0][1]}%"
+                else:
+                    disp, score = "—", ""
+                veces = f" ({info['veces']} reg.)" if info["veces"] > 1 else ""
+                t.row([str(n), _sanitizar_latin1(info["display"] + veces),
+                       _sanitizar_latin1(disp), score, _sanitizar_latin1(info["motivo"]),
+                       "[  ]", "[  ]"])
         pdf.ln(2)
     pdf.output(ruta_pdf)
 
 
 def reporte_carlos(fuentes: list[Fuente], hacer_pdf: bool = False) -> str:
-    """Genera un .md legible con los clientes que NO se pudieron confirmar solos
-    (sin RUT y sin nombre exacto), para que Carlos marque cuáles ya existen y
-    cuáles son nuevos. Usa fuzzy SOLO para sugerir; nada se liga sin su OK.
-    Si hacer_pdf, además escribe un .pdf con el mismo contenido."""
+    """Genera la LISTA CORTA de clientes dudosos para que Carlos confirme: solo los
+    A_CARLOS (parecido medio / empate / enumerador distinto) y AMBIGUO (nombre
+    duplicado). Los muy parecidos ya se auto-ligaron y los sin parecido ya se
+    crearon (Carlos, 27-jul). Si hacer_pdf, escribe también el .pdf."""
     idx = cargar_sandbox()
-    universo = list(idx.por_nombre.keys())
     fecha = datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
-    partes_fuente = []   # (nombre_fuente, sugerencias, nuevos)
-    tot_sug = tot_new = 0
+    partes_fuente = []   # (nombre_fuente, casos)
+    total = 0
     for fuente in fuentes:
         res = procesar_fuente(fuente, idx)
         vistos: dict = {}
         for r in res:
-            if r["clasificacion"] != SIN_FICHA:
+            if r["clasificacion"] not in (A_CARLOS, AMBIGUO):
                 continue
             nomk = mm.normalizar_nombre(r["nombre"])
             if not nomk:
@@ -378,77 +406,46 @@ def reporte_carlos(fuentes: list[Fuente], hacer_pdf: bool = False) -> str:
             if nomk in vistos:
                 vistos[nomk]["veces"] += 1
                 continue
-            cands = mm.candidatos_fuzzy(nomk, universo, limite=2, umbral=UMBRAL_PISTA)
-            vistos[nomk] = {"display": r["nombre"], "cands": cands, "veces": 1}
-        sugerencias, nuevos = [], []
-        for info in vistos.values():
-            cands = info["cands"]
-            if cands and cands[0][1] >= UMBRAL_SUGERENCIA:
-                sugerencias.append(info)
-            else:
-                nuevos.append(info)
-        sugerencias.sort(key=lambda i: -i["cands"][0][1])
-        nuevos.sort(key=lambda i: i["display"].lower())
-        tot_sug += len(sugerencias)
-        tot_new += len(nuevos)
-        partes_fuente.append((fuente.nombre, sugerencias, nuevos))
+            cands = mm.candidatos_fuzzy(nomk, idx.universo, limite=2, umbral=CARLOS_UMBRAL)
+            vistos[nomk] = {"display": r["nombre"], "cands": cands, "veces": 1,
+                            "motivo": _motivo_carlos(r["clasificacion"], nomk, cands)}
+        casos = sorted(vistos.values(), key=lambda i: -(i["cands"][0][1] if i["cands"] else 0))
+        partes_fuente.append((fuente.nombre, casos))
+        total += len(casos)
 
     L = []
-    L.append("# Revisión de clientes para centralizar — a confirmar por Carlos")
+    L.append("# Clientes a confirmar — Carlos")
     L.append("")
-    L.append(f"**Fecha:** {fecha}  ·  **Total a revisar:** {tot_sug + tot_new} "
-             f"({tot_sug} posibles coincidencias + {tot_new} posibles nuevos)")
+    L.append(f"**Fecha:** {fecha}  ·  **Total a revisar:** {total}")
     L.append("")
-    L.append("**Contexto.** Estamos armando una **ficha única por cliente** en la base maestra, "
-             "juntando las 4 planillas (Contable, RRHH, CRM, Tickets). Los clientes de abajo son "
-             "los únicos que el sistema **no pudo ubicar solo**: no traen RUT en la planilla, o su "
-             "nombre está escrito distinto a como aparece en la base. Necesitamos tu ojo para no "
-             "duplicar ni perder clientes.")
+    L.append("**Contexto.** Ya centralizamos **automáticamente** los clientes que coinciden por "
+             "RUT, por nombre igual, o por nombre **muy parecido**. Abajo quedan **solo los "
+             "dudosos**: parecido medio, empatados entre dos fichas, o que difieren en un número "
+             "(tipo I/II, 1/2). Solo necesitamos tu ojo en estos.")
     L.append("")
-    L.append("**Cómo responder:** marca con una **X** dentro del ☐.")
-    L.append("- Sección **A):** si es el **mismo** cliente que la ficha sugerida, marca *Mismo*; "
-             "si en realidad es otro, marca *Nuevo*.")
-    L.append("- Sección **B):** si es un cliente **nuevo**, marca *Nuevo*; si sabes que ya existe "
-             "en la base con otro nombre, escríbelo en *Corrección*.")
+    L.append("**Cómo responder:** marca con una **X** en ☐. *Mismo* = es el mismo cliente que la "
+             "ficha sugerida; *Nuevo* = es un cliente distinto (se crea aparte).")
     L.append("")
-    for nombre_fuente, sugerencias, nuevos in partes_fuente:
+    for nombre_fuente, casos in partes_fuente:
         L.append(f"## {nombre_fuente}")
         L.append("")
-        if not sugerencias and not nuevos:
+        if not casos:
             L.append("_Sin casos pendientes._")
             L.append("")
             continue
-        L.append("### A) Posibles coincidencias — ¿es el mismo cliente que la ficha sugerida?")
-        L.append("")
-        if sugerencias:
-            L.append("| # | Cliente en la planilla | Ficha parecida en la base (ID) | Parecido | Mismo | Nuevo |")
-            L.append("|--:|---|---|--:|:--:|:--:|")
-            for n, info in enumerate(sugerencias, 1):
+        L.append("| # | Cliente en la planilla | Ficha parecida (ID) | Parecido | Motivo | Mismo | Nuevo |")
+        L.append("|--:|---|---|--:|---|:--:|:--:|")
+        for n, info in enumerate(casos, 1):
+            if info["cands"]:
                 disp, idnum = _ficha_por_nombre(idx, info["cands"][0][0])
-                score = info["cands"][0][1]
-                veces = f" ({info['veces']} reg.)" if info["veces"] > 1 else ""
                 idtxt = f" (ID {idnum})" if idnum is not None else ""
-                L.append(f"| {n} | {_celda(info['display'])}{veces} | {_celda(disp)}{idtxt} | {score}% | ☐ | ☐ |")
-            L.append("")
-        else:
-            L.append("_Ninguna._")
-            L.append("")
-        L.append("### B) Sin coincidencia clara — ¿cliente nuevo?")
+                score = f"{info['cands'][0][1]}%"
+            else:
+                disp, idtxt, score = "—", "", ""
+            veces = f" ({info['veces']} reg.)" if info["veces"] > 1 else ""
+            L.append(f"| {n} | {_celda(info['display'])}{veces} | {_celda(disp)}{idtxt} | "
+                     f"{score} | {_celda(info['motivo'])} | ☐ | ☐ |")
         L.append("")
-        if nuevos:
-            L.append("| # | Cliente en la planilla | Pista (parecido lejano) | Nuevo | Corrección |")
-            L.append("|--:|---|---|:--:|---|")
-            for n, info in enumerate(nuevos, 1):
-                pista = ""
-                if info["cands"]:
-                    d, _ = _ficha_por_nombre(idx, info["cands"][0][0])
-                    pista = f"{_celda(d)} ({info['cands'][0][1]}%)"
-                veces = f" ({info['veces']} reg.)" if info["veces"] > 1 else ""
-                L.append(f"| {n} | {_celda(info['display'])}{veces} | {pista} | ☐ | |")
-            L.append("")
-        else:
-            L.append("_Ninguno._")
-            L.append("")
 
     md = "\n".join(L)
     ruta = os.path.join(BACKUPS_DIR, f"{fecha}_revision-carlos.md")
@@ -459,11 +456,11 @@ def reporte_carlos(fuentes: list[Fuente], hacer_pdf: bool = False) -> str:
     if hacer_pdf:
         ruta_pdf = os.path.join(BACKUPS_DIR, f"{fecha}_revision-carlos.pdf")
         try:
-            _render_pdf(partes_fuente, idx, tot_sug, tot_new, fecha, ruta_pdf)
+            _render_pdf(partes_fuente, idx, total, fecha, ruta_pdf)
             print(f"PDF: {ruta_pdf}")
         except Exception as exc:  # el .md ya quedó guardado; el PDF es un extra
             log.warning("no se pudo generar el PDF (queda el .md): %s", exc)
-    print(f"  {tot_sug} posibles coincidencias + {tot_new} posibles nuevos = {tot_sug + tot_new} a confirmar.")
+    print(f"  {total} casos dudosos a confirmar (los claros ya se auto-ligaron/crearon).")
     print("  ⚠️  Tiene nombres de clientes (PII) — es para enviar a Carlos, no se commitea.\n")
     return ruta
 
@@ -491,37 +488,54 @@ def aplicar(fuentes: list[Fuente], dry: bool = True) -> dict:
             if mm.es_ruido(nombre) and not rutk:
                 continue
             clase, pid = clasificar(rutk, nomk, idx)
-            if clase in (MATCH_RUT, MATCH_NOMBRE):
+            if clase in (MATCH_RUT, MATCH_NOMBRE, MATCH_FUZZY):
                 add_por_ficha[pid][fuente.rel_sandbox].add(op_id)
                 por_tabla[fuente.nombre]["link"] += 1
-            elif clase == NUEVO:
+            elif clase in (NUEVO, PROBABLE_NUEVO):
                 nuevos.append((fuente, op_id, nombre, rutk))
                 por_tabla[fuente.nombre]["nuevo"] += 1
 
-    ruts_nuevos = sorted({rut for _, _, _, rut in nuevos})
+    claves_nuevas = {("rut", r) if r else ("nom", mm.normalizar_nombre(n))
+                     for _f, _op, n, r in nuevos}
     print("\n=== PLAN de reconciliación (Fase 2) ===")
     for nombre_f, c in por_tabla.items():
         print(f"  {nombre_f:<9} enlaces a agregar: {c['link']:>4} · fichas nuevas: {c['nuevo']:>3}")
-    print(f"  Fichas maestras a CREAR (RUT único): {len(ruts_nuevos)}")
+    print(f"  Fichas maestras a CREAR (únicas): {len(claves_nuevas)}")
     print(f"  Fichas del sandbox a ACTUALIZAR: {len(add_por_ficha)}")
     if dry:
         print("  (DRY-RUN: no se escribió nada)\n")
-        return {"nuevos": len(ruts_nuevos), "fichas_update": len(add_por_ficha)}
+        return {"nuevos": len(claves_nuevas), "fichas_update": len(add_por_ficha)}
 
-    # 1) Crear fichas nuevas (dedup por RUT en el mismo run) y ligarlas.
-    creados: dict = {}
+    # 1) Crear fichas nuevas y ligarlas. Dedup en el mismo run: por RUT si lo hay,
+    # si no por nombre normalizado (dos tickets del mismo cliente → 1 ficha).
+    creados_rut: dict = {}
+    creados_nom: dict = {}
     for fuente, op_id, nombre, rut in nuevos:
-        if rut in creados:
-            add_por_ficha[creados[rut]][fuente.rel_sandbox].add(op_id)
-            continue
-        page = nc.create_page(SANDBOX_DS, {
-            COL_TITULO: {"title": [{"text": {"content": nombre or rut}}]},
-            COL_RUT: {"rich_text": [{"text": {"content": rut}}]},
-            "Origen": {"select": {"name": fuente.origen}},
-            fuente.rel_sandbox: {"relation": [{"id": op_id}]},
-        })
-        creados[rut] = page["id"]
-    print(f"  Fichas nuevas creadas: {len(creados)}")
+        if rut:
+            if rut in creados_rut:
+                add_por_ficha[creados_rut[rut]][fuente.rel_sandbox].add(op_id)
+                continue
+            page = nc.create_page(SANDBOX_DS, {
+                COL_TITULO: {"title": [{"text": {"content": nombre or rut}}]},
+                COL_RUT: {"rich_text": [{"text": {"content": rut}}]},
+                "Origen": {"select": {"name": fuente.origen}},
+                fuente.rel_sandbox: {"relation": [{"id": op_id}]},
+            })
+            creados_rut[rut] = page["id"]
+        else:
+            nk = mm.normalizar_nombre(nombre)
+            if not nk:
+                continue
+            if nk in creados_nom:
+                add_por_ficha[creados_nom[nk]][fuente.rel_sandbox].add(op_id)
+                continue
+            page = nc.create_page(SANDBOX_DS, {   # sin RUT: solo nombre + origen + relación
+                COL_TITULO: {"title": [{"text": {"content": nombre}}]},
+                "Origen": {"select": {"name": fuente.origen}},
+                fuente.rel_sandbox: {"relation": [{"id": op_id}]},
+            })
+            creados_nom[nk] = page["id"]
+    print(f"  Fichas nuevas creadas: {len(creados_rut) + len(creados_nom)}")
 
     # 2) Unir relaciones por ficha (idempotente: preserva lo existente).
     fichas_tocadas = links_add = 0
@@ -537,7 +551,8 @@ def aplicar(fuentes: list[Fuente], dry: bool = True) -> dict:
             nc.update_props(pid, updates)
             fichas_tocadas += 1
     print(f"  Fichas actualizadas: {fichas_tocadas} · enlaces nuevos agregados: {links_add}\n")
-    return {"creados": len(creados), "fichas_tocadas": fichas_tocadas, "links_add": links_add}
+    return {"creados": len(creados_rut) + len(creados_nom),
+            "fichas_tocadas": fichas_tocadas, "links_add": links_add}
 
 
 def main():

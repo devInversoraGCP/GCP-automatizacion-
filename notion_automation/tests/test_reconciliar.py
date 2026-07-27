@@ -1,6 +1,47 @@
-"""Tests de la resolución dinámica de mes en reconciliar.py (sin red)."""
+"""Tests de la resolución dinámica de mes y la clasificación fuzzy (sin red)."""
 import notion_client as nc
 import reconciliar as r
+
+
+def _idx_con(nombre_norm, pid="p1"):
+    """Índice mínimo del sandbox con una sola ficha del nombre dado."""
+    fichas = {pid: {"id": 1, "nombre_norm": nombre_norm, "nombre_display": nombre_norm,
+                    "rut": None, "rel": {}}}
+    return r.Indice(fichas, {}, {nombre_norm: [pid]}, [nombre_norm])
+
+
+class TestClasificarFuzzy:
+    def test_muy_parecido_autoliga(self, monkeypatch):
+        idx = _idx_con("comercial los andes")
+        monkeypatch.setattr(r.mm, "candidatos_fuzzy", lambda *a, **k: [("comercial los andes", 94)])
+        assert r.clasificar(None, "comercail los andes", idx) == (r.MATCH_FUZZY, "p1")
+
+    def test_parecido_medio_a_carlos(self, monkeypatch):
+        idx = _idx_con("comercial los andes")
+        monkeypatch.setattr(r.mm, "candidatos_fuzzy", lambda *a, **k: [("comercial los andes", 78)])
+        assert r.clasificar(None, "algo parecido", idx) == (r.A_CARLOS, None)
+
+    def test_enumerador_distinto_no_autoliga(self, monkeypatch):
+        # 95% de parecido pero SPV I vs II → a Carlos (no auto-liga).
+        idx = _idx_con("social up spv ii")
+        monkeypatch.setattr(r.mm, "candidatos_fuzzy", lambda *a, **k: [("social up spv ii", 95)])
+        assert r.clasificar(None, "social up spv i", idx) == (r.A_CARLOS, None)
+
+    def test_empate_entre_dos_fichas_a_carlos(self, monkeypatch):
+        idx = _idx_con("banco del sur")
+        monkeypatch.setattr(r.mm, "candidatos_fuzzy",
+                            lambda *a, **k: [("banco del sur", 90), ("banco del sol", 89)])
+        assert r.clasificar(None, "banco de sur", idx) == (r.A_CARLOS, None)
+
+    def test_sin_parecido_sin_rut_es_probable_nuevo(self, monkeypatch):
+        idx = _idx_con("comercial los andes")
+        monkeypatch.setattr(r.mm, "candidatos_fuzzy", lambda *a, **k: [])
+        assert r.clasificar(None, "zeta digital", idx) == (r.PROBABLE_NUEVO, None)
+
+    def test_rut_valido_sin_ficha_es_nuevo(self, monkeypatch):
+        idx = _idx_con("cualquiera")
+        monkeypatch.setattr(r.mm, "candidatos_fuzzy", lambda *a, **k: [])
+        assert r.clasificar("12345678-5", "otro nombre", idx) == (r.NUEVO, None)
 
 
 class TestPeriodoDeTitulo:

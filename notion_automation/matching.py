@@ -116,6 +116,22 @@ def es_ruido(nombre: str | None) -> bool:
     return False
 
 
+_ROMANOS = frozenset({"i", "ii", "iii", "iv", "v", "vi", "vii", "viii", "ix", "x"})
+
+
+def _enumeradores(nombre_norm: str) -> frozenset:
+    """Tokens que actúan como enumerador: números o numerales romanos sueltos."""
+    return frozenset(t for t in nombre_norm.split() if t.isdigit() or t in _ROMANOS)
+
+
+def enumerador_distinto(a: str, b: str) -> bool:
+    """True si dos nombres normalizados difieren en su enumerador (I/II, 1/2, …):
+    probable par de entidades DISTINTAS pese al alto parecido (lección SPV I/II /
+    Zsabesky). Si ambos no tienen enumerador, o tienen el mismo, devuelve False.
+    Se usa para NO auto-ligar por fuzzy esos casos (van a revisión humana)."""
+    return _enumeradores(a) != _enumeradores(b)
+
+
 def candidatos_fuzzy(nombre_norm: str, universo: list[str], limite: int = 3,
                      umbral: int = 65) -> list[tuple[str, int]]:
     """Top candidatos de `universo` (nombres normalizados) más parecidos a
