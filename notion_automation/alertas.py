@@ -95,6 +95,43 @@ def avisar_entrega_ok_asesor(remitente_o_nombre: str, cliente: str, periodo: str
         log.warning("no se pudo enviar confirmacion de entrega al asesor: %s", exc)
 
 
+def avisar_resumen_reconciliacion(stats: dict) -> None:
+    """Correo de ÉXITO del cron de reconciliación al admin (dev@ vía ADMIN_ALERT_EMAIL).
+    Contraparte de avisar_excepcion_admin: así se confirma que el feed SÍ corrió, no
+    solo cuando falla. Best-effort: nunca propaga; si falta config, queda en el log."""
+    creados = stats.get("creados", 0)
+    tocadas = stats.get("fichas_tocadas", 0)
+    links = stats.get("links_add", 0)
+    admins = es.admin_emails()
+    api_key = os.environ.get("SENDGRID_API_KEY")
+    if not (admins and api_key):
+        log.info("resumen reconciliacion (sin correo): creadas=%s tocadas=%s enlaces=%s",
+                 creados, tocadas, links)
+        return
+    try:
+        cuerpo = (
+            "Reconciliacion del sandbox ejecutada correctamente.\n\n"
+            f"Fichas nuevas creadas: {creados}\n"
+            f"Fichas actualizadas:   {tocadas}\n"
+            f"Enlaces nuevos:        {links}\n"
+        )
+        payload = {
+            "personalizations": [{"to": [{"email": a} for a in admins]}],
+            "from": {"email": os.environ.get("EMAIL_FROM", "notificaciones@inversoragcp.com"),
+                     "name": "AuditAI · Reconciliacion"},
+            "subject": f"AuditAI · Reconciliacion OK ({creados} nuevas, {links} enlaces)",
+            "content": [{"type": "text/plain", "value": cuerpo}],
+        }
+        requests.post(
+            "https://api.sendgrid.com/v3/mail/send",
+            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+            json=payload, timeout=15,
+        )
+        log.info("resumen de reconciliacion enviado al admin (%d)", len(admins))
+    except Exception as exc:
+        log.warning("no se pudo enviar el resumen de reconciliacion: %s", exc)
+
+
 def avisar_excepcion_admin(flujo: str, page_id: str, exc: Exception) -> None:
     """Avisa a los administradores (ADMIN_ALERT_EMAIL, uno o varios separados
     por coma) de una excepción NO prevista. Siempre deja el traceback completo

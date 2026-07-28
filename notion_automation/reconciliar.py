@@ -555,6 +555,74 @@ def aplicar(fuentes: list[Fuente], dry: bool = True) -> dict:
             "fichas_tocadas": fichas_tocadas, "links_add": links_add}
 
 
+def reporte_duplicados(umbral: int = 88) -> str:
+    """Lista posibles fichas duplicadas en el sandbox: por RUT idéntico, por nombre
+    idéntico, y por nombre MUY parecido (fuzzy). Solo LECTURA. Escribe un .md en
+    backups/ para revisión (higiene de datos tras auto-crear fichas)."""
+    idx = cargar_sandbox()
+    fecha = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    L = ["# Posibles duplicados en el sandbox", "",
+         f"**Fecha:** {fecha} · **Fichas:** {len(idx.fichas)}", ""]
+
+    def _grupo(pids):
+        return " · ".join(
+            f"ID {idx.fichas[p]['id']} — {idx.fichas[p]['nombre_display']}" for p in pids)
+
+    rut_dups = {k: v for k, v in idx.por_rut.items() if len(v) > 1}
+    L.append(f"## Por RUT idéntico ({len(rut_dups)})")
+    L.append("")
+    if rut_dups:
+        L.append("| RUT | Fichas |\n|---|---|")
+        for rut, pids in sorted(rut_dups.items()):
+            L.append(f"| {rut} | {_celda(_grupo(pids))} |")
+    else:
+        L.append("_Ninguno._")
+    L.append("")
+
+    nom_dups = {k: v for k, v in idx.por_nombre.items() if len(v) > 1}
+    L.append(f"## Por nombre idéntico ({len(nom_dups)})")
+    L.append("")
+    if nom_dups:
+        L.append("| Nombre | Fichas |\n|---|---|")
+        for nom, pids in sorted(nom_dups.items()):
+            L.append(f"| {_celda(nom)} | {_celda(_grupo(pids))} |")
+    else:
+        L.append("_Ninguno._")
+    L.append("")
+
+    # Nombre muy parecido (fuzzy), sin contar iguales ni enumeradores distintos (I/II).
+    vistos, pares = set(), []
+    for nom in idx.universo:
+        for cand, score in mm.candidatos_fuzzy(nom, idx.universo, limite=4, umbral=umbral):
+            if cand == nom or mm.enumerador_distinto(nom, cand):
+                continue
+            par = tuple(sorted((nom, cand)))
+            if par not in vistos:
+                vistos.add(par)
+                pares.append((score, par[0], par[1]))
+    pares.sort(key=lambda x: -x[0])
+    L.append(f"## Por nombre muy parecido (≥{umbral}%) ({len(pares)})")
+    L.append("")
+    if pares:
+        L.append("| Parecido | Ficha A | Ficha B |\n|--:|---|---|")
+        for score, a, b in pares:
+            fa, ia = _ficha_por_nombre(idx, a)
+            fb, ib = _ficha_por_nombre(idx, b)
+            L.append(f"| {score}% | {_celda(fa)} (ID {ia}) | {_celda(fb)} (ID {ib}) |")
+    else:
+        L.append("_Ninguno._")
+    L.append("")
+
+    ruta = os.path.join(BACKUPS_DIR, f"{fecha}_posibles-duplicados.md")
+    os.makedirs(os.path.dirname(ruta), exist_ok=True)
+    with open(ruta, "w", encoding="utf-8") as fh:
+        fh.write("\n".join(L))
+    print(f"Reporte de duplicados: {ruta}")
+    print(f"  RUT idéntico: {len(rut_dups)} · nombre idéntico: {len(nom_dups)} · "
+          f"parecido ≥{umbral}%: {len(pares)} pares")
+    return ruta
+
+
 def main():
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
     # La consola de Windows (cp1252) no imprime emojis/acentos; forzar UTF-8.
@@ -573,6 +641,8 @@ def main():
     ap.add_argument("--pdf", action="store_true", help="Además del .md, genera el .pdf.")
     ap.add_argument("--aplicar", action="store_true",
                     help="Puebla relaciones + crea fichas nuevas en el sandbox (ESCRIBE).")
+    ap.add_argument("--duplicados", action="store_true",
+                    help="Reporte de posibles fichas duplicadas del sandbox (solo lectura).")
     args = ap.parse_args()
     fuentes = FUENTES
     if args.fuente:
@@ -581,11 +651,14 @@ def main():
             raise SystemExit(f"Fuente desconocida: {args.fuente}")
     # Resolver Contable/RRHH al data source del mes vigente (robusto al cambio de mes).
     fuentes = fuentes_resueltas(fuentes)
+    if args.duplicados:
+        reporte_duplicados()
+        return
     if args.reporte_carlos:
         reporte_carlos(fuentes, hacer_pdf=args.pdf)
     elif args.aplicar:
         try:
-            aplicar(fuentes, dry=False)
+            res = aplicar(fuentes, dry=False)
         except Exception as exc:
             # El cron falló: avisar al admin (best-effort) y propagar para que
             # Render marque el job como fallido.
@@ -595,6 +668,12 @@ def main():
             except Exception:
                 log.exception("además, falló el aviso de excepción del cron")
             raise
+        # Éxito: resumen semanal al admin (así se sabe que SÍ corrió).
+        try:
+            import alertas
+            alertas.avisar_resumen_reconciliacion(res)
+        except Exception:
+            log.exception("no se pudo enviar el resumen de éxito del cron")
     else:
         dry_run(fuentes)
 

@@ -55,3 +55,20 @@ services:
         sync: false                  # mismo valor que el web service
       - key: ADMIN_ALERT_EMAIL
         sync: false                  # correo(s) del admin, separados por coma
+
+  # --- Cron MENSUAL: aviso a los asesores sobre el cambio de mes -----------------
+  # Envía el instructivo (correo-cambio-mes.html) desde dev@inversoragcp.com a los
+  # asesores, como recordatorio al abrir el mes. Evita que el cambio de página mal
+  # hecho rompa la automatización. Best-effort (sin API key → no envía, solo log).
+  - type: cron
+    name: auditai-aviso-cambio-mes
+    runtime: python
+    plan: starter
+    region: oregon
+    rootDir: notion_automation
+    buildCommand: pip install -r requirements.txt
+    schedule: "0 12 1 * *"          # día 1 de cada mes, 12:00 UTC (~08:00 Chile)
+    startCommand: python enviar_aviso_cambio_mes.py
+    envVars:
+      - key: SENDGRID_API_KEY
+        sync: false                  # mismo valor que el web service
