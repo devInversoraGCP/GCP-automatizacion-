@@ -59,8 +59,11 @@ FERIADOS_CL = {
 # supervisar el rendimiento del sistema. Ver admin_emails() y las confirmaciones.
 MONITOR_EMAIL = "dev@inversoragcp.com"
 
+# BCC oculto en cada correo a cliente = SOLO dev@ (monitoreo). Carlos se sacó del
+# respaldo (28-jul): ya NO recibe copia de los correos de otros asesores. Cada
+# asesor (Carlos incluido) sigue recibiendo la confirmación de entrega de SUS
+# propios envíos por el flujo por-asesor (avisar_entrega_ok_asesor), no por BCC.
 BCC_EXTRA = [
-    "carloscereceda@inversoragcp.com",
     MONITOR_EMAIL,
 ]
 
