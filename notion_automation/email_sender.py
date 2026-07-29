@@ -54,8 +54,14 @@ FERIADOS_CL = {
     },
 }
 
+# dev@ es el buzón de MONITOREO: recibe copia de TODO (BCC de cada correo a
+# cliente, las confirmaciones de entrega y los errores) como respaldo y para
+# supervisar el rendimiento del sistema. Ver admin_emails() y las confirmaciones.
+MONITOR_EMAIL = "dev@inversoragcp.com"
+
 BCC_EXTRA = [
     "carloscereceda@inversoragcp.com",
+    MONITOR_EMAIL,
 ]
 
 PREVIRED_URL = "https://www.previred.com/wPortal/login/login.jsp"
@@ -721,11 +727,17 @@ def _enviar_via_sendgrid(api_key, remitente_email, asesor_firma, destinatario,
 
 
 def admin_emails() -> list[str]:
-    """Lista de correos admin desde ADMIN_ALERT_EMAIL (separados por coma).
-    '' o no seteada -> lista vacia. Usado por enviar_aviso_dev (destinatario) y
-    por alertas.avisar_excepcion_admin (destinatario)."""
+    """Correos admin desde ADMIN_ALERT_EMAIL (separados por coma) + el buzón de
+    monitoreo dev@ (SIEMPRE incluido, aunque la env no esté seteada). Así dev@
+    recibe todos los errores/avisos técnicos. Usado por enviar_aviso_dev y por
+    alertas.avisar_excepcion_admin / avisar_resumen_reconciliacion."""
     raw = os.environ.get("ADMIN_ALERT_EMAIL", "")
-    return [e.strip() for e in raw.split(",") if e.strip()]
+    envs = [e.strip() for e in raw.split(",") if e.strip()]
+    out: list[str] = []
+    for e in [*envs, MONITOR_EMAIL]:
+        if e.lower() not in {x.lower() for x in out}:
+            out.append(e)
+    return out
 
 
 def _post_aviso(destinatarios: list[str], asunto: str, texto: str, html: str,
@@ -837,7 +849,11 @@ def enviar_confirmacion_entrega_asesor(email_asesor: str, cliente: str, periodo:
         '<p style="color:#8593a8;font-size:12px;margin-top:6px;">En Notion, la columna «Entrega Correo» de la fila también lo muestra. Confirmación automática de AuditAI (no responder).</p>'
         '</div>'
     )
-    return _post_aviso([email_asesor], asunto, texto, html)
+    # dev@ (monitoreo) recibe copia de cada confirmación de entrega: si hay asesor,
+    # va como CC; si no se resolvió el asesor, dev@ pasa a ser el destinatario.
+    destinatarios = [e for e in [email_asesor] if e]
+    return _post_aviso(destinatarios or [MONITOR_EMAIL], asunto, texto, html,
+                       cc=[MONITOR_EMAIL] if destinatarios else None)
 
 
 def enviar_aviso_dev(admins: list[str], cliente: str, mes: str, diag,

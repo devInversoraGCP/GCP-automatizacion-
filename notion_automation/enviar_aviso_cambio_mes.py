@@ -21,7 +21,7 @@ from dotenv import load_dotenv
 log = logging.getLogger("auditai")
 
 REMITENTE = "dev@inversoragcp.com"       # remitente fijo pedido por el usuario
-ASUNTO = "Cambio de mes en 3 pasos (para que los correos sigan saliendo solos)"
+ASUNTO = "Cambio de mes en NOTION (Contable y RRHH)"
 DESTINATARIOS = [
     "carloscereceda@inversoragcp.com",
     "constanzagaggero@inversoragcp.com",
@@ -40,6 +40,18 @@ def preparar_html() -> tuple[str, str | None]:
     with open(HTML_PATH, encoding="utf-8") as fh:
         html = fh.read()
     html = re.sub(r"<!--PREVIEW-->.*?<!--/PREVIEW-->", "", html, flags=re.DOTALL)
+    # Inyectar la planilla CONECTADA hoy (dinámico, robusto al cambio de mes). Si
+    # la resolución falla, se deja el nombre literal que trae el HTML.
+    try:
+        import reconciliar as rec
+        for clave, prefijo in (("contable", "Contable"), ("rrhh", "RRHH")):
+            nombre = rec.nombre_base_actual(prefijo)
+            if nombre:
+                html = re.sub(
+                    rf'(<span data-pagina="{clave}"[^>]*>)[^<]*(</span>)',
+                    lambda m, n=nombre: m.group(1) + n + m.group(2), html)
+    except Exception as exc:
+        log.warning("no pude resolver la planilla conectada (dejo el literal): %s", exc)
     logo_b64 = None
     m = re.search(r"data:image/png;base64,([A-Za-z0-9+/=]+)", html)
     if m:
@@ -48,10 +60,11 @@ def preparar_html() -> tuple[str, str | None]:
     return html, logo_b64
 
 
-def enviar(dry: bool = False) -> bool:
+def enviar(dry: bool = False, destinatarios: list[str] | None = None) -> bool:
+    dests = destinatarios or DESTINATARIOS
     html, logo_b64 = preparar_html()
-    log.info("correo listo (%d chars, logo=%s) → %d asesores",
-             len(html), "sí" if logo_b64 else "no", len(DESTINATARIOS))
+    log.info("correo listo (%d chars, logo=%s) → %d destinatario(s): %s",
+             len(html), "sí" if logo_b64 else "no", len(dests), ", ".join(dests))
     if dry:
         print("DRY: correo armado, NO enviado.")
         return True
@@ -60,7 +73,7 @@ def enviar(dry: bool = False) -> bool:
         log.warning("sin SENDGRID_API_KEY: no se envía el aviso de cambio de mes")
         return False
     payload = {
-        "personalizations": [{"to": [{"email": e} for e in DESTINATARIOS]}],
+        "personalizations": [{"to": [{"email": e} for e in dests]}],
         "from": {"email": REMITENTE, "name": "Equipo AuditAI"},
         "subject": ASUNTO,
         "content": [{"type": "text/html", "value": html}],
@@ -77,17 +90,23 @@ def enviar(dry: bool = False) -> bool:
     )
     ok = 200 <= r.status_code < 300
     if ok:
-        log.info("aviso de cambio de mes enviado a %d asesores (status=%s)",
-                 len(DESTINATARIOS), r.status_code)
+        log.info("aviso de cambio de mes enviado a %d destinatario(s) (status=%s)",
+                 len(dests), r.status_code)
     else:
         log.error("SendGrid rechazó el aviso: %s %s", r.status_code, r.text[:300])
     return ok
 
 
 def main():
+    import argparse
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
     load_dotenv()
-    enviar(dry="--dry" in sys.argv)
+    ap = argparse.ArgumentParser(description="Envía el instructivo de cambio de mes.")
+    ap.add_argument("--dry", action="store_true", help="Arma el correo pero NO envía.")
+    ap.add_argument("--to", help="Destinatario(s) coma-separados (override; p. ej. prueba a dev@).")
+    args = ap.parse_args()
+    dests = [e.strip() for e in args.to.split(",")] if args.to else None
+    enviar(dry=args.dry, destinatarios=dests)
 
 
 if __name__ == "__main__":

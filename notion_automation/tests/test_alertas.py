@@ -9,11 +9,16 @@ import email_sender as es
 class TestAdminEmails:
     def test_dos_correos_con_espacios(self, monkeypatch):
         monkeypatch.setenv("ADMIN_ALERT_EMAIL", " a@x.com , b@y.com ,")
-        assert es.admin_emails() == ["a@x.com", "b@y.com"]
+        # dev@ (monitoreo) siempre se agrega al final.
+        assert es.admin_emails() == ["a@x.com", "b@y.com", es.MONITOR_EMAIL]
 
-    def test_vacio(self, monkeypatch):
+    def test_vacio_incluye_monitoreo(self, monkeypatch):
         monkeypatch.delenv("ADMIN_ALERT_EMAIL", raising=False)
-        assert es.admin_emails() == []
+        assert es.admin_emails() == [es.MONITOR_EMAIL]
+
+    def test_no_duplica_si_admin_ya_es_dev(self, monkeypatch):
+        monkeypatch.setenv("ADMIN_ALERT_EMAIL", es.MONITOR_EMAIL)
+        assert es.admin_emails() == [es.MONITOR_EMAIL]
 
 
 class TestAvisarFalloAsesor:
@@ -41,15 +46,17 @@ class TestAvisarFalloAsesor:
                                         flujo="f29", page_id="pid-1")
         assert m.called
         admins, cliente, mes, diag = m.call_args[0]
-        assert admins == ["dev@x.com"] and diag.categoria == "sin_email"
+        # env + dev@ (monitoreo) siempre incluido
+        assert admins == ["dev@x.com", es.MONITOR_EMAIL] and diag.categoria == "sin_email"
         assert m.call_args.kwargs["page_id"] == "pid-1"
 
-    def test_sin_admins_no_manda_tecnico(self, monkeypatch):
+    def test_sin_admins_igual_manda_a_dev(self, monkeypatch):
+        # Aunque no haya ADMIN_ALERT_EMAIL, el técnico igual va a dev@ (monitoreo).
         monkeypatch.delenv("ADMIN_ALERT_EMAIL", raising=False)
         with patch.object(es, "enviar_aviso_asesor", return_value=True), \
              patch.object(es, "enviar_aviso_dev", return_value=True) as m:
             alertas.avisar_fallo_asesor("Sebastián Robles", "X", "Junio 2026", "sin Email")
-        assert not m.called
+        assert m.called and m.call_args[0][0] == [es.MONITOR_EMAIL]
 
     def test_nunca_propaga_excepcion(self):
         # best-effort: si el envío del aviso revienta, no debe propagarse
@@ -77,7 +84,7 @@ class TestAvisarExcepcionAdmin:
                 alertas.avisar_excepcion_admin("RRHH", "p2", exc)
         payload = m.call_args.kwargs["json"]
         to = {t["email"] for t in payload["personalizations"][0]["to"]}
-        assert to == {"a@x.com", "b@y.com"}
+        assert to == {"a@x.com", "b@y.com", es.MONITOR_EMAIL}
         cuerpo = payload["content"][0]["value"]
         assert "RRHH" in payload["subject"] and "p2" in cuerpo and "Traceback" in cuerpo
 

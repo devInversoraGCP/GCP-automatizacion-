@@ -130,6 +130,28 @@ def resolver_ds_actual(prefijo: str, fallback_id: str) -> str:
     return fallback_id
 
 
+def nombre_base_actual(prefijo: str, fallback: str = "") -> str:
+    """Título de la base '<prefijo> <mes>' del período más nuevo — la que está
+    CONECTADA al servidor hoy. Para mostrársela a los asesores en el aviso de
+    cambio de mes (así saben qué página renombrar y no se equivocan). '' si no hay."""
+    try:
+        results = nc.buscar_data_sources(prefijo)
+    except Exception:
+        return fallback
+    mejor = None
+    for it in results:
+        titulo = _titulo_result(it)
+        if not titulo.lower().startswith(prefijo.lower()):
+            continue
+        per = _periodo_de_titulo(titulo, it.get("last_edited_time", ""))
+        if not per:
+            continue
+        cand = (per[0], per[1], titulo.strip())
+        if mejor is None or cand[:2] > mejor[:2]:
+            mejor = cand
+    return mejor[2] if mejor else fallback
+
+
 def fuentes_resueltas(fuentes: list[Fuente]) -> list[Fuente]:
     """Devuelve las fuentes con el ds_id del mes vigente resuelto (para las que
     tienen prefijo). Las estables (CRM/Tickets) quedan igual."""

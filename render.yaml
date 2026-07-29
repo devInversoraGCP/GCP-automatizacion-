@@ -72,3 +72,5 @@ services:
     envVars:
       - key: SENDGRID_API_KEY
         sync: false                  # mismo valor que el web service
+      - key: NOTION_TOKEN
+        sync: false                  # para resolver qué planilla está conectada este mes
