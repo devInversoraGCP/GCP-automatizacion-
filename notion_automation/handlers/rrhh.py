@@ -105,6 +105,16 @@ def procesar(page_id: str) -> dict:
         alertas.avisar_fallo_asesor(nombre_asesor, nombre, "", motivo, flujo="rrhh", page_id=page_id)
         return {"ok": False, "motivo": motivo}
 
+    # El monto ES el contenido del correo. Vacío ≠ cero: antes salía "0" y el
+    # cliente recibía un aviso diciendo que no debe nada (visto 31-jul: 7 de las
+    # 9 filas de un asesor estaban sin cargar). Un 0 explícito en la columna sí
+    # se envía — es un dato, no un olvido.
+    if not monto_str:
+        motivo = ("fila sin MONTO IMPOSICIONES| — es el dato principal del correo. "
+                  "Cárgalo en la planilla y vuelve a apretar el botón.")
+        alertas.avisar_fallo_asesor(nombre_asesor, nombre, "", motivo, flujo="rrhh", page_id=page_id)
+        return {"ok": False, "motivo": motivo}
+
     # El mes sale del TÍTULO de la base ("RRHH JULIO 2026" -> "Julio 2026"): RRHH
     # no tiene columna de mes en la fila. Antes, si el título no se podía leer,
     # caía a un "Junio 2026" fijo en el código — o sea, mandaba un mes incorrecto
@@ -127,7 +137,7 @@ def procesar(page_id: str) -> dict:
             destinatario=email,
             nombre=nombre,
             mes=mes,
-            monto=monto_str or "0",
+            monto=monto_str,
             nombre_asesor=nombre_asesor,
             honorarios="",
             info_valor="",

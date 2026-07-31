@@ -88,6 +88,30 @@ class TestRRHHCambioDeMes:
         assert not env.called          # no se envía nada con un mes inventado
         assert m.called
 
+    def test_sin_monto_no_manda_correo_con_cero(self):
+        # Antes enviaba monto="0": el cliente recibia un aviso de que no debe nada.
+        page = _page_rrhh()
+        page["properties"][rrhh.MONTO] = {"type": "number", "number": None}
+        with patch.object(nc, "get_page", return_value=page), \
+             patch.object(nc, "derivar_month_desde_base", return_value="Julio 2026"), \
+             patch.object(es, "enviar") as env, \
+             patch.object(alertas, "avisar_fallo_asesor") as m:
+            r = rrhh.procesar("p11")
+        assert r["ok"] is False and "MONTO" in r["motivo"]
+        assert not env.called
+        assert m.called
+
+    def test_monto_cero_explicito_si_se_envia(self):
+        # Un 0 cargado a mano es un dato valido, no un olvido.
+        page = _page_rrhh()
+        page["properties"][rrhh.MONTO] = {"type": "number", "number": 0}
+        with patch.object(nc, "get_page", return_value=page), \
+             patch.object(nc, "derivar_month_desde_base", return_value="Julio 2026"), \
+             patch.object(nc, "update_props"), \
+             patch.object(es, "enviar", return_value="seba@x.com") as env:
+            r = rrhh.procesar("p12")
+        assert r["ok"] is True and env.call_args.kwargs["monto"] == "0"
+
     def test_usa_el_mes_del_titulo_de_la_base(self):
         with patch.object(nc, "get_page", return_value=_page_rrhh()), \
              patch.object(nc, "derivar_month_desde_base", return_value="Julio 2026"), \
