@@ -1,6 +1,10 @@
-"""Handler del botón "Enviar Correo RRHH" para la página RRHH JUNIO 2026.
-Sigue el patrón de handlers/f29.py pero con su propia lógica de composición
-y fecha límite (13 del mes siguiente, no 20)."""
+"""Handler del botón "Enviar Correo RRHH" para la página RRHH del mes vigente.
+Sigue el patrón del handler F29 (en app.py) pero con su propia lógica de
+composición y fecha límite (13 del mes siguiente, no 20).
+
+⚠️ RRHH estrena una base NUEVA cada mes (a diferencia de Contable, que se
+renombra en sitio). Por eso ni el data source ni el mes pueden estar fijos en
+el código: se resuelven en runtime. Ver `ds_vigente()` y doc 28."""
 from __future__ import annotations
 import os
 import sys
@@ -12,7 +16,33 @@ import alertas
 
 log = logging.getLogger("auditai")
 
-DS_ID = "9c512147-b3ea-8256-a570-871254c13b3d"
+# Bases RRHH conocidas, MÁS RECIENTE PRIMERO (fallback estático, mismo patrón que
+# DS_CONTABLES en notion_client.py — doc 28). Normalmente NO hay que editar esto:
+# ds_vigente() resuelve la base del mes por su título.
+DS_RRHH: list[tuple[str, str]] = [
+    ("RRHH JULIO 2026", "89a12147-b3ea-830e-adee-07cbca823fb6"),
+    ("RRHH JUNIO 2026", "9c512147-b3ea-8256-a570-871254c13b3d"),
+]
+DS_ID = DS_RRHH[0][1]   # alias legacy: el más reciente conocido
+
+
+def ds_vigente() -> str:
+    """Data source de la base `RRHH <Mes>` del período MÁS NUEVO.
+
+    Solo se usa en el fallback de identificación por RUT (cuando el webhook del
+    botón llega sin `page_id`). Esto era una constante fija apuntando a JUNIO:
+    al aparecer `RRHH JULIO 2026` ese fallback seguía encontrando la fila del mes
+    ANTERIOR, y el correo salía con el **monto y el mes equivocados**, además de
+    marcar como enviada la fila del mes viejo (detectado el 31-jul-2026).
+
+    Se resuelve por título en runtime; si el search falla, cae al más reciente
+    de `DS_RRHH`."""
+    try:
+        import reconciliar
+        return reconciliar.resolver_ds_actual("RRHH", DS_ID)
+    except Exception as exc:
+        log.warning("no se pudo resolver la base RRHH vigente, uso %s: %s", DS_RRHH[0][0], exc)
+        return DS_ID
 
 CLIENTE = "CLIENTE"
 ASISTENTE = "ASISTENTE"
@@ -75,9 +105,20 @@ def procesar(page_id: str) -> dict:
         alertas.avisar_fallo_asesor(nombre_asesor, nombre, "", motivo, flujo="rrhh", page_id=page_id)
         return {"ok": False, "motivo": motivo}
 
+    # El mes sale del TÍTULO de la base ("RRHH JULIO 2026" -> "Julio 2026"): RRHH
+    # no tiene columna de mes en la fila. Antes, si el título no se podía leer,
+    # caía a un "Junio 2026" fijo en el código — o sea, mandaba un mes incorrecto
+    # en silencio para siempre. Ahora falla en voz alta y avisa al asesor, igual
+    # que hace el flujo F29 (app.py §mes).
     mes = nc.derivar_month_desde_base(page)
+    db_id = (page.get("parent") or {}).get("database_id", "")
+    log.info("diagnostico mes RRHH · page_id=%s db_id=%s mes=%r", page_id, db_id, mes)
     if not mes:
-        mes = "Junio 2026"
+        motivo = ("No se pudo determinar el mes desde el título de la base "
+                  "(se espera el patrón 'RRHH <Mes> <Año>'), necesario para el "
+                  "asunto y el plazo del correo.")
+        alertas.avisar_fallo_asesor(nombre_asesor, nombre, "", motivo, flujo="rrhh", page_id=page_id)
+        return {"ok": False, "motivo": motivo}
 
     asunto = f"Imposiciones {mes}- {nombre}"
 

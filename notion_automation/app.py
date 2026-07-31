@@ -364,8 +364,10 @@ def _procesar_webhook_generico(handler, nombre_handler: str):
             log.info("usando page_id directo · %s", nombre_handler)
         else:
             if nombre_handler == "RRHH":
-                from handlers.rrhh import DS_ID as DS
-                page_id = nc.find_page_by_rut_generico(ident, DS, prop_busqueda)
+                # Base del mes VIGENTE resuelta en runtime: RRHH estrena base cada
+                # mes y un DS fijo mandaba el correo con los datos del mes anterior.
+                from handlers.rrhh import ds_vigente
+                page_id = nc.find_page_by_rut_generico(ident, ds_vigente(), prop_busqueda)
             elif nombre_handler == "TICKETS":
                 from handlers.tickets import DS_ID as DS
                 page_id = nc.find_page_by_rut_generico(ident, DS, prop_busqueda)

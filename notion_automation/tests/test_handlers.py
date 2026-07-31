@@ -59,6 +59,46 @@ class TestRRHHAvisa:
         assert m.called and "403" in m.call_args[0][3]
 
 
+class TestRRHHCambioDeMes:
+    """Regresión del 31-jul-2026: al aparecer RRHH JULIO, el handler seguía
+    apuntando a JUNIO y mandaba el correo con el monto y el mes del mes anterior."""
+
+    def test_ds_vigente_resuelve_la_base_del_mes_nuevo(self):
+        import reconciliar
+        with patch.object(reconciliar, "resolver_ds_actual", return_value="ds-agosto") as m:
+            assert rrhh.ds_vigente() == "ds-agosto"
+        assert m.call_args[0][0] == "RRHH"
+
+    def test_ds_vigente_cae_al_mas_reciente_si_falla_el_search(self):
+        import reconciliar
+        with patch.object(reconciliar, "resolver_ds_actual", side_effect=RuntimeError("api caída")):
+            assert rrhh.ds_vigente() == rrhh.DS_RRHH[0][1]
+
+    def test_el_fallback_estatico_esta_ordenado_mas_reciente_primero(self):
+        assert rrhh.DS_ID == rrhh.DS_RRHH[0][1]
+
+    def test_sin_mes_no_manda_correo_y_avisa(self):
+        # Antes caía a un "Junio 2026" fijo y enviaba igual, con el mes errado.
+        with patch.object(nc, "get_page", return_value=_page_rrhh()), \
+             patch.object(nc, "derivar_month_desde_base", return_value=""), \
+             patch.object(es, "enviar") as env, \
+             patch.object(alertas, "avisar_fallo_asesor") as m:
+            r = rrhh.procesar("p9")
+        assert r["ok"] is False and "mes" in r["motivo"].lower()
+        assert not env.called          # no se envía nada con un mes inventado
+        assert m.called
+
+    def test_usa_el_mes_del_titulo_de_la_base(self):
+        with patch.object(nc, "get_page", return_value=_page_rrhh()), \
+             patch.object(nc, "derivar_month_desde_base", return_value="Julio 2026"), \
+             patch.object(nc, "update_props"), \
+             patch.object(es, "enviar", return_value="seba@x.com") as env:
+            r = rrhh.procesar("p10")
+        assert r["ok"] is True
+        assert env.call_args.kwargs["mes"] == "Julio 2026"
+        assert "Julio 2026" in env.call_args.kwargs["asunto"]
+
+
 class TestTicketsAvisa:
     def test_sin_email_avisa_al_asignado(self):
         with patch.object(nc, "get_page", return_value=_page_tickets(email="")), \
