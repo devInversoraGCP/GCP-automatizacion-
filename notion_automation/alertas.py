@@ -102,11 +102,12 @@ def avisar_resumen_reconciliacion(stats: dict) -> None:
     creados = stats.get("creados", 0)
     tocadas = stats.get("fichas_tocadas", 0)
     links = stats.get("links_add", 0)
+    estampados = stats.get("estampados", 0)
     admins = es.admin_emails()
     api_key = os.environ.get("SENDGRID_API_KEY")
     if not (admins and api_key):
-        log.info("resumen reconciliacion (sin correo): creadas=%s tocadas=%s enlaces=%s",
-                 creados, tocadas, links)
+        log.info("resumen reconciliacion (sin correo): creadas=%s tocadas=%s enlaces=%s estampados=%s",
+                 creados, tocadas, links, estampados)
         return
     try:
         cuerpo = (
@@ -114,6 +115,7 @@ def avisar_resumen_reconciliacion(stats: dict) -> None:
             f"Fichas nuevas creadas: {creados}\n"
             f"Fichas actualizadas:   {tocadas}\n"
             f"Enlaces nuevos:        {links}\n"
+            f"Filas con ID Central:  {estampados}\n"
         )
         payload = {
             "personalizations": [{"to": [{"email": a} for a in admins]}],

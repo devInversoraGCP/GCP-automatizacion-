@@ -6,10 +6,12 @@ CRM Comercial, Tickets - Servicios). Cruza cada fila operativa con su ficha maes
 RUT (validado módulo 11) y, en su defecto, por nombre normalizado inequívoco. Pensado
 para correr como cron SEMANAL en Render (100% automático, sin acción de los asesores).
 
-🔒 REGLA DE ORO: las 4 tablas operativas se leen, JAMÁS se escriben. El 100% de las
-escrituras (relaciones, fichas nuevas) ocurren solo en el sandbox (ver AGENTS.md y el
-plan). El enlace es una relación UNA-VÍA sandbox → tabla: la propiedad vive solo en el
-sandbox y no agrega columna a la tabla del asesor.
+🔒 REGLA DE ORO (enmendada el 29-jul-2026): las relaciones y las fichas nuevas se
+escriben SOLO en el sandbox; el enlace es una relación UNA-VÍA sandbox → tabla (la
+propiedad vive solo en el sandbox y no agrega columna a la tabla del asesor). La ÚNICA
+escritura permitida en las 4 tablas operativas es la llave primaria compartida
+`ID Central` (ver id_central.py y AGENTS.md): al ligar una fila, se le estampa el `ID`
+de su ficha maestra para poder unir las 5 tablas por igualdad de llave. Nada más se toca.
 
 Modo por defecto: DRY-RUN (solo lectura, no escribe nada). Emite un resumen por consola
 (sin PII) y un JSON de detalle en backups/general-customers-data/. El modo --apply (que
@@ -24,6 +26,7 @@ from __future__ import annotations
 import os
 import re
 import json
+import time
 import logging
 import argparse
 from collections import defaultdict
@@ -491,18 +494,35 @@ def aplicar(fuentes: list[Fuente], dry: bool = True) -> dict:
     """Puebla las relaciones del sandbox con los matches SEGUROS y crea fichas
     para los NUEVO (RUT válido sin ficha). IDEMPOTENTE: une con lo ya ligado (no
     pierde enlaces curados a mano) y no re-crea fichas. AMBIGUO/SIN_FICHA/RUIDO se
-    saltan (van al reporte de Carlos). Escribe SOLO en el sandbox.
+    saltan (van al reporte de Carlos).
+
+    Además ESTAMPA la llave compartida `ID Central` en la fila operativa recién
+    ligada (única escritura permitida fuera del sandbox — ver id_central.py). Así
+    las filas nuevas de cada semana (sobre todo RRHH, que estrena base cada mes)
+    quedan con la llave sin intervención manual.
 
     dry=True: calcula el plan y lo imprime, sin escribir nada."""
+    # Import local: id_central importa este módulo, así que a nivel de módulo sería
+    # circular (mismo patrón que `alertas` en main()).
+    import id_central as idc
+
     idx = cargar_sandbox()
     add_por_ficha: dict = defaultdict(lambda: defaultdict(set))  # sandbox_pid -> rel -> {op_ids}
     nuevos: list = []            # (fuente, op_id, nombre, rut)
     por_tabla: dict = defaultdict(lambda: {"link": 0, "nuevo": 0})
+    id_central_actual: dict = {}  # op_id -> valor que YA tiene (None si vacío)
+    estampar: dict = {}           # op_id -> ID que le corresponde
 
     for fuente in fuentes:
+        # La columna debe existir antes de escribirla (RRHH estrena base cada mes).
+        if not dry:
+            estado = idc.asegurar_columna(fuente.ds_id)
+            if estado != idc.EXISTIA:
+                log.info("columna '%s' en %s: %s", idc.COL, fuente.nombre, estado)
         for f in nc.query_data_source(fuente.ds_id, {"page_size": 100}):
             props = f.get("properties", {})
             op_id = f["id"]
+            id_central_actual[op_id] = (props.get(idc.COL) or {}).get("number")
             nombre = nc.plain(props.get(fuente.col_nombre, {}))
             rut_raw = nc.plain(props.get(fuente.col_rut, {})) if fuente.col_rut else ""
             rutk = mm.rut_llave(rut_raw)
@@ -513,29 +533,38 @@ def aplicar(fuentes: list[Fuente], dry: bool = True) -> dict:
             if clase in (MATCH_RUT, MATCH_NOMBRE, MATCH_FUZZY):
                 add_por_ficha[pid][fuente.rel_sandbox].add(op_id)
                 por_tabla[fuente.nombre]["link"] += 1
+                idnum = idx.fichas.get(pid, {}).get("id")
+                if idnum is not None:
+                    estampar[op_id] = idnum
             elif clase in (NUEVO, PROBABLE_NUEVO):
                 nuevos.append((fuente, op_id, nombre, rutk))
                 por_tabla[fuente.nombre]["nuevo"] += 1
 
     claves_nuevas = {("rut", r) if r else ("nom", mm.normalizar_nombre(n))
                      for _f, _op, n, r in nuevos}
+    pendientes = [(op, n) for op, n in estampar.items() if id_central_actual.get(op) != n]
     print("\n=== PLAN de reconciliación (Fase 2) ===")
     for nombre_f, c in por_tabla.items():
         print(f"  {nombre_f:<9} enlaces a agregar: {c['link']:>4} · fichas nuevas: {c['nuevo']:>3}")
     print(f"  Fichas maestras a CREAR (únicas): {len(claves_nuevas)}")
     print(f"  Fichas del sandbox a ACTUALIZAR: {len(add_por_ficha)}")
+    print(f"  Filas operativas a estampar con '{idc.COL}': {len(pendientes)}"
+          f" (+ las de las {len(claves_nuevas)} fichas nuevas, al crearlas)")
     if dry:
         print("  (DRY-RUN: no se escribió nada)\n")
-        return {"nuevos": len(claves_nuevas), "fichas_update": len(add_por_ficha)}
+        return {"nuevos": len(claves_nuevas), "fichas_update": len(add_por_ficha),
+                "estampar": len(pendientes)}
 
     # 1) Crear fichas nuevas y ligarlas. Dedup en el mismo run: por RUT si lo hay,
     # si no por nombre normalizado (dos tickets del mismo cliente → 1 ficha).
     creados_rut: dict = {}
     creados_nom: dict = {}
+    idnum_creado: dict = {}   # sandbox page_id -> ID (unique_id) recién asignado
     for fuente, op_id, nombre, rut in nuevos:
         if rut:
             if rut in creados_rut:
                 add_por_ficha[creados_rut[rut]][fuente.rel_sandbox].add(op_id)
+                _marcar(estampar, op_id, idnum_creado.get(creados_rut[rut]))
                 continue
             page = nc.create_page(SANDBOX_DS, {
                 COL_TITULO: {"title": [{"text": {"content": nombre or rut}}]},
@@ -550,6 +579,7 @@ def aplicar(fuentes: list[Fuente], dry: bool = True) -> dict:
                 continue
             if nk in creados_nom:
                 add_por_ficha[creados_nom[nk]][fuente.rel_sandbox].add(op_id)
+                _marcar(estampar, op_id, idnum_creado.get(creados_nom[nk]))
                 continue
             page = nc.create_page(SANDBOX_DS, {   # sin RUT: solo nombre + origen + relación
                 COL_TITULO: {"title": [{"text": {"content": nombre}}]},
@@ -557,6 +587,11 @@ def aplicar(fuentes: list[Fuente], dry: bool = True) -> dict:
                 fuente.rel_sandbox: {"relation": [{"id": op_id}]},
             })
             creados_nom[nk] = page["id"]
+        # La ficha recién creada ya trae su unique_id asignado: estamparlo en la
+        # fila operativa que la originó.
+        idnum = nc.unique_id_number((page.get("properties") or {}).get(COL_ID, {}))
+        idnum_creado[page["id"]] = idnum
+        _marcar(estampar, op_id, idnum)
     print(f"  Fichas nuevas creadas: {len(creados_rut) + len(creados_nom)}")
 
     # 2) Unir relaciones por ficha (idempotente: preserva lo existente).
@@ -572,9 +607,27 @@ def aplicar(fuentes: list[Fuente], dry: bool = True) -> dict:
         if updates:
             nc.update_props(pid, updates)
             fichas_tocadas += 1
-    print(f"  Fichas actualizadas: {fichas_tocadas} · enlaces nuevos agregados: {links_add}\n")
+    print(f"  Fichas actualizadas: {fichas_tocadas} · enlaces nuevos agregados: {links_add}")
+
+    # 3) Estampar la llave compartida en las filas operativas (idempotente: solo
+    # las que no la tienen o la tienen distinta).
+    estampados = 0
+    for op_id, idnum in estampar.items():
+        if id_central_actual.get(op_id) == idnum:
+            continue
+        nc.update_props(op_id, {idc.COL: {"number": idnum}})
+        estampados += 1
+        time.sleep(idc.PAUSA_ESCRITURA)
+    print(f"  Filas operativas estampadas con '{idc.COL}': {estampados}\n")
     return {"creados": len(creados_rut) + len(creados_nom),
-            "fichas_tocadas": fichas_tocadas, "links_add": links_add}
+            "fichas_tocadas": fichas_tocadas, "links_add": links_add,
+            "estampados": estampados}
+
+
+def _marcar(estampar: dict, op_id: str, idnum: int | None) -> None:
+    """Anota que a `op_id` le toca `idnum` (si se conoce). Helper de `aplicar`."""
+    if idnum is not None:
+        estampar[op_id] = idnum
 
 
 def reporte_duplicados(umbral: int = 88) -> str:

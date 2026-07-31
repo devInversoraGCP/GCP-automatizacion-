@@ -112,13 +112,24 @@ def update_props(page_id: str, properties: dict) -> None:
     r.raise_for_status()
 
 
+def get_data_source_schema(ds_id: str) -> dict:
+    """Esquema (dict de columnas) de un data source: GET /v1/data_sources/{id}.
+    Solo lectura. Útil para saber si una columna ya existe antes de crearla."""
+    r = request_con_reintentos(
+        "GET", f"{API}/data_sources/{ds_id}", headers=_headers(), timeout=30
+    )
+    r.raise_for_status()
+    return r.json().get("properties", {})
+
+
 def update_data_source(ds_id: str, properties: dict) -> dict:
     """Modifica el ESQUEMA de un data source (agrega/edita columnas) vía
     PATCH /v1/data_sources/{id} (API 2025-09-03). `properties` es el patch de
     columnas (relation, rollup, etc.). Devuelve el JSON del data source.
 
-    ⚠️ Regla de oro: SOLO sobre el sandbox. El esquema de las 4 tablas de los
-    asesores JAMÁS se toca."""
+    ⚠️ Regla de oro: sobre el sandbox, libre. Sobre las 4 tablas de los asesores
+    la ÚNICA columna que se puede crear es `ID Central` (llave primaria compartida,
+    enmienda del 29-jul-2026; ver AGENTS.md y id_central.py). Nada más se toca."""
     r = request_con_reintentos(
         "PATCH", f"{API}/data_sources/{ds_id}", headers=_headers(),
         json={"properties": properties}, timeout=30,
