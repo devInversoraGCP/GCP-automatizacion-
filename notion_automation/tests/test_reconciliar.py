@@ -44,6 +44,52 @@ class TestClasificarFuzzy:
         assert r.clasificar("12345678-5", "otro nombre", idx) == (r.NUEVO, None)
 
 
+class TestSincronizarRelacion:
+    """Cambio de mes de RRHH: la relación debe seguir a la base nueva. Notion
+    ignora en silencio los enlaces a otro data source, así que una relación
+    desalineada no liga nada (31-jul-2026)."""
+
+    def _fuente(self, ds="ds-julio"):
+        return r.Fuente("RRHH", ds, "RUT", "CLIENTE", "RRHH Origen", "RRHH", prefijo="RRHH")
+
+    def _schema(self, ds):
+        return {"RRHH Origen": {"type": "relation", "relation": {"data_source_id": ds}}}
+
+    def test_si_ya_apunta_al_mes_vigente_no_toca_nada(self, monkeypatch):
+        monkeypatch.setattr(nc, "update_data_source", _explota)
+        assert r.sincronizar_relacion(self._fuente(), self._schema("ds-julio"), dry=False) == r.ALINEADA
+
+    def test_dry_no_reapunta_pero_lo_reporta(self, monkeypatch):
+        monkeypatch.setattr(nc, "update_data_source", _explota)
+        assert r.sincronizar_relacion(self._fuente(), self._schema("ds-junio"), dry=True) == r.PENDIENTE
+
+    def test_reapunta_al_data_source_nuevo(self, monkeypatch):
+        llamadas = []
+        monkeypatch.setattr(nc, "update_data_source", lambda ds, props: llamadas.append(props))
+        monkeypatch.setattr(r, "_respaldar_relacion", lambda *a: "(respaldo)")
+        assert r.sincronizar_relacion(self._fuente(), self._schema("ds-junio"), dry=False) == r.REAPUNTADA
+        assert llamadas[0]["RRHH Origen"]["relation"]["data_source_id"] == "ds-julio"
+
+    def test_respalda_antes_de_borrar_los_enlaces(self, monkeypatch):
+        respaldos = []
+        monkeypatch.setattr(nc, "update_data_source", lambda ds, props: None)
+        monkeypatch.setattr(r, "_respaldar_relacion", lambda rel, viejo, idx: respaldos.append(viejo) or "(r)")
+        r.sincronizar_relacion(self._fuente(), self._schema("ds-junio"), dry=False)
+        assert respaldos == ["ds-junio"]
+
+    def test_relacion_inexistente_es_error(self):
+        assert r.sincronizar_relacion(self._fuente(), {}, dry=False) == r.ERROR_REL
+
+    def test_si_falla_el_patch_devuelve_error(self, monkeypatch):
+        monkeypatch.setattr(r, "_respaldar_relacion", lambda *a: "(r)")
+        monkeypatch.setattr(nc, "update_data_source", _explota)
+        assert r.sincronizar_relacion(self._fuente(), self._schema("ds-junio"), dry=False) == r.ERROR_REL
+
+
+def _explota(*a, **k):
+    raise AssertionError("no debía llamarse / API caída")
+
+
 class TestPeriodoDeTitulo:
     def test_con_anio_explicito(self):
         assert r._periodo_de_titulo("RRHH JUNIO 2026") == (2026, 6)

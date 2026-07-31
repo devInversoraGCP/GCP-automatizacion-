@@ -68,7 +68,11 @@ class Fuente:
 # ds_id de Contable/RRHH queda como FALLBACK por si el search falla.
 FUENTES: list[Fuente] = [
     Fuente("Contable", "09b12147-b3ea-8337-a218-87538eab23fc", "Rut", "Customers", "Contable Origen", "Contable", prefijo="Contable"),
-    Fuente("RRHH", "9c512147-b3ea-8256-a570-871254c13b3d", "RUT", "CLIENTE", "RRHH Origen", "RRHH JUNIO 2026", prefijo="RRHH"),
+    # ds_id de RRHH = solo FALLBACK; el mes vigente lo resuelve `resolver_ds_actual`
+    # por título. `origen` es la etiqueta del select Origen de las fichas nuevas:
+    # va SIN mes (antes decía "RRHH JUNIO 2026", que quedaba mintiendo al mes
+    # siguiente) — mismo criterio que "Contable"/"Tickets".
+    Fuente("RRHH", "89a12147-b3ea-830e-adee-07cbca823fb6", "RUT", "CLIENTE", "RRHH Origen", "RRHH", prefijo="RRHH"),
     Fuente("CRM", "2961d0d2-de59-4fd5-b340-8930f6275101", "RUT", "Sw", "CRM Origen", "CRM Comercial"),
     Fuente("Tickets", "9d312147-b3ea-83bf-b111-877c7b24db75", None, "Tarea", "Tickets Origen", "Tickets"),
 ]
@@ -153,6 +157,70 @@ def nombre_base_actual(prefijo: str, fallback: str = "") -> str:
         if mejor is None or cand[:2] > mejor[:2]:
             mejor = cand
     return mejor[2] if mejor else fallback
+
+
+# Estados de `sincronizar_relacion`.
+ALINEADA = "alineada"       # la relación ya apunta al mes vigente
+REAPUNTADA = "reapuntada"   # se movió al mes vigente (se borraron los enlaces viejos)
+PENDIENTE = "pendiente"     # habría que moverla (dry-run: no se tocó)
+ERROR_REL = "error"         # no se pudo mover → esa fuente no se puede ligar
+
+
+def _respaldar_relacion(rel_nombre: str, ds_viejo: str, idx: "Indice | None" = None) -> str:
+    """Guarda en backups/ los enlaces que están por borrarse al re-apuntar.
+    Si no se pasa `idx`, lo carga (evitarlo cuando el llamador ya lo tiene: es
+    una lectura completa del sandbox)."""
+    idx = idx or cargar_sandbox()
+    fecha = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    enlaces = {pid: f["rel"].get(rel_nombre, []) for pid, f in idx.fichas.items()
+               if f["rel"].get(rel_nombre)}
+    ruta = os.path.join(BACKUPS_DIR, f"{fecha}_{rel_nombre.replace(' ', '-').lower()}-pre-reapuntado.json")
+    os.makedirs(os.path.dirname(ruta), exist_ok=True)
+    with open(ruta, "w", encoding="utf-8") as fh:
+        json.dump({"fecha": datetime.now(timezone.utc).isoformat(), "relacion": rel_nombre,
+                   "data_source_anterior": ds_viejo, "enlaces": enlaces}, fh,
+                  ensure_ascii=False, indent=2)
+    return ruta
+
+
+def sincronizar_relacion(fuente: Fuente, sb_schema: dict, dry: bool = True,
+                         idx: "Indice | None" = None) -> str:
+    """Re-apunta la relación del sandbox al data source del mes VIGENTE.
+
+    RRHH estrena una base NUEVA cada mes (Contable solo se renombra). Si la
+    relación se queda apuntando al mes anterior, Notion **ignora en silencio**
+    los enlaces a filas de otro data source (verificado contra la API el
+    31-jul-2026): el cron cree que liga y no liga nada, y los rollups vivos de
+    la ficha siguen mostrando las cifras del mes viejo.
+
+    ⚠️ Re-apuntar **borra** los enlaces existentes (también verificado). Es
+    aceptable y es el diseño (doc 18 §4: "el rollup siempre muestra el mes
+    vigente"): apuntaban a filas del mes anterior, y esta misma corrida los
+    reconstruye con las del mes nuevo. Además, desde que existe `ID Central`
+    la trazabilidad histórica NO depende de la relación: queda escrita en la
+    propia fila del mes viejo. Antes de borrar se respalda a backups/."""
+    prop = sb_schema.get(fuente.rel_sandbox) or {}
+    actual = (prop.get("relation") or {}).get("data_source_id", "")
+    if not actual:
+        log.warning("la relación '%s' no existe en el sandbox", fuente.rel_sandbox)
+        return ERROR_REL
+    if actual == fuente.ds_id:
+        return ALINEADA
+    if dry:
+        log.info("relación '%s' apunta a %s pero el mes vigente es %s (se re-apuntaría)",
+                 fuente.rel_sandbox, actual[:8], fuente.ds_id[:8])
+        return PENDIENTE
+    try:
+        ruta = _respaldar_relacion(fuente.rel_sandbox, actual, idx)
+        nc.update_data_source(SANDBOX_DS, {fuente.rel_sandbox: {
+            "relation": {"data_source_id": fuente.ds_id, "single_property": {}}}})
+    except Exception as exc:
+        log.error("no se pudo re-apuntar '%s': %s", fuente.rel_sandbox, exc)
+        return ERROR_REL
+    log.warning("relación '%s' re-apuntada %s -> %s · enlaces del mes anterior borrados "
+                "(se reconstruyen ahora) · respaldo: %s",
+                fuente.rel_sandbox, actual[:8], fuente.ds_id[:8], ruta)
+    return REAPUNTADA
 
 
 def fuentes_resueltas(fuentes: list[Fuente]) -> list[Fuente]:
@@ -506,7 +574,21 @@ def aplicar(fuentes: list[Fuente], dry: bool = True) -> dict:
     # circular (mismo patrón que `alertas` en main()).
     import id_central as idc
 
+    # 0) Alinear las relaciones con el mes vigente ANTES de leer el sandbox: si se
+    # re-apunta después, `idx` traería enlaces que ya no existen y el union los
+    # daría por puestos. Una relación desalineada no liga nada (Notion la ignora
+    # en silencio), así que se marca y no se cuentan enlaces falsos.
     idx = cargar_sandbox()
+    sb_schema = nc.get_data_source_schema(SANDBOX_DS)
+    estados_rel = {f.nombre: sincronizar_relacion(f, sb_schema, dry=dry, idx=idx) for f in fuentes}
+    ligables = {n for n, e in estados_rel.items() if e != ERROR_REL}
+    for nombre_f, estado in estados_rel.items():
+        if estado != ALINEADA:
+            print(f"  ⚠️  relación de {nombre_f}: {estado}"
+                  + (" — no se podrá ligar esta fuente" if estado == ERROR_REL else ""))
+    # Re-apuntar BORRA los enlaces: releer para no dar por puesto lo que ya no está.
+    if REAPUNTADA in estados_rel.values():
+        idx = cargar_sandbox()
     add_por_ficha: dict = defaultdict(lambda: defaultdict(set))  # sandbox_pid -> rel -> {op_ids}
     nuevos: list = []            # (fuente, op_id, nombre, rut)
     por_tabla: dict = defaultdict(lambda: {"link": 0, "nuevo": 0})
@@ -531,12 +613,18 @@ def aplicar(fuentes: list[Fuente], dry: bool = True) -> dict:
                 continue
             clase, pid = clasificar(rutk, nomk, idx)
             if clase in (MATCH_RUT, MATCH_NOMBRE, MATCH_FUZZY):
-                add_por_ficha[pid][fuente.rel_sandbox].add(op_id)
-                por_tabla[fuente.nombre]["link"] += 1
+                # El estampado de `ID Central` NO depende de la relación: aunque
+                # la relación esté desalineada, la llave igual queda puesta.
                 idnum = idx.fichas.get(pid, {}).get("id")
                 if idnum is not None:
                     estampar[op_id] = idnum
+                if fuente.nombre not in ligables:
+                    continue
+                add_por_ficha[pid][fuente.rel_sandbox].add(op_id)
+                por_tabla[fuente.nombre]["link"] += 1
             elif clase in (NUEVO, PROBABLE_NUEVO):
+                if fuente.nombre not in ligables:
+                    continue
                 nuevos.append((fuente, op_id, nombre, rutk))
                 por_tabla[fuente.nombre]["nuevo"] += 1
 

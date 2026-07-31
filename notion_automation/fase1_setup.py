@@ -23,7 +23,9 @@ SANDBOX = "4ff12147-b3ea-82f4-98dd-072067524cdc"
 # Relación en el sandbox -> data source operativo (mes vigente para Contable/RRHH).
 RELACIONES = {
     "Contable Origen": "09b12147-b3ea-8337-a218-87538eab23fc",
-    "RRHH Origen":     "9c512147-b3ea-8256-a570-871254c13b3d",  # ya existe (se salta)
+    # RRHH estrena base cada mes: este id es solo el arranque. Una vez creada, el
+    # cron la mantiene apuntando al mes vigente (reconciliar.sincronizar_relacion).
+    "RRHH Origen":     "89a12147-b3ea-830e-adee-07cbca823fb6",  # ya existe (se salta)
     "CRM Origen":      "2961d0d2-de59-4fd5-b340-8930f6275101",
     "Tickets Origen":  "9d312147-b3ea-83bf-b111-877c7b24db75",
 }

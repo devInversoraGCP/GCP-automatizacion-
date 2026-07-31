@@ -152,6 +152,10 @@ class TestAplicarEstampa:
         monkeypatch.setattr(nc, "update_props", lambda pid, props: escrituras.append((pid, props)))
         monkeypatch.setattr(idc, "asegurar_columna", lambda ds, dry=False: columna_estado)
         monkeypatch.setattr(rec.time, "sleep", lambda s: None)
+        # Relación ya alineada con el mes vigente (el caso normal).
+        monkeypatch.setattr(nc, "get_data_source_schema", lambda ds: {
+            f.rel_sandbox: {"type": "relation", "relation": {"data_source_id": f.ds_id}}
+            for f in rec.FUENTES})
         return fuente
 
     def test_estampa_la_fila_recien_ligada(self, monkeypatch):
@@ -202,6 +206,9 @@ class TestAplicarEstampa:
         monkeypatch.setattr(nc, "query_data_source", lambda ds, body=None: [fila])
         monkeypatch.setattr(nc, "update_props", _boom)
         monkeypatch.setattr(idc, "asegurar_columna", _boom)
+        monkeypatch.setattr(nc, "get_data_source_schema", lambda ds: {
+            f.rel_sandbox: {"type": "relation", "relation": {"data_source_id": f.ds_id}}
+            for f in rec.FUENTES})
         idx = _idx({"sb1": {"id": 77, "nombre_norm": "cliente uno", "nombre_display": "Cliente Uno",
                             "rut": None, "rel": {}}})
         idx.por_nombre["cliente uno"] = ["sb1"]
