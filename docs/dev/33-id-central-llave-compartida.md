@@ -137,7 +137,30 @@ Métricas cruzadas (rentabilidad por cliente = honorario CRM vs. trabajo de Tick
 detección de inconsistencias entre planillas, y la base para la BD especializada del
 [flujo de datos](07-flujo-de-datos.md).
 
-## 9 · Relacionados
+## 9 · El cambio de mes de RRHH (31-jul-2026)
+
+Horas después del backfill apareció `RRHH JULIO 2026` (base nueva, 52 filas). El caso
+sirvió de prueba de fuego y dejó tres hallazgos duros sobre la API de Notion:
+
+1. **Re-apuntar una relación borra sus enlaces.** Verificado con una propiedad desechable.
+2. **Escribir un enlace a una fila de otro data source devuelve 200 y no guarda nada.** Sin
+   error, sin aviso. El cron reportaba "47 enlaces agregados" y no había agregado ninguno.
+3. **El `DS_ID` fijo del handler de correo** hacía que el fallback por RUT encontrara la
+   fila del **mes anterior**: el cliente recibía el monto y el mes equivocados, y el
+   write-back marcaba como enviada la fila vieja. Arreglado con `ds_vigente()`.
+
+Lo que esto valida del diseño: **`ID Central` sobrevivió al borrado de la relación.** Las
+45 filas de RRHH Junio conservan su llave, así que la trazabilidad histórica vive en el
+dato de la planilla y no en un enlace de Notion. Antes de `ID Central`, re-apuntar la
+relación habría borrado el único vínculo entre esas filas y su cliente.
+
+Automatizado en `reconciliar.sincronizar_relacion()`: cada corrida del cron compara la
+relación con la base del mes vigente y la mueve sola, con respaldo previo a `backups/`.
+Resultado de la migración: 47 filas ligadas y estampadas, rollups vivos con datos de
+julio, 0 discrepancias y **0 conflictos** (al soltar los enlaces de junio desaparecieron
+los 7 casos de doble ficha).
+
+## 10 · Relacionados
 
 - [`24-arquitectura-multi-automatizacion.md`](24-arquitectura-multi-automatizacion.md) — las 4 planillas y sus esquemas.
 - [`08-notion-general-customers-data.md`](08-notion-general-customers-data.md) — esquema de la maestra.

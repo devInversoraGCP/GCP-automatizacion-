@@ -56,7 +56,9 @@ Ejecutado el 02-jul-2026 en la sandbox (`4ff12147-b3ea-82f4-98dd-072067524cdc`):
 
 `IMPUESTO ÚNICO`/`MONTO IMPOSICIONES|` cambian todos los meses. Decisiones que esto implica:
 
-- La relación `RRHH Origen` apunta a **RRHH JUNIO 2026** = el mes que se declara ahora (período junio, declarado en julio). Al llegar `RRHH JULIO 2026`, habrá que **re-apuntar la relación** (o automatizarlo) — el rollup siempre muestra "el mes vigente".
+- La relación `RRHH Origen` apunta al mes que se declara ahora — el rollup siempre muestra "el mes vigente". ✅ **AUTOMATIZADO (31-jul-2026):** `reconciliar.sincronizar_relacion()` compara la relación con la base del mes vigente en cada corrida del cron y la re-apunta sola. Ya no es un paso manual. Detalle y hallazgos en [`33`](33-id-central-llave-compartida.md) §10.
+    - ⚠️ Dos comportamientos de la API de Notion verificados el 31-jul, que hacían de esto una bomba silenciosa: (1) re-apuntar una relación **borra** sus enlaces; (2) escribir un enlace a una fila de **otro** data source devuelve 200 pero **no guarda nada** — el cron creía ligar 47 filas y no ligaba ninguna, sin error.
+    - Desde que existe `ID Central`, borrar los enlaces ya **no pierde trazabilidad**: la llave queda escrita en la propia fila del mes viejo (verificado: las 45 filas de RRHH JUNIO conservan su `ID Central`).
 - El **motor de cálculo** (Frente B) no dependerá del rollup: leerá directamente `RRHH <Mes>` del período que calcula.
 - **No se mezclan meses**: los datos de MAYO no se copian a los rollups de JUNIO; si falta el valor de junio de un cliente, se espera a que GCP lo llene o se pregunta.
 
