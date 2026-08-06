@@ -179,6 +179,43 @@ class TestEnviarAvisoAsesor:
         cuerpo = m.call_args.kwargs["json"]["content"][0]["value"]
         assert "Qué hacer" in cuerpo and "columna Email" in cuerpo
 
+    def _contenidos(self, m):
+        """(texto_plano, html) del payload de SendGrid."""
+        partes = {c["type"]: c["value"] for c in m.call_args.kwargs["json"]["content"]}
+        return partes.get("text/plain", ""), partes.get("text/html", "")
+
+    def test_lleva_el_contacto_de_soporte_en_texto_y_html(self, monkeypatch):
+        # el aviso sale de una casilla que no se responde: sin esto el asesor
+        # quedaba sin a quién escribirle (pedido del 06-ago-2026)
+        monkeypatch.setenv("SENDGRID_API_KEY", "fake")
+        with patch.object(es.requests, "post") as m:
+            m.return_value = MagicMock(status_code=202)
+            es.enviar_aviso_asesor("seba@inversoragcp.com", "CLIENTE X", "Junio 2026", self._diag())
+        texto, html = self._contenidos(m)
+        for cuerpo in (texto, html):
+            assert es.SOPORTE_EMAIL in cuerpo
+            assert es.SOPORTE_WSP in cuerpo
+        assert es.SOPORTE_WSP_URL in html          # WhatsApp clickeable
+        assert f"mailto:{es.SOPORTE_EMAIL}" in html
+
+    def test_el_contacto_aparece_tambien_cuando_no_lo_resuelve_el_asesor(self, monkeypatch):
+        # justo el caso donde MÁS necesita saber a quién escribirle
+        monkeypatch.setenv("SENDGRID_API_KEY", "fake")
+        import diagnostico
+        diag = diagnostico.diagnosticar("SendGrid rechazo el envio (HTTP 403): remitente no verificado",
+                                        cliente="CLIENTE X")
+        assert diag.puede_asesor is False
+        with patch.object(es.requests, "post") as m:
+            m.return_value = MagicMock(status_code=202)
+            es.enviar_aviso_asesor("seba@inversoragcp.com", "CLIENTE X", "Junio 2026", diag)
+        texto, html = self._contenidos(m)
+        assert es.SOPORTE_WSP in texto and es.SOPORTE_WSP in html
+
+    def test_el_wsp_url_no_lleva_espacios_ni_mas(self):
+        # wa.me exige el numero pelado; un '+' o espacios rompen el link
+        cola = es.SOPORTE_WSP_URL.rsplit("/", 1)[-1]
+        assert cola.isdigit() and cola.startswith("56")
+
 
 class TestEnviarAvisoDev:
     def _diag(self):

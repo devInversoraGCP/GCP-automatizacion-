@@ -59,6 +59,14 @@ FERIADOS_CL = {
 # supervisar el rendimiento del sistema. Ver admin_emails() y las confirmaciones.
 MONITOR_EMAIL = "dev@inversoragcp.com"
 
+# Contacto de soporte que se le muestra AL ASESOR en los avisos de error, para que
+# sepa a quién escribirle cuando no lo puede resolver solo (pedido del 06-ago-2026).
+# Los avisos dicen "no responder" —salen de una casilla automática— así que sin
+# esto el asesor se quedaba sin salida cuando el diagnóstico no le alcanzaba.
+SOPORTE_EMAIL = MONITOR_EMAIL
+SOPORTE_WSP = "+56 9 8120 0756"
+SOPORTE_WSP_URL = "https://wa.me/56981200756"   # sin espacios ni '+', formato wa.me
+
 # BCC oculto en cada correo a cliente = SOLO dev@ (monitoreo). Carlos se sacó del
 # respaldo (28-jul): ya NO recibe copia de los correos de otros asesores. Cada
 # asesor (Carlos incluido) sigue recibiendo la confirmación de entrega de SUS
@@ -787,6 +795,22 @@ def _lista_html(pasos: list[str]) -> str:
     return f'<ol style="margin:8px 0 0 0;padding-left:20px;color:#3a4658;font-size:14px;line-height:1.6;">{items}</ol>'
 
 
+def _bloque_soporte_html() -> str:
+    """Recuadro de contacto para el asesor en los avisos de error: a quién escribirle
+    cuando el diagnóstico no le alcanza. El aviso sale de una casilla que no se
+    responde, así que sin esto el asesor quedaba sin salida."""
+    return (
+        '<div style="margin:14px 0 0;padding:12px 14px;background:#f4f7fb;'
+        'border:1px solid #dbe4f0;border-radius:10px;">'
+        '<div style="font-size:12px;font-weight:700;letter-spacing:.06em;'
+        'text-transform:uppercase;color:#5a6b82;margin-bottom:6px;">¿Dudas o sigue sin funcionar?</div>'
+        '<p style="margin:0;font-size:13px;line-height:1.7;color:#3a4658;">'
+        f'Correo: <a href="mailto:{SOPORTE_EMAIL}" style="color:#0B1F3A;font-weight:700;">{SOPORTE_EMAIL}</a><br>'
+        f'WhatsApp: <a href="{SOPORTE_WSP_URL}" style="color:#0B1F3A;font-weight:700;">{SOPORTE_WSP}</a>'
+        '</p></div>'
+    )
+
+
 def enviar_aviso_asesor(email_asesor: str, cliente: str, mes: str, diag) -> bool:
     """Aviso DIDÁCTICO al asesor (contador) cuando un correo no se pudo enviar.
     Lenguaje simple, sin tecnicismos, con pasos accionables en Notion. `diag` es
@@ -808,7 +832,10 @@ def enviar_aviso_asesor(email_asesor: str, cliente: str, mes: str, diag) -> bool
         f"{'Lo puedes resolver tú.' if puede else 'Lo resuelve el equipo técnico.'}\n\n"
         f"{diag.explicacion_asesor}\n\n"
         "Qué hacer:\n" + "".join(f"  {i}. {p}\n" for i, p in enumerate(diag.pasos_asesor, 1))
-        + "\n— Aviso automatico del sistema AuditAI (no responder)."
+        + f"\n¿Sigue sin funcionar o tienes dudas? Escríbenos:\n"
+          f"  Correo:   {SOPORTE_EMAIL}\n"
+          f"  WhatsApp: {SOPORTE_WSP}\n"
+        + "\n— Aviso automatico del sistema AuditAI (no responder a este correo)."
     )
     html = (
         '<div style="font-family:Arial,Helvetica,sans-serif;max-width:600px;color:#0B1F3A;">'
@@ -822,7 +849,8 @@ def enviar_aviso_asesor(email_asesor: str, cliente: str, mes: str, diag) -> bool
         f'{_lista_html(diag.pasos_asesor)}'
         '</div>'
         f'<p style="margin:14px 2px 0;font-size:13px;color:#5a6b82;">Cliente: <b>{_escape(cliente)}</b> · Período: <b>{_escape(mes or "—")}</b></p>'
-        '<p style="color:#8593a8;font-size:12px;margin-top:6px;">Aviso automatico del sistema AuditAI (no responder).</p>'
+        f'{_bloque_soporte_html()}'
+        '<p style="color:#8593a8;font-size:12px;margin-top:6px;">Aviso automatico del sistema AuditAI (no responder a este correo).</p>'
         '</div>'
     )
     return _post_aviso([email_asesor], asunto, texto, html)
