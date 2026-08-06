@@ -641,6 +641,58 @@ Para futuras referencias, estos son los IDs relevantes descubiertos durante el d
 
 ---
 
+## §18 · El respaldo duplicado también tiene botón (incidente 06-ago-2026)
+
+### Qué pasó
+
+Flujo real del cambio de mes de agosto: se duplicó `Contable Junio` como respaldo →
+quedó **`Contable Junio (1)`** → se reseteó la original → se renombró a `Contable Julio`.
+La planilla operativa conserva su data source (`09b12147…`); el respaldo estrena uno
+nuevo (`27a12147…`) con **290 filas y su propia columna botón**, apuntando al mismo
+backend.
+
+A las 11:03 llegó un `400 · no se encontro page_id, Rut ni Customers en el payload`.
+El origen fue una fila en blanco del respaldo (`8f012147…`, "Nueva página": sin Rut,
+sin nombre, sin Email). En `Contable Julio` **no existe ninguna fila** con Rut y
+nombre vacíos a la vez — por eso el 400 no podía venir de la planilla operativa.
+
+### Por qué el 400 era la parte buena
+
+El rechazo fue ruidoso e inofensivo. Lo grave era lo que no falló: `_procesar_page`
+**nunca validaba de qué base venía la fila** (la regla R4 del doc 23 estaba escrita
+pero no implementada). Las **99 filas del respaldo que sí tienen Email** habrían
+mandado un correo real al cliente con datos de junio, en agosto, con `200 OK` y sin
+alerta a nadie.
+
+### Qué se implementó
+
+| # | Cambio | Dónde |
+|---|---|---|
+| 1 | **Guard R4**: la fila debe vivir en el Contable vigente o en `DS_CONTABLES`; si no, `403` con mensaje accionable para el asesor + aviso al admin. Fail-closed solo cuando la base es *conocida y distinta*; si no se puede determinar, pasa con warning (cortar todos los envíos por un cambio de forma de Notion sería peor). | `app._validar_contable_vigente`, llamado al inicio de `_procesar_page` |
+| 2 | **Desempate de copias**: entre `Contable Julio` y `Contable Julio (1)` (mismo período) ganaba la que devolviera primero el search — o sea, el azar. Ahora manda la que no tiene sufijo `(n)`. | `reconciliar._es_copia`, usado por `resolver_ds_actual` y `nombre_base_actual` |
+| 3 | **Aviso autosuficiente**: el correo de botón rechazado incluye la estructura del payload (solo claves y tipos ⇒ sin PII, R3) **y el contexto de la request** (IP real vía `X-Forwarded-For`, User-Agent, Content-Type, y si el body llegó vacío / ilegible / JSON). Diagnosticar este 400 exigió leer los logs de Render, y aun así no se distinguía un clic real de un `Test` de la configuración del webhook. | `alertas.avisar_boton_rechazado(…, estructura, origen)` + `app._contexto_request` |
+
+Tests: `tests/test_base_vigente.py` (9), desempate en `tests/test_reconciliar.py`,
+cuerpo del aviso en `tests/test_alertas.py`, contexto de la request en
+`tests/test_endpoints.py`. Verificable en `/health` →
+`2026-08-06.2-guard-base-y-aviso-detallado`.
+
+### Cómo leer el próximo aviso
+
+- **`body VACIO (0 bytes)`** ⇒ no fue un asesor. Es el botón "Test" de la acción
+  webhook en Notion, o un botón cuya acción quedó sin contenido configurado.
+- **`body ILEGIBLE`** ⇒ algo POSTea a la URL que no es Notion.
+- **`body JSON de N bytes`** con estructura pero sin identificador ⇒ ahí sí hay
+  un botón real mal configurado: revisar qué propiedades tiene seleccionadas.
+
+### Lo que sigue siendo manual
+
+El guard evita el correo equivocado, pero **no borra el botón del respaldo**. Al
+duplicar una planilla como backup, borrarle la columna botón (`Enviar Correo F29`)
+o archivarla. Si no, cada clic ahí es un 403 y un correo al admin: ruido evitable.
+
+---
+
 ## §17 · Referencias
 
 - [`../../AGENTS.md`](../../AGENTS.md) — reglas no negociables (Notion en lectura por defecto,

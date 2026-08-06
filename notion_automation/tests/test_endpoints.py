@@ -115,6 +115,28 @@ class TestAvisoDeBotonRechazado:
         assert r.status_code == 404 and m.called
         assert m.call_args[0][0] == "RRHH" and m.call_args[0][1] == 404
 
+    def test_el_aviso_lleva_payload_y_origen(self, client):
+        """06-ago-2026: un 400 con payload vacío obligaba a ir a los logs de
+        Render y ni así se sabía quién lo mandó. El aviso ahora se basta solo."""
+        with patch.object(A.alertas, "avisar_boton_rechazado") as m:
+            r = client.post("/enviar-f29", data=b"", headers={**H, "User-Agent": "NotionTest/1.0"})
+        assert r.status_code == 400
+        estructura, origen = m.call_args[0][4], m.call_args[0][5]
+        assert estructura == "{}"
+        assert "body VACIO" in origen and "NotionTest/1.0" in origen
+
+    def test_el_origen_distingue_un_body_ilegible(self, client):
+        with patch.object(A.alertas, "avisar_boton_rechazado") as m:
+            r = client.post("/enviar-f29", data=b"no soy json", headers=H)
+        assert r.status_code == 400
+        assert "ILEGIBLE" in m.call_args[0][5]
+
+    def test_el_origen_usa_la_ip_del_proxy_de_render(self, client):
+        """Render va detrás de proxy: remote_addr es el proxy, no quien llamó."""
+        with patch.object(A.alertas, "avisar_boton_rechazado") as m:
+            client.post("/enviar-f29", json={}, headers={**H, "X-Forwarded-For": "8.8.8.8, 10.0.0.1"})
+        assert "IP 8.8.8.8" in m.call_args[0][5]
+
     def test_el_401_no_llega_a_avisar(self, client):
         # el guard del secreto corre ANTES del try; ademas alertas filtra 401/503
         with patch.object(A.alertas, "avisar_boton_rechazado") as m:

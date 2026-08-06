@@ -18,10 +18,13 @@ DB_ID = "abcdef12-1234-1234-1234-123456789abc"
 
 def _page(month_fila="Junio 2026", email="cliente@x.com", nombre="CLIENTE X"):
     """Página simulada de un Contable. El parent.database_id permite que
-    derivar_month_desde_base lo llame; lo mockeamos en cada test."""
+    derivar_month_desde_base lo llame; lo mockeamos en cada test. El
+    data_source_id es el del Contable operativo: sin él, el guard R4
+    (_validar_contable_vigente) rechaza la fila con 403 por venir de una base
+    no autorizada."""
     return {
         "id": PID,
-        "parent": {"database_id": DB_ID},
+        "parent": {"database_id": DB_ID, "data_source_id": nc.DS_CONTABLE_JUNIO},
         "last_edited_time": "2026-07-13T12:00:00.000Z",
         "properties": {
             A.P_NOMBRE:          {"type": "title", "title": [{"plain_text": nombre}]},

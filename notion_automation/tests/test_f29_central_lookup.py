@@ -19,7 +19,9 @@ DB_ID = "abcdef12-1234-1234-1234-123456789abc"
 def _page(email="", rut="11111111-1", nombre="CLIENTE DEMO SPA"):
     return {
         "id": PID,
-        "parent": {"database_id": DB_ID},
+        # data_source_id del Contable operativo: el guard R4 rechaza las filas
+        # que no vengan de una base autorizada.
+        "parent": {"database_id": DB_ID, "data_source_id": nc.DS_CONTABLE_JUNIO},
         "last_edited_time": "2026-07-13T12:00:00.000Z",
         "properties": {
             A.P_NOMBRE:       {"type": "title", "title": [{"plain_text": nombre}]},

@@ -148,6 +148,7 @@ def _procesar_page(page_id: str) -> dict:
     """Lee la fila, envía el correo, actualiza Status. Devuelve {ok, ...}.
     No loguea PII (email, monto, RUT)."""
     page = nc.get_page(page_id)
+    _validar_contable_vigente(page)   # R4: nada de correos desde una copia vieja
     props = page["properties"]
 
     email = nc.plain(props.get(P_EMAIL, {}))
@@ -268,6 +269,32 @@ def _estructura(d, profundidad=0):
     return {k: _estructura(v, profundidad + 1) for k, v in d.items()}
 
 
+def _contexto_request() -> str:
+    """Quién mandó la request y con qué forma de body, para el correo de aviso.
+
+    Sin PII de clientes: solo cabeceras de transporte. Nace del 06-ago-2026:
+    llegaron 400 con el payload vacío y no había manera de distinguir a un
+    asesor apretando el botón de alguien probando la configuración del webhook
+    en Notion (el 'Test' de la acción manda un body vacío). Solo se llama al
+    construir un aviso, así que el costo no está en el camino feliz."""
+    ua = request.headers.get("User-Agent") or "(sin User-Agent)"
+    # Render corre detrás de un proxy: la IP real viene en X-Forwarded-For.
+    ip = (request.headers.get("X-Forwarded-For") or request.remote_addr or "")
+    ip = ip.split(",")[0].strip() or "(desconocida)"
+    try:
+        crudo = request.get_data(cache=True) or b""
+    except Exception:
+        crudo = b""
+    if not crudo:
+        forma = "body VACIO (0 bytes) — tipico del 'Test' del webhook en Notion o de un boton sin contenido configurado"
+    elif request.get_json(force=True, silent=True) is None:
+        forma = f"body ILEGIBLE, no es JSON ({len(crudo)} bytes)"
+    else:
+        forma = f"body JSON de {len(crudo)} bytes"
+    ct = request.headers.get("Content-Type") or "(ninguno)"
+    return f"IP {ip} · User-Agent: {ua} · Content-Type: {ct} · {forma}"
+
+
 def _extraer_plano_notion(v: dict) -> str:
     """Extrae un valor plano de un objeto propiedad Notion, con o sin campo
     `type` explicito. Prueba rich_text, title, email, url, number, phone_number,
@@ -345,6 +372,63 @@ def _ds_contable_vigente() -> str:
     except Exception as exc:
         log.warning("no se pudo resolver el Contable vigente, uso el conocido: %s", exc)
         return nc.DS_CONTABLE_JUNIO
+
+
+def _ds_de_la_fila(page: dict) -> str:
+    """Data source (sin guiones) de la base donde vive la fila, o '' si no se
+    puede determinar. El page object trae `parent.data_source_id` (API
+    2025-09-03); si solo viniera `database_id`, se resuelve."""
+    parent = page.get("parent") or {}
+    ds = parent.get("data_source_id") or ""
+    if ds:
+        return ds.replace("-", "")
+    db = parent.get("database_id") or ""
+    if not db:
+        return ""
+    try:
+        return (nc.get_data_source_id(db) or "").replace("-", "")
+    except Exception as exc:
+        log.warning("no se pudo resolver el data source de la fila: %s", exc)
+        return ""
+
+
+def _validar_contable_vigente(page: dict) -> None:
+    """R4 (doc 23): la fila DEBE vivir en el Contable del mes vigente.
+
+    Incidente 06-ago-2026: al cambiar de mes se duplica la planilla como
+    respaldo ('Contable Junio (1)'). El duplicado se lleva la columna botón,
+    apunta al mismo backend y sus filas siguen clicables. Sin esta validación
+    el backend mandaba el correo igual — 200 OK y un cliente recibiendo el F29
+    de un mes viejo. El 400 que se vio fue la versión ruidosa del problema; la
+    silenciosa (99 filas con Email en ese duplicado) era la peligrosa.
+
+    Fail-closed SOLO cuando sabemos que la base es otra. Si no se puede
+    determinar (Notion cambia la forma del page object), se deja pasar con un
+    warning: cortar todos los envíos por un cambio de forma sería peor."""
+    ds_fila = _ds_de_la_fila(page)
+    if not ds_fila:
+        log.warning("no se pudo determinar la base de la fila; R4 no aplicada")
+        return
+
+    # La lista estática primero: es el camino normal (la planilla operativa se
+    # renombra en sitio, así que su ds no cambia) y así un clic corriente no
+    # paga un search extra a Notion. También es el cinturón: si el search
+    # resolviera mal la vigente, la planilla de siempre sigue enviando.
+    if ds_fila in {ds.replace("-", "") for _n, ds in nc.DS_CONTABLES}:
+        return
+    vigente = (_ds_contable_vigente() or "").replace("-", "")
+    if not vigente or ds_fila == vigente:
+        return
+
+    titulo = ""
+    try:
+        titulo = nc.get_database_title((page.get("parent") or {}).get("database_id", "")) or ""
+    except Exception:
+        pass
+    log.warning("fila fuera del Contable vigente · base=%r ds=%s", titulo, ds_fila[:8])
+    abort(403, (f"la fila esta en {titulo or 'una planilla desconocida'!r}, que no es el "
+                "Contable del mes vigente. Apreta el boton en la planilla del mes en curso "
+                "(las copias de respaldo no envian correos)."))
 
 
 def _buscar_identificador_base(data: dict) -> tuple[str, str]:
@@ -454,7 +538,8 @@ def _procesar_webhook_generico(handler, nombre_handler: str):
         # en Notion y antes no se enteraba nadie más (caso Andrea, 02-ago). 401/503
         # los filtra alertas (ocurren antes de autenticar).
         alertas.avisar_boton_rechazado(nombre_handler, exc.code or 0,
-                                       exc.description or "", page_id or "")
+                                       exc.description or "", page_id or "",
+                                       str(_estructura(data)), _contexto_request())
         raise
     except Exception as exc:
         alertas.avisar_excepcion_admin(nombre_handler, page_id or "", exc)
@@ -550,7 +635,9 @@ def enviar_f29():
             if not exito and not _fallo_persistente(motivo_fallo):
                 _dedupe_liberar(page_id)
     except HTTPException as exc:
-        alertas.avisar_boton_rechazado("F29", exc.code or 0, exc.description or "", page_id or "")
+        alertas.avisar_boton_rechazado("F29", exc.code or 0, exc.description or "",
+                                       page_id or "", str(_estructura(data)),
+                                       _contexto_request())
         raise
     except Exception as exc:
         alertas.avisar_excepcion_admin("F29", page_id, exc)
@@ -969,7 +1056,7 @@ def health():
     return {
         "ok": True,
         "service": "auditai-f29",
-        "version": "2026-08-06.1-identificacion-unificada",
+        "version": "2026-08-06.2-guard-base-y-aviso-detallado",
         "webhook_secret_configurado": bool(os.environ.get("WEBHOOK_SECRET")),
         "admin_alerts_configurados": len(es.admin_emails()),
         "sendgrid_webhook_token_configurado": bool(os.environ.get("SENDGRID_WEBHOOK_TOKEN")),

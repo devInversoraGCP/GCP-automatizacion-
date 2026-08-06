@@ -1,4 +1,5 @@
 """Tests de la resolución dinámica de mes y la clasificación fuzzy (sin red)."""
+import pytest
 import notion_client as nc
 import reconciliar as r
 
@@ -125,6 +126,26 @@ class TestResolverDsActual:
         ]
         monkeypatch.setattr(nc, "buscar_data_sources", self._fake(filas))
         assert r.resolver_ds_actual("RRHH", "fb") == "julio"
+
+    @pytest.mark.parametrize("orden", [(0, 1), (1, 0)])
+    def test_la_copia_del_mismo_mes_nunca_le_gana_a_la_operativa(self, monkeypatch, orden):
+        """06-ago-2026: el respaldo se crea con el MISMO período que la operativa
+        ('Contable Julio' / 'Contable Julio (1)'). Antes el desempate lo decidía
+        el orden del search — o sea, el azar. Gana la que no tiene sufijo, venga
+        como venga."""
+        filas = [
+            {"id": "operativa", "title": [{"plain_text": "Contable Julio "}], "last_edited_time": "2026-08-06"},
+            {"id": "copia", "title": [{"plain_text": "Contable Julio (1)"}], "last_edited_time": "2026-08-06"},
+        ]
+        monkeypatch.setattr(nc, "buscar_data_sources", self._fake([filas[i] for i in orden]))
+        assert r.resolver_ds_actual("Contable", "fallback") == "operativa"
+
+    def test_una_copia_sola_igual_sirve(self, monkeypatch):
+        """Si SOLO existe la copia, es mejor usarla que caer al fallback ciego."""
+        filas = [{"id": "copia", "title": [{"plain_text": "Contable Julio (1)"}],
+                  "last_edited_time": "2026-08-06"}]
+        monkeypatch.setattr(nc, "buscar_data_sources", self._fake(filas))
+        assert r.resolver_ds_actual("Contable", "fallback") == "copia"
 
     def test_fallback_si_no_hay_candidatos(self, monkeypatch):
         monkeypatch.setattr(nc, "buscar_data_sources", self._fake([]))

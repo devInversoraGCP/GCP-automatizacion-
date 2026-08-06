@@ -161,12 +161,20 @@ def _throttle_ok(clave: tuple[str, int]) -> bool:
         return True
 
 
-def avisar_boton_rechazado(flujo: str, codigo: int, detalle: str, page_id: str = "") -> None:
+def avisar_boton_rechazado(flujo: str, codigo: int, detalle: str, page_id: str = "",
+                           estructura: str = "", origen: str = "") -> None:
     """Avisa al admin que un clic del botón se rechazó con un 4xx (400/404/…).
 
     El asesor ve el error en Notion pero no puede hacer nada con él: son fallos de
     identificación de la fila o de payload, no de datos que él cargue. Por eso va
-    solo al admin. Best-effort: nunca propaga."""
+    solo al admin. Best-effort: nunca propaga.
+
+    `estructura` es el dump de SOLO claves y tipos del payload (app._estructura,
+    sin valores ⇒ sin PII, R3). `origen` es el contexto de transporte de la
+    request (IP, User-Agent, forma del body — app._contexto_request). Van en el
+    correo porque el 06-ago-2026 diagnosticar un 400 exigió ir a leer los logs
+    de Render, y aun así no se podía distinguir un clic real de un 'Test' de la
+    configuración del webhook. Con estas dos líneas el aviso se basta solo."""
     if codigo in _CODIGOS_SIN_AVISO:
         return
     if not _throttle_ok((flujo, codigo)):
@@ -188,10 +196,15 @@ def avisar_boton_rechazado(flujo: str, codigo: int, detalle: str, page_id: str =
                 f"Un asesor apreto el boton en {flujo} y el backend lo rechazo con HTTP {codigo}.\n"
                 f"El asesor vio un error en Notion; el correo al cliente NO se envio.\n\n"
                 f"page_id: {page_id or '(no se pudo identificar la fila)'}\n"
-                f"Detalle: {detalle}\n\n"
+                f"Detalle: {detalle}\n"
+                + (f"Payload recibido (solo claves y tipos): {estructura}\n" if estructura else "")
+                + (f"Origen de la request: {origen}\n" if origen else "")
+                + "\n"
                 "Causas tipicas: el payload del boton no trae page_id/RUT/CLIENTE, o la fila "
                 "no existe en la base del mes vigente (base recien duplicada, fila movida, "
-                "titulo cambiado). Revisar la automatizacion del boton en esa base."
+                "titulo cambiado). Revisar la automatizacion del boton en esa base.\n"
+                "Si el body llego VACIO no fue un asesor: es el 'Test' de la accion webhook "
+                "en Notion, o un boton cuya accion quedo sin contenido configurado."
             )}],
         }
         requests.post(

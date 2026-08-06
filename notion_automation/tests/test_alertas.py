@@ -117,6 +117,40 @@ class TestAvisarBotonRechazado:
         assert "404" in payload["subject"] and "RRHH" in payload["subject"]
         assert "p9" in cuerpo and "no se encontro fila" in cuerpo
 
+    def test_lleva_la_forma_del_payload_para_no_ir_a_los_logs(self, monkeypatch):
+        """06-ago-2026: diagnosticar el 400 obligó a leer los logs de Render.
+        La estructura (solo claves y tipos, sin valores ⇒ sin PII, R3) va en el
+        correo para que el aviso se baste solo."""
+        monkeypatch.setenv("ADMIN_ALERT_EMAIL", "a@x.com")
+        monkeypatch.setenv("SENDGRID_API_KEY", "fake")
+        estructura = "{'source': {'type': 'str'}, 'data': {'id': 'str'}}"
+        with patch("alertas.requests.post") as m:
+            m.return_value = MagicMock(status_code=202)
+            alertas.avisar_boton_rechazado("F29", 400, "sin identificador", "", estructura)
+        cuerpo = m.call_args.kwargs["json"]["content"][0]["value"]
+        assert estructura in cuerpo
+
+    def test_lleva_el_origen_de_la_request(self, monkeypatch):
+        """Sin esto no se distingue un asesor apretando el boton de alguien
+        probando la configuracion del webhook en Notion."""
+        monkeypatch.setenv("ADMIN_ALERT_EMAIL", "a@x.com")
+        monkeypatch.setenv("SENDGRID_API_KEY", "fake")
+        origen = "IP 1.2.3.4 · User-Agent: Notion · Content-Type: application/json · body VACIO (0 bytes)"
+        with patch("alertas.requests.post") as m:
+            m.return_value = MagicMock(status_code=202)
+            alertas.avisar_boton_rechazado("F29", 400, "sin identificador", "", "{}", origen)
+        cuerpo = m.call_args.kwargs["json"]["content"][0]["value"]
+        assert origen in cuerpo and "body VACIO" in cuerpo
+
+    def test_sin_estructura_el_cuerpo_no_queda_raro(self, monkeypatch):
+        monkeypatch.setenv("ADMIN_ALERT_EMAIL", "a@x.com")
+        monkeypatch.setenv("SENDGRID_API_KEY", "fake")
+        with patch("alertas.requests.post") as m:
+            m.return_value = MagicMock(status_code=202)
+            alertas.avisar_boton_rechazado("F29", 400, "sin identificador")
+        cuerpo = m.call_args.kwargs["json"]["content"][0]["value"]
+        assert "Payload recibido" not in cuerpo and "Causas tipicas" in cuerpo
+
     @pytest.mark.parametrize("codigo", [401, 503])
     def test_no_avisa_los_codigos_previos_a_autenticar(self, codigo, monkeypatch):
         # ocurren antes de validar el secreto: cualquiera que golpee la URL publica

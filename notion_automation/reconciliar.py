@@ -109,6 +109,16 @@ def _periodo_de_titulo(titulo: str, last_edited: str = "") -> tuple[int, int] | 
     return (anio, mes)
 
 
+def _es_copia(titulo: str) -> bool:
+    """True si el título parece un duplicado de Notion ('Contable Julio (1)').
+
+    Al cambiar de mes la planilla se duplica como respaldo, y la copia queda con
+    el MISMO período que la operativa. Sin este desempate, cuál de las dos gana
+    dependía del orden en que las devolviera el search. Manda la que NO tiene
+    sufijo. Incidente 06-ago-2026 (doc 23 §5.4)."""
+    return bool(re.search(r"\(\s*\d+\s*\)\s*$", titulo.strip()))
+
+
 def resolver_ds_actual(prefijo: str, fallback_id: str) -> str:
     """Data source de la base '<prefijo> <mes>' del PERÍODO MÁS NUEVO. Robusto al
     cambio de mes: cuando aparece p. ej. 'RRHH JULIO 2026', se elige solo. Elige por
@@ -119,7 +129,7 @@ def resolver_ds_actual(prefijo: str, fallback_id: str) -> str:
     except Exception as exc:
         log.warning("search de '%s' falló, uso fallback: %s", prefijo, exc)
         return fallback_id
-    mejor = None  # (anio, mes, ds_id, titulo)
+    mejor = None  # (anio, mes, no_es_copia, ds_id, titulo)
     for it in results:
         titulo = _titulo_result(it)
         if not titulo.lower().startswith(prefijo.lower()):
@@ -127,12 +137,12 @@ def resolver_ds_actual(prefijo: str, fallback_id: str) -> str:
         per = _periodo_de_titulo(titulo, it.get("last_edited_time", ""))
         if not per:
             continue
-        cand = (per[0], per[1], it["id"], titulo)
-        if mejor is None or cand[:2] > mejor[:2]:
+        cand = (per[0], per[1], 0 if _es_copia(titulo) else 1, it["id"], titulo)
+        if mejor is None or cand[:3] > mejor[:3]:
             mejor = cand
     if mejor:
-        log.info("fuente '%s' -> '%s' (%s)", prefijo, mejor[3], mejor[2][:8])
-        return mejor[2]
+        log.info("fuente '%s' -> '%s' (%s)", prefijo, mejor[4], mejor[3][:8])
+        return mejor[3]
     log.warning("no encontré base para '%s', uso fallback %s", prefijo, fallback_id[:8])
     return fallback_id
 
@@ -153,10 +163,10 @@ def nombre_base_actual(prefijo: str, fallback: str = "") -> str:
         per = _periodo_de_titulo(titulo, it.get("last_edited_time", ""))
         if not per:
             continue
-        cand = (per[0], per[1], titulo.strip())
-        if mejor is None or cand[:2] > mejor[:2]:
+        cand = (per[0], per[1], 0 if _es_copia(titulo) else 1, titulo.strip())
+        if mejor is None or cand[:3] > mejor[:3]:
             mejor = cand
-    return mejor[2] if mejor else fallback
+    return mejor[3] if mejor else fallback
 
 
 # Estados de `sincronizar_relacion`.
