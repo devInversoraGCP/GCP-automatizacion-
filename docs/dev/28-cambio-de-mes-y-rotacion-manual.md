@@ -703,6 +703,41 @@ manual perpetuo, una vez por mes, fácil de olvidar. Se cerró por los dos lados
 puede conservar su botón; apretarlo no manda nada, le dice al asesor a dónde ir, y
 al admin le llega a lo sumo un aviso por día.
 
+### Epílogo: los avisos que seguían llegando eran la propia suite de tests
+
+Con el respaldo ya sin botón seguían apareciendo avisos de *"un asesor apretó el
+botón y el backend lo rechazó con 400"*. **No era ningún asesor, ni Notion, ni
+producción.** El campo `Origen de la request` —agregado unas horas antes para
+exactamente esto— lo delató de una:
+
+```
+IP 127.0.0.1 · User-Agent: Werkzeug/3.1.8 · body JSON de 2 bytes
+```
+
+`Werkzeug` es el cliente de test de Flask, `127.0.0.1` es local y 2 bytes es `{}`:
+la huella exacta de `test_header_correcto_pasa_el_guard`. La cadena:
+
+1. `conftest.py` **borraba** `SENDGRID_API_KEY` con `pop()`.
+2. `load_dotenv()` (al importar `app`) usa `override=False`, que solo respeta lo
+   que **ya existe** en el entorno ⇒ a la variable borrada la rellenaba con la
+   credencial **real** del `.env`. Solo pasa corriendo `pytest` desde
+   `notion_automation/`, que es donde vive el `.env`.
+3. `es.admin_emails()` incluye `dev@inversoragcp.com` **siempre**, haya o no
+   `ADMIN_ALERT_EMAIL` (es el buzón de monitoreo, por diseño).
+4. Ese test hacía `POST /enviar-f29` con `json={}` **sin parchear el aviso** ⇒
+   400 ⇒ correo real a dev@ en cada corrida.
+
+**Arreglado por dos vías independientes** (`tests/conftest.py`):
+
+- Las credenciales se setean **vacías, nunca ausentes**: una var presente-pero-vacía
+  es falsy para el código y a la vez le cierra la puerta a `load_dotenv()`.
+- Fixture autouse `_sin_red`: corta `requests.post` y `smtplib` en toda la suite,
+  así una credencial que entre por otra puerta tampoco sale a la red.
+
+Regresión cubierta en `tests/test_no_envia_en_tests.py`. **Moraleja para el
+futuro:** en este repo, borrar una env var en los tests es peligroso; hay que
+sobrescribirla con un valor vacío.
+
 ---
 
 ## §17 · Referencias

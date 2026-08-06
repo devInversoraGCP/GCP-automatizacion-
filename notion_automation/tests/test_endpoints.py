@@ -27,8 +27,12 @@ class TestGuardSecreto:
         assert r.status_code == 401
 
     def test_header_correcto_pasa_el_guard(self, client):
-        # payload vacío -> 400 (pasó el guard, falló la identificación)
-        r = client.post("/enviar-f29", json={}, headers=H)
+        # payload vacío -> 400 (pasó el guard, falló la identificación).
+        # El aviso va parcheado como en el resto: este test, sin parchear, era el
+        # que mandaba correos de alerta REALES a dev@ (incidente 06-ago-2026,
+        # ver tests/test_no_envia_en_tests.py).
+        with patch.object(A.alertas, "avisar_boton_rechazado"):
+            r = client.post("/enviar-f29", json={}, headers=H)
         assert r.status_code == 400
 
 
