@@ -27,6 +27,7 @@ except Exception:   # zoneinfo/tzdata no disponible: _fecha_local cae a UTC
 import notion_client as nc
 import email_sender as es
 import alertas
+import diagnostico
 import handlers.rrhh as rrhh_handler
 import handlers.tickets as tickets_handler
 import handlers.crm as crm_handler
@@ -98,6 +99,33 @@ def _dedupe_liberar(page_id: str) -> None:
     """Libera la reserva (tras un fallo) para permitir un reintento inmediato."""
     with _dedupe_lock:
         _dedupe.pop(page_id, None)
+
+
+# Fallos donde apretar el botón otra vez SIN editar la fila no puede dar otro
+# resultado: falta un dato o la configuración está mala. Para estos NO se libera
+# la reserva del dedupe, así el reintento a ciegas se ignora en vez de disparar
+# otro par de correos de error (asesor + dev).
+#
+# Motivo: 05-ago-2026 llegaron decenas de avisos por filas de RRHH sin
+# `MONTO IMPOSICIONES|`. Cada clic repetido = 2 correos más, sin tope. Los fallos
+# transitorios (timeout SMTP, 500 de Notion) SÍ se siguen liberando: ahí el
+# segundo intento sí puede funcionar.
+_FALLOS_PERSISTENTES = frozenset({
+    "sin_monto", "sin_email", "sin_titulo", "email_invalido", "sin_mes",
+    "config", "remitente_no_verificado", "asesor_pendiente",
+})
+
+
+def _fallo_persistente(motivo: str) -> bool:
+    """True si reintentar sin tocar la fila es inútil (ver _FALLOS_PERSISTENTES).
+    Reutiliza el clasificador de diagnostico.py para no duplicar la taxonomía.
+    Ante cualquier duda devuelve False (= comportamiento anterior: liberar)."""
+    if not motivo:
+        return False
+    try:
+        return diagnostico.diagnosticar(motivo).categoria in _FALLOS_PERSISTENTES
+    except Exception:
+        return False
 
 
 # Nombres EXACTOS de las propiedades en Contable Junio (ver esquema confirmado)
@@ -385,11 +413,18 @@ def _procesar_webhook_generico(handler, nombre_handler: str):
             log.info("duplicado ignorado (dedupe <%ds) · %s", DEDUPE_VENTANA_S, nombre_handler)
             return {"ok": True, "duplicado": True, "motivo": "ya procesado hace segundos, se ignora"}, 200
         exito = False
+        motivo_fallo = ""
         try:
             resultado = handler(page_id)
             exito = bool(resultado.get("ok"))
-        finally:
             if not exito:
+                motivo_fallo = resultado.get("motivo", "")
+        finally:
+            # Se libera solo si el reintento inmediato tiene sentido. Si falta un
+            # dato en la fila, la reserva se mantiene: apretar de nuevo sin cargarlo
+            # daría el mismo fallo y otro par de correos de error. Si el handler
+            # reventó (motivo_fallo=""), se libera como antes: puede ser transitorio.
+            if not exito and not _fallo_persistente(motivo_fallo):
                 _dedupe_liberar(page_id)
     except HTTPException:
         raise
@@ -464,11 +499,17 @@ def enviar_f29():
             log.info("duplicado ignorado (dedupe <%ds) · F29", DEDUPE_VENTANA_S)
             return {"ok": True, "duplicado": True, "motivo": "ya procesado hace segundos, se ignora"}, 200
         exito = False
+        motivo_fallo = ""
         try:
             resultado = _procesar_page(page_id)
             exito = bool(resultado.get("ok"))
-        finally:
             if not exito:
+                motivo_fallo = resultado.get("motivo", "")
+        finally:
+            # Mismo criterio que _procesar_webhook_generico: los fallos por dato
+            # faltante NO liberan la reserva (reintentar a ciegas solo genera más
+            # correos de error); los transitorios sí.
+            if not exito and not _fallo_persistente(motivo_fallo):
                 _dedupe_liberar(page_id)
     except HTTPException:
         raise

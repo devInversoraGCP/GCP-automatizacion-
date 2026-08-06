@@ -74,6 +74,24 @@ class TestCategorias:
         d = _d("fila sin CLIENTE (necesario para el asunto y cuerpo)")
         assert d.categoria == "sin_titulo"
 
+    def test_sin_monto(self):
+        # motivo real de handlers/rrhh.py (gate del 31-jul: vacío no se envía como $0)
+        d = _d("fila sin MONTO IMPOSICIONES| — es el dato principal del correo. "
+               "Cárgalo en la planilla y vuelve a apretar el botón.")
+        assert d.categoria == "sin_monto" and d.puede_asesor is True
+
+    def test_sin_monto_no_manda_a_reintentar_a_ciegas(self):
+        # la regresión que generó el bucle de correos: 'desconocido' le decía al
+        # asesor "vuelve a apretar el botón" sin decirle que cargue el monto
+        d = _d("fila sin MONTO IMPOSICIONES| — es el dato principal del correo.")
+        pasos = " ".join(d.pasos_asesor).lower()
+        assert "monto" in pasos
+        assert "monto" in d.explicacion_asesor.lower()
+
+    def test_sin_monto_aclara_que_el_cero_explicito_si_se_envia(self):
+        d = _d("fila sin MONTO IMPOSICIONES|")
+        assert "0" in " ".join(d.pasos_asesor)
+
     def test_desconocido(self):
         d = _d("algo totalmente inesperado 12345")
         assert d.categoria == "desconocido" and d.puede_asesor is False

@@ -350,6 +350,49 @@ def diagnosticar(
             """),
         )
 
+    # --- Sin monto de imposiciones (RRHH): el dato principal del correo ---
+    # El gate lo agregó handlers/rrhh.py el 31-jul (no mandar $0 cuando la celda
+    # está vacía), pero el motivo nunca se clasificó acá: caía en 'desconocido',
+    # que le dice al asesor "vuelve a apretar el botón" — o sea, lo mandaba a
+    # repetir el mismo fallo en vez de cargar el monto. Cada repetición son 2
+    # correos más (asesor + dev). Ver el bucle detectado el 05-ago-2026.
+    if "monto imposiciones" in m or "sin monto" in m or "dato principal del correo" in m:
+        return Diagnostico(
+            categoria="sin_monto",
+            titulo=f"Falta el monto de imposiciones de {cli}",
+            puede_asesor=True,
+            explicacion_asesor=(
+                "La fila no tiene cargado el monto de imposiciones, que es justamente el dato "
+                "que el correo le informa al cliente. El sistema prefirió no enviar antes que "
+                "mandar un aviso en $0, que le diría al cliente que no debe nada."
+            ),
+            pasos_asesor=[
+                f"Abre la fila de {cli} en la planilla de RRHH del mes y ve a la columna "
+                "«MONTO IMPOSICIONES|».",
+                "Carga el monto del mes (si el cliente efectivamente no debe imposiciones, "
+                "escribe un 0: un cero cargado a mano sí se envía).",
+                "Recién ahí vuelve a apretar el botón de enviar. Si lo aprietas sin cargar el "
+                "monto, va a fallar de nuevo igual.",
+            ],
+            causa_raiz=(
+                "nc.plain(props['MONTO IMPOSICIONES|']) == '' (number is None): la celda está "
+                "vacía. Gate en handlers/rrhh.py; vacío ≠ cero explícito, por diseño."
+            ),
+            detalle_dev=(
+                f"flujo={fl} · page_id={pid}. No es un bug del backend: es un dato faltante en "
+                "la planilla. Si se repite en muchas filas del mes, probablemente la base RRHH "
+                "del mes nuevo aún no fue llenada (o pasó un /reset-mes) y los asesores están "
+                "apretando el botón sobre filas en blanco."
+            ),
+            query_llm=_q(f"""
+                En AuditAI, la fila de RRHH page_id={pid} ("{cli}") no tiene cargada la columna
+                «MONTO IMPOSICIONES|» y por eso no se envió el correo. Con el MCP de Notion,
+                fetch de esa fila y de su base parent, y dime: (1) si la celda del monto está
+                realmente vacía, (2) cuántas filas más de esa misma base están sin monto, y
+                (3) si la base corresponde al mes vigente. No escribas nada en Notion.
+            """),
+        )
+
     # --- Fallback: no reconocido (dev-first) ---
     return Diagnostico(
         categoria="desconocido",

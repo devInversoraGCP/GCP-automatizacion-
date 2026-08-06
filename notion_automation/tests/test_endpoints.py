@@ -88,6 +88,38 @@ class TestDedupe:
         assert PID not in A._dedupe
 
 
+# Bucle de correos del 05-ago-2026: un fallo por dato faltante liberaba el dedupe,
+# así que cada clic del asesor volvía a procesar y disparaba otro par de avisos.
+MOTIVO_SIN_MONTO = ("fila sin MONTO IMPOSICIONES| — es el dato principal del correo. "
+                    "Cárgalo en la planilla y vuelve a apretar el botón.")
+
+
+class TestDedupeFalloPersistente:
+    def test_falta_de_dato_no_libera_el_dedupe(self, client):
+        with patch.object(A, "_procesar_page",
+                          return_value={"ok": False, "motivo": MOTIVO_SIN_MONTO}) as m:
+            client.post("/enviar-f29", json={"page_id": PID}, headers=H)
+            r2 = client.post("/enviar-f29", json={"page_id": PID}, headers=H)
+        # el segundo clic se ignora: sin editar la fila daría el mismo fallo
+        assert r2.get_json().get("duplicado") is True
+        assert m.call_count == 1
+
+    def test_fallo_transitorio_si_permite_reintento(self, client):
+        with patch.object(A, "_procesar_page",
+                          return_value={"ok": False, "motivo": "error SMTP: connection timed out"}) as m:
+            client.post("/enviar-f29", json={"page_id": PID}, headers=H)
+            client.post("/enviar-f29", json={"page_id": PID}, headers=H)
+        assert m.call_count == 2
+
+    def test_clasificacion_de_persistentes(self):
+        assert A._fallo_persistente(MOTIVO_SIN_MONTO) is True
+        assert A._fallo_persistente("fila sin Email (ni en la fila ni en la base central)") is True
+        assert A._fallo_persistente("fila sin CLIENTE (necesario para el asunto y cuerpo)") is True
+        # transitorios / no clasificados: se liberan como siempre
+        assert A._fallo_persistente("error SMTP: timeout") is False
+        assert A._fallo_persistente("") is False
+
+
 class TestDedupeUnidad:
     def test_reservar_liberar(self):
         A._dedupe.clear()
