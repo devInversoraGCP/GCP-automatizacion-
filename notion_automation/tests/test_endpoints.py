@@ -58,6 +58,46 @@ class TestCapturaExcepciones:
         assert r.status_code == 400 and not m.called
 
 
+class TestParidadDeIdentificacion:
+    """Incidente 06-ago-2026: el fallback de payload page-object (data.id/entity.id,
+    el que mandan las automatizaciones nuevas de Notion) estaba SOLO en el webhook
+    generico. /enviar-f29 devolvia 400 con payloads que RRHH aceptaba sin problema.
+    """
+
+    @pytest.mark.parametrize("payload,ruta", [
+        ({"data": {"id": PID, "object": "page"}}, "data.id"),
+        ({"entity": {"id": PID}}, "entity.id"),
+        ({"source": {"page_id": PID}}, "source.page_id"),
+        ({"Rut": "76.123.456-7"}, "Rut"),
+    ])
+    def test_todas_las_formas_se_identifican(self, payload, ruta):
+        assert A._buscar_identificador_base(payload) == (
+            payload.get("Rut") or PID, ruta)
+
+    def test_payload_sin_nada_util_no_identifica(self):
+        assert A._buscar_identificador_base({"foo": "bar"}) == ("", "")
+
+    def test_f29_acepta_el_payload_page_object(self, client):
+        # el caso exacto del incidente: antes daba 400
+        with patch.object(A, "_procesar_page", return_value={"ok": True}) as m:
+            r = client.post("/enviar-f29", json={"data": {"id": PID}}, headers=H)
+        assert r.status_code == 200 and m.call_args[0][0] == PID
+
+    def test_f29_identifica_por_customers_si_no_hay_rut(self, client):
+        with patch.object(nc, "find_page_by_title_generico", return_value=PID) as f, \
+             patch.object(A, "_ds_contable_vigente", return_value="ds-contable"), \
+             patch.object(A, "_procesar_page", return_value={"ok": True}):
+            r = client.post("/enviar-f29", json={"Customers": "EMPRESA X"}, headers=H)
+        assert r.status_code == 200
+        # 'Customers' es title: debe usar el filtro title, no rich_text
+        assert f.call_args[0][2] == A.P_NOMBRE
+
+    def test_rrhh_sigue_aceptando_lo_mismo(self, client):
+        with patch.object(A.rrhh_handler, "procesar", return_value={"ok": True}) as m:
+            r = client.post("/webhook/rrhh", json={"entity": {"id": PID}}, headers=H)
+        assert r.status_code == 200 and m.call_args[0][0] == PID
+
+
 class TestAvisoDeBotonRechazado:
     """Antes, un abort() dejaba al asesor con un error en Notion y a nadie enterado."""
 

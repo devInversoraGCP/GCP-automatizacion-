@@ -334,6 +334,39 @@ def _es_uuid(s: str) -> bool:
     )
 
 
+def _ds_contable_vigente() -> str:
+    """Data source del Contable del mes vigente, resuelto por título en runtime.
+    Contable se RENOMBRA en sitio ('Contable Junio' -> 'Contable Julio'), así que
+    el id no cambia, pero la lista estática DS_CONTABLES queda con el nombre viejo.
+    Si el search falla, cae al conocido. Mismo patrón que rrhh.ds_vigente()."""
+    try:
+        import reconciliar
+        return reconciliar.resolver_ds_actual("Contable", nc.DS_CONTABLE_JUNIO)
+    except Exception as exc:
+        log.warning("no se pudo resolver el Contable vigente, uso el conocido: %s", exc)
+        return nc.DS_CONTABLE_JUNIO
+
+
+def _buscar_identificador_base(data: dict) -> tuple[str, str]:
+    """Identificador de la fila común a TODOS los botones: `page_id` → payload
+    tipo page-object (`data.id` / `entity.id`, que mandan las automatizaciones
+    nuevas de Notion) → `Rut`. Devuelve (ident, ruta) o ("", "").
+
+    Vive acá y no duplicado en cada endpoint por el incidente del 06-ago-2026: el
+    fallback de page-object se habia agregado solo a _procesar_webhook_generico,
+    asi que /enviar-f29 rechazaba con 400 los payloads que RRHH sí aceptaba."""
+    ident, ruta = _buscar_clave(data, ["page_id"])
+    if ident:
+        return ident, ruta
+    for k in ("data", "entity"):
+        v = data.get(k)
+        pid = v.get("id") if isinstance(v, dict) else None
+        if isinstance(pid, str) and _es_uuid(pid):
+            return pid, f"{k}.id"
+    ident, ruta = _buscar_clave(data, ["Rut", "rut", "RUT"])
+    return (ident, ruta) if ident else ("", "")
+
+
 def _procesar_webhook_generico(handler, nombre_handler: str):
     """Lógica común para todos los webhooks de botones Notion.
     - Valida X-AuditAI-Secret
@@ -357,17 +390,7 @@ def _procesar_webhook_generico(handler, nombre_handler: str):
     # loguear como identificador (evita filtrar un RUT si `ident` era PII).
     page_id = ""
     try:
-        ident, ruta = _buscar_clave(data, ["page_id"])
-        if not ident:
-            # Payload tipo page-object (automations nuevas): data.id / entity.id
-            for k in ("data", "entity"):
-                v = data.get(k)
-                pid = v.get("id") if isinstance(v, dict) else None
-                if isinstance(pid, str) and _es_uuid(pid):
-                    ident, ruta = pid, f"{k}.id"
-                    break
-        if not ident:
-            ident, ruta = _buscar_clave(data, ["Rut", "rut", "RUT"])
+        ident, ruta = _buscar_identificador_base(data)
         # Fallback RRHH: muchas filas tienen el RUT (title) vacio -> identificar
         # por CLIENTE (contingencia doc 25 §9). Solo si no hubo page_id ni RUT.
         prop_busqueda = "RUT"
@@ -482,22 +505,32 @@ def enviar_f29():
     # _procesar_webhook_generico. abort() (HTTPException) propaga tal cual.
     page_id = ""
     try:
-        # Identificador: priorizar page_id (de source), luego Rut en cualquier nivel
-        ident, ruta = _buscar_clave(data, ["page_id"])
+        # Identificador: page_id / page-object / Rut (comun a todos los botones) y,
+        # como ultimo recurso, el nombre del cliente — mismo patron que RRHH usa con
+        # CLIENTE, porque hay filas del Contable con el Rut vacio.
+        ident, ruta = _buscar_identificador_base(data)
+        prop_busqueda = "Rut"
         if not ident:
-            ident, ruta = _buscar_clave(data, ["Rut", "rut", "RUT"])
+            ident, ruta = _buscar_clave(data, ["Customers", "customers", "Cliente", "cliente"])
+            prop_busqueda = P_NOMBRE
         log.info("identificador en ruta=%r (valor no se loguea)", ruta)
 
         if not ident:
-            abort(400, "no se encontro page_id ni Rut en el payload")
+            abort(400, "no se encontro page_id, Rut ni Customers en el payload")
 
         if _es_uuid(ident):
             page_id = ident
             log.info("usando page_id directo (sin query Notion)")
+        elif prop_busqueda == P_NOMBRE:
+            # 'Customers' es title -> filtro title (un rich_text sobre un title da 400)
+            page_id = nc.find_page_by_title_generico(ident, _ds_contable_vigente(), P_NOMBRE) or ""
+            if not page_id:
+                log.warning("Customers no encontrado en el Contable vigente")
+                abort(404, "no se encontro fila con ese Customers")
         else:
             page_id = nc.find_page_by_rut(ident) or ""
             if not page_id:
-                log.warning("RUT no encontrado en Contable Junio (RUT no se loguea)")
+                log.warning("RUT no encontrado en el Contable (RUT no se loguea)")
                 abort(404, "no se encontro fila con ese Rut")
 
         if not _dedupe_reservar(page_id):
