@@ -2,6 +2,7 @@
 Todo mockeado: nunca se manda un correo de verdad."""
 import os
 from unittest.mock import patch, MagicMock
+import pytest
 import alertas
 import email_sender as es
 
@@ -93,6 +94,63 @@ class TestAvisarExcepcionAdmin:
         monkeypatch.setenv("SENDGRID_API_KEY", "fake")
         with patch("alertas.requests.post", side_effect=RuntimeError("red caída")):
             alertas.avisar_excepcion_admin("F29", "p3", ValueError("x"))  # no debe lanzar
+
+
+class TestAvisarBotonRechazado:
+    """Los abort() del webhook morian en silencio: el asesor veia el error en Notion
+    y no se enteraba nadie mas (asi se perdio el caso del 02-ago)."""
+
+    @pytest.fixture(autouse=True)
+    def _limpiar_throttle(self):
+        alertas._ultimo_aviso.clear()
+        yield
+        alertas._ultimo_aviso.clear()
+
+    def test_avisa_a_los_admins_con_el_codigo_y_el_detalle(self, monkeypatch):
+        monkeypatch.setenv("ADMIN_ALERT_EMAIL", "a@x.com")
+        monkeypatch.setenv("SENDGRID_API_KEY", "fake")
+        with patch("alertas.requests.post") as m:
+            m.return_value = MagicMock(status_code=202)
+            alertas.avisar_boton_rechazado("RRHH", 404, "no se encontro fila con ese CLIENTE", "p9")
+        payload = m.call_args.kwargs["json"]
+        cuerpo = payload["content"][0]["value"]
+        assert "404" in payload["subject"] and "RRHH" in payload["subject"]
+        assert "p9" in cuerpo and "no se encontro fila" in cuerpo
+
+    @pytest.mark.parametrize("codigo", [401, 503])
+    def test_no_avisa_los_codigos_previos_a_autenticar(self, codigo, monkeypatch):
+        # ocurren antes de validar el secreto: cualquiera que golpee la URL publica
+        # podria disparar correos
+        monkeypatch.setenv("ADMIN_ALERT_EMAIL", "a@x.com")
+        monkeypatch.setenv("SENDGRID_API_KEY", "fake")
+        with patch("alertas.requests.post") as m:
+            alertas.avisar_boton_rechazado("RRHH", codigo, "secreto malo")
+        assert not m.called
+
+    def test_throttle_evita_el_bucle_de_correos(self, monkeypatch):
+        monkeypatch.setenv("ADMIN_ALERT_EMAIL", "a@x.com")
+        monkeypatch.setenv("SENDGRID_API_KEY", "fake")
+        with patch("alertas.requests.post") as m:
+            m.return_value = MagicMock(status_code=202)
+            for _ in range(5):
+                alertas.avisar_boton_rechazado("RRHH", 400, "payload sin page_id")
+        assert m.call_count == 1
+
+    def test_el_throttle_es_por_flujo_y_codigo(self, monkeypatch):
+        monkeypatch.setenv("ADMIN_ALERT_EMAIL", "a@x.com")
+        monkeypatch.setenv("SENDGRID_API_KEY", "fake")
+        with patch("alertas.requests.post") as m:
+            m.return_value = MagicMock(status_code=202)
+            alertas.avisar_boton_rechazado("RRHH", 400, "x")
+            alertas.avisar_boton_rechazado("RRHH", 404, "y")
+            alertas.avisar_boton_rechazado("F29", 400, "z")
+        assert m.call_count == 3
+
+    def test_best_effort_ante_fallo_de_red(self, monkeypatch):
+        monkeypatch.setenv("ADMIN_ALERT_EMAIL", "a@x.com")
+        monkeypatch.setenv("SENDGRID_API_KEY", "fake")
+        with patch("alertas.requests.post", side_effect=RuntimeError("red caída")):
+            alertas.avisar_boton_rechazado("F29", 400, "x")  # no debe lanzar
 
 
 class TestEnviarAvisoAsesor:

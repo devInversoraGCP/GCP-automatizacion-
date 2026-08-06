@@ -159,6 +159,16 @@ class TestParseDestinatarios:
         assert es.parse_destinatarios("") == []
         assert es.parse_destinatarios(None) == []
 
+    def test_dos_puntos_como_separador(self):
+        # ';' y ':' son la misma tecla en teclado latino: un resbalon de shift dejaba
+        # "a@b.cl:" como token invalido y el correo no salia (caso SOCIAL UP, 02-ago).
+        assert es.parse_destinatarios("a@b.cl: c@d.cl") == ["a@b.cl", "c@d.cl"]
+
+    def test_el_caso_real_valida_completo(self):
+        # forma exacta de la celda que fallaba: dos puntos + punto y coma final
+        assert es._validar_destinatarios("uno@dominio.cl: dos@otro.com;") == \
+            ["uno@dominio.cl", "dos@otro.com"]
+
 
 class TestFirmaTexto:
     """Firma de texto del asesor (sin PNG). El 'cargo' opcional reemplaza el

@@ -52,9 +52,34 @@ class TestCapturaExcepciones:
 
     def test_abort_no_dispara_aviso_de_excepcion(self, client):
         # un 400 por payload vacío NO debe tratarse como excepción no prevista
-        with patch.object(A.alertas, "avisar_excepcion_admin") as m:
+        with patch.object(A.alertas, "avisar_excepcion_admin") as m, \
+             patch.object(A.alertas, "avisar_boton_rechazado"):
             r = client.post("/enviar-f29", json={}, headers=H)
         assert r.status_code == 400 and not m.called
+
+
+class TestAvisoDeBotonRechazado:
+    """Antes, un abort() dejaba al asesor con un error en Notion y a nadie enterado."""
+
+    def test_el_400_avisa_al_admin(self, client):
+        with patch.object(A.alertas, "avisar_boton_rechazado") as m:
+            r = client.post("/enviar-f29", json={}, headers=H)
+        assert r.status_code == 400 and m.called
+        flujo, codigo = m.call_args[0][0], m.call_args[0][1]
+        assert flujo == "F29" and codigo == 400
+
+    def test_el_404_de_un_webhook_avisa_con_su_flujo(self, client):
+        with patch.object(nc, "find_page_by_rut_generico", return_value=None), \
+             patch.object(A.alertas, "avisar_boton_rechazado") as m:
+            r = client.post("/webhook/rrhh", json={"CLIENTE": "NO EXISTE"}, headers=H)
+        assert r.status_code == 404 and m.called
+        assert m.call_args[0][0] == "RRHH" and m.call_args[0][1] == 404
+
+    def test_el_401_no_llega_a_avisar(self, client):
+        # el guard del secreto corre ANTES del try; ademas alertas filtra 401/503
+        with patch.object(A.alertas, "avisar_boton_rechazado") as m:
+            r = client.post("/webhook/rrhh", json={}, headers={"X-AuditAI-Secret": "MALO"})
+        assert r.status_code == 401 and not m.called
 
     def test_rut_no_se_filtra_al_alert(self, client):
         # si la excepción ocurre antes de resolver el page_id, el alert no lleva el RUT

@@ -91,9 +91,15 @@ def _norm(s: str) -> str:
 # @ y dominio con punto. Se aplica a CADA dirección de la celda por separado.
 _EMAIL_VALIDO_RE = re.compile(r"^[^@\s;,/]+@[^@\s;,/]+\.[A-Za-z]{2,}$")
 # Separadores admitidos en la celda Email para listar varias direcciones:
-# coma, punto y coma, barra y espacios (asi soporta lo que ya escriben los
-# asesores, ej. Hydroming: "a@x.cl b@y.cl / cobranza@x.cl").
-_SEP_DEST_RE = re.compile(r"[,;/\s]+")
+# coma, punto y coma, DOS PUNTOS, barra y espacios (asi soporta lo que ya escriben
+# los asesores, ej. Hydroming: "a@x.cl b@y.cl / cobranza@x.cl").
+#
+# Los dos puntos se agregaron el 06-ago-2026: en el teclado latino ';' y ':' son la
+# MISMA tecla, y un resbalon de shift dejaba el primer token como "correo@dominio.cl:"
+# (invalido), asi que el correo no salia y el asesor solo veia un error generico
+# (caso SOCIAL UP / Andrea). Un ':' nunca es parte de una direccion valida, asi que
+# tratarlo como separador no admite nada que antes se rechazara con razon.
+_SEP_DEST_RE = re.compile(r"[,;:/\s]+")
 
 
 def parse_destinatarios(raw: str) -> list[str]:

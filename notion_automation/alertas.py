@@ -18,7 +18,9 @@ No loguea ni envía PII (email de cliente, monto, RUT) en ningún caso. El
 """
 from __future__ import annotations
 import os
+import time
 import logging
+import threading
 import traceback
 import requests
 import email_sender as es
@@ -132,6 +134,73 @@ def avisar_resumen_reconciliacion(stats: dict) -> None:
         log.info("resumen de reconciliacion enviado al admin (%d)", len(admins))
     except Exception as exc:
         log.warning("no se pudo enviar el resumen de reconciliacion: %s", exc)
+
+
+# Clics del botón que el backend rechaza con un 4xx: hasta el 06-ago-2026 morían
+# en silencio (Notion le mostraba el error al asesor y no se enteraba nadie más).
+# Así se perdió el caso de Andrea del 02-ago.
+#
+# 401 y 503 NO se avisan a propósito: ocurren ANTES de validar el secreto, así que
+# cualquiera que golpee la URL pública podría disparar correos. Los demás códigos
+# solo los alcanza una request que ya probó venir de Notion.
+_CODIGOS_SIN_AVISO = frozenset({401, 503})
+# Un botón mal configurado puede repetir el mismo 4xx muchas veces seguidas; se
+# avisa uno por (flujo, código) cada 10 min para no repetir el bucle de correos.
+_THROTTLE_AVISO_S = 600
+_ultimo_aviso: dict[tuple[str, int], float] = {}
+_aviso_lock = threading.Lock()
+
+
+def _throttle_ok(clave: tuple[str, int]) -> bool:
+    ahora = time.time()
+    with _aviso_lock:
+        prev = _ultimo_aviso.get(clave, 0.0)
+        if ahora - prev < _THROTTLE_AVISO_S:
+            return False
+        _ultimo_aviso[clave] = ahora
+        return True
+
+
+def avisar_boton_rechazado(flujo: str, codigo: int, detalle: str, page_id: str = "") -> None:
+    """Avisa al admin que un clic del botón se rechazó con un 4xx (400/404/…).
+
+    El asesor ve el error en Notion pero no puede hacer nada con él: son fallos de
+    identificación de la fila o de payload, no de datos que él cargue. Por eso va
+    solo al admin. Best-effort: nunca propaga."""
+    if codigo in _CODIGOS_SIN_AVISO:
+        return
+    if not _throttle_ok((flujo, codigo)):
+        log.info("aviso de boton rechazado omitido por throttle · flujo=%s codigo=%s", flujo, codigo)
+        return
+    log.warning("boton rechazado · flujo=%s codigo=%s page_id=%s · %s",
+                flujo, codigo, page_id or "(sin identificar)", detalle)
+    admins = es.admin_emails()
+    api_key = os.environ.get("SENDGRID_API_KEY")
+    if not (admins and api_key):
+        return
+    try:
+        payload = {
+            "personalizations": [{"to": [{"email": a} for a in admins]}],
+            "from": {"email": os.environ.get("EMAIL_FROM", "notificaciones@inversoragcp.com"),
+                     "name": "AuditAI · Alertas"},
+            "subject": f"AuditAI · clic del boton rechazado ({codigo}) en {flujo}",
+            "content": [{"type": "text/plain", "value": (
+                f"Un asesor apreto el boton en {flujo} y el backend lo rechazo con HTTP {codigo}.\n"
+                f"El asesor vio un error en Notion; el correo al cliente NO se envio.\n\n"
+                f"page_id: {page_id or '(no se pudo identificar la fila)'}\n"
+                f"Detalle: {detalle}\n\n"
+                "Causas tipicas: el payload del boton no trae page_id/RUT/CLIENTE, o la fila "
+                "no existe en la base del mes vigente (base recien duplicada, fila movida, "
+                "titulo cambiado). Revisar la automatizacion del boton en esa base."
+            )}],
+        }
+        requests.post(
+            "https://api.sendgrid.com/v3/mail/send",
+            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+            json=payload, timeout=15,
+        )
+    except Exception as exc:
+        log.warning("no se pudo enviar el aviso de boton rechazado: %s", exc)
 
 
 def avisar_excepcion_admin(flujo: str, page_id: str, exc: Exception) -> None:

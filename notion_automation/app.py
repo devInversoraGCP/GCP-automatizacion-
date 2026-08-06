@@ -426,7 +426,12 @@ def _procesar_webhook_generico(handler, nombre_handler: str):
             # reventó (motivo_fallo=""), se libera como antes: puede ser transitorio.
             if not exito and not _fallo_persistente(motivo_fallo):
                 _dedupe_liberar(page_id)
-    except HTTPException:
+    except HTTPException as exc:
+        # Un 4xx acá es un clic REAL del botón que se rechazó: el asesor ve el error
+        # en Notion y antes no se enteraba nadie más (caso Andrea, 02-ago). 401/503
+        # los filtra alertas (ocurren antes de autenticar).
+        alertas.avisar_boton_rechazado(nombre_handler, exc.code or 0,
+                                       exc.description or "", page_id or "")
         raise
     except Exception as exc:
         alertas.avisar_excepcion_admin(nombre_handler, page_id or "", exc)
@@ -511,7 +516,8 @@ def enviar_f29():
             # correos de error); los transitorios sí.
             if not exito and not _fallo_persistente(motivo_fallo):
                 _dedupe_liberar(page_id)
-    except HTTPException:
+    except HTTPException as exc:
+        alertas.avisar_boton_rechazado("F29", exc.code or 0, exc.description or "", page_id or "")
         raise
     except Exception as exc:
         alertas.avisar_excepcion_admin("F29", page_id, exc)
