@@ -24,11 +24,12 @@ REMITENTE = "dev@inversoragcp.com"       # remitente fijo pedido por el usuario
 ASUNTO = "Cambio de mes en NOTION (Contable y RRHH)"
 DESTINATARIOS = [
     "carloscereceda@inversoragcp.com",
-    "constanzagaggero@inversoragcp.com",
-    "andreagonzalez@inversoragcp.com",
     "sebastianrobles@inversoragcp.com",
-    "matildemateluna@inversoragcp.com",
 ]
+# Inactivos (31-jul-2026): re-agregar a la lista si vuelven a rotar planillas:
+#   "constanzagaggero@inversoragcp.com",
+#   "andreagonzalez@inversoragcp.com",
+#   "matildemateluna@inversoragcp.com",
 
 _RAIZ = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 HTML_PATH = os.path.join(_RAIZ, "correo-cambio-mes.html")
