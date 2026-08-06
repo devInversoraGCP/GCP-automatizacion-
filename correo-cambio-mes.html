@@ -22,8 +22,12 @@
   <!-- Encabezado navy -->
   <div style="background:#0B1F3A;padding:20px 26px;color:#fff;">
     <div style="font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:#8fb4ee;">Instrucciones para el equipo</div>
-    <div style="font-size:23px;font-weight:800;margin-top:6px;line-height:1.25;">📅 Cambio de mes en Notion (Contable y RRHH)</div>
-    <div style="font-size:13.5px;color:#c7d6ef;margin-top:6px;">Sigan estos pasos para que la <b>automatización de Notion siga funcionando</b> en las planillas Contable y RRHH.</div>
+    <!--SOLO:ambas--><div style="font-size:23px;font-weight:800;margin-top:6px;line-height:1.25;">📅 Cambio de mes en Notion (Contable y RRHH)</div>
+    <div style="font-size:13.5px;color:#c7d6ef;margin-top:6px;">Sigan estos pasos para que la <b>automatización de Notion siga funcionando</b> en las planillas Contable y RRHH.</div><!--/SOLO-->
+    <!--SOLO:contable--><div style="font-size:23px;font-weight:800;margin-top:6px;line-height:1.25;">📅 Cambio de mes en Notion — Contable</div>
+    <div style="font-size:13.5px;color:#c7d6ef;margin-top:6px;">Hoy toca rotar la planilla <b>Contable</b>. Sigan estos pasos para que la <b>automatización siga funcionando</b>. (RRHH se rota el día 13, les llega su propio recordatorio.)</div><!--/SOLO-->
+    <!--SOLO:rrhh--><div style="font-size:23px;font-weight:800;margin-top:6px;line-height:1.25;">📅 Cambio de mes en Notion — RRHH</div>
+    <div style="font-size:13.5px;color:#c7d6ef;margin-top:6px;">Hoy toca rotar la planilla <b>RRHH</b>. Sigan estos pasos para que la <b>automatización siga funcionando</b>.</div><!--/SOLO-->
   </div>
 
   <div style="padding:24px 26px;">
@@ -38,8 +42,8 @@
     <div style="background:#eef4ff;border:2px solid #33489a;border-radius:14px;padding:14px 18px;margin:0 0 24px;">
       <div style="font-size:12px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:#33489a;margin-bottom:8px;">🔌 La planilla conectada al servidor HOY es:</div>
       <div style="font-size:15px;line-height:2;">
-        Contable → <span data-pagina="contable" style="display:inline-block;background:#0B1F3A;color:#ffd166;font-weight:800;padding:2px 10px;border-radius:6px;">Contable Julio</span><br>
-        RRHH → <span data-pagina="rrhh" style="display:inline-block;background:#0B1F3A;color:#ffd166;font-weight:800;padding:2px 10px;border-radius:6px;">RRHH JUNIO 2026</span>
+        <!--SOLO:contable ambas-->Contable → <span data-pagina="contable" style="display:inline-block;background:#0B1F3A;color:#ffd166;font-weight:800;padding:2px 10px;border-radius:6px;">Contable Julio</span><br><!--/SOLO-->
+        <!--SOLO:rrhh ambas-->RRHH → <span data-pagina="rrhh" style="display:inline-block;background:#0B1F3A;color:#ffd166;font-weight:800;padding:2px 10px;border-radius:6px;">RRHH JUNIO 2026</span><!--/SOLO-->
       </div>
       <div style="font-size:13.5px;color:#41506b;margin-top:10px;line-height:1.6;">👉 <b>Esa</b> es la que deben renombrar al mes nuevo (no una copia). Si cambian otra y la automatización deja de andar, es porque <b>no era la conectada</b> — escríbannos y lo corregimos al toque.</div>
     </div>
@@ -62,8 +66,10 @@
       </td>
       <td valign="top" style="padding-left:12px;">
         <div style="font-size:17px;font-weight:800;">✏️ Renombra la <span style="color:#c0392b;">original</span> al mes nuevo</div>
-        <div style="margin:8px 0 0;background:#eaf7ee;border:1px solid #bfe3c8;border-radius:8px;padding:8px 12px;font-size:17px;font-weight:800;color:#1c7c4a;">✅ Contable Agosto</div>
-        <div style="font-size:13px;color:#a23c22;margin-top:6px;">❌ así <b>NO</b>: <s>Contable agosto 2026</s> · <s>Contable Ago</s> · <s>Contable Agosto (1)</s></div>
+        <!--SOLO:contable ambas--><div style="margin:8px 0 0;background:#eaf7ee;border:1px solid #bfe3c8;border-radius:8px;padding:8px 12px;font-size:17px;font-weight:800;color:#1c7c4a;">✅ Contable Agosto</div>
+        <div style="font-size:13px;color:#a23c22;margin-top:6px;">❌ así <b>NO</b>: <s>Contable agosto 2026</s> · <s>Contable Ago</s> · <s>Contable Agosto (1)</s></div><!--/SOLO-->
+        <!--SOLO:rrhh--><div style="margin:8px 0 0;background:#eaf7ee;border:1px solid #bfe3c8;border-radius:8px;padding:8px 12px;font-size:17px;font-weight:800;color:#1c7c4a;">✅ RRHH AGOSTO 2026</div>
+        <div style="font-size:13px;color:#a23c22;margin-top:6px;">❌ así <b>NO</b>: <s>RRHH Agosto 2026</s> · <s>RRHH AGOSTO</s> · <s>RRHH AGOSTO 2026 (1)</s><br>El mes va en <b>MAYÚSCULA</b> y lleva <b>año</b>.</div><!--/SOLO-->
       </td>
     </tr></table>
 
@@ -84,12 +90,13 @@
       </td>
     </tr></table>
 
-    <!-- RRHH: una línea -->
-    <div style="background:#eef4ff;border:1px solid #d3e0f5;border-radius:12px;padding:12px 16px;margin:0 0 22px;">
+    <!-- RRHH: una línea. Solo en el correo combinado: cuando el aviso es de una
+         sola planilla, el paso 2 ya trae el formato que corresponde. -->
+    <!--SOLO:ambas--><div style="background:#eef4ff;border:1px solid #d3e0f5;border-radius:12px;padding:12px 16px;margin:0 0 22px;">
       <span style="font-size:15px;font-weight:800;">👥 En RRHH es igual</span>
       <span style="font-size:14px;color:#5a6675;">— pero el nombre lleva MES en mayúscula y año:</span>
       <div style="margin-top:8px;display:inline-block;background:#eaf7ee;border:1px solid #bfe3c8;border-radius:8px;padding:6px 12px;font-size:16px;font-weight:800;color:#1c7c4a;">✅ RRHH JULIO 2026</div>
-    </div>
+    </div><!--/SOLO-->
 
     <!-- NO hacer -->
     <div style="background:#fdece8;border:2px solid #d9663f;border-radius:14px;padding:14px 18px;">

@@ -7,8 +7,16 @@ porque Gmail suele bloquear imágenes embebidas en base64.
 
 Best-effort: si falta SENDGRID_API_KEY, no envía (solo log), sin romper el cron.
 
-Uso:  python enviar_aviso_cambio_mes.py            # envía
-      python enviar_aviso_cambio_mes.py --dry      # arma el correo pero NO envía
+Las dos planillas NO rotan el mismo día (Sebastián, 06-ago-2026): Contable el día
+1 y RRHH el 13. Por eso el aviso se envía por separado con `--planilla`, y el HTML
+lleva bloques marcados `<!--SOLO:...-->` que se filtran según el destino. Sigue
+existiendo el combinado (`ambas`) por si alguna vez se quiere mandar uno solo.
+
+Uso:  python enviar_aviso_cambio_mes.py --planilla contable   # día 1
+      python enviar_aviso_cambio_mes.py --planilla rrhh       # día 13
+      python enviar_aviso_cambio_mes.py                       # combinado (ambas)
+      python enviar_aviso_cambio_mes.py --dry                 # arma pero NO envía
+      python enviar_aviso_cambio_mes.py --to a@b.cl           # override destinatarios
 """
 from __future__ import annotations
 import os
@@ -21,7 +29,12 @@ from dotenv import load_dotenv
 log = logging.getLogger("auditai")
 
 REMITENTE = "dev@inversoragcp.com"       # remitente fijo pedido por el usuario
-ASUNTO = "Cambio de mes en NOTION (Contable y RRHH)"
+PLANILLAS = ("contable", "rrhh", "ambas")
+ASUNTOS = {
+    "contable": "Cambio de mes en NOTION — Contable",
+    "rrhh": "Cambio de mes en NOTION — RRHH",
+    "ambas": "Cambio de mes en NOTION (Contable y RRHH)",
+}
 DESTINATARIOS = [
     "carloscereceda@inversoragcp.com",
     "sebastianrobles@inversoragcp.com",
@@ -35,12 +48,26 @@ _RAIZ = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 HTML_PATH = os.path.join(_RAIZ, "correo-cambio-mes.html")
 
 
-def preparar_html() -> tuple[str, str | None]:
-    """(html_para_email, logo_base64|None): quita la barra de preview y cambia el
-    logo base64 por `cid:logogcp` para adjuntarlo inline."""
+def filtrar_secciones(html: str, planilla: str) -> str:
+    """Deja solo los bloques `<!--SOLO:destinos-->…<!--/SOLO-->` cuyo destino
+    incluya `planilla`. Lo no marcado se conserva siempre (los pasos comunes).
+
+    Mismo convenio que <!--PREVIEW-->: marcas en comentarios HTML, no atributos,
+    porque recortar un elemento por atributo con regex exige parsear tags
+    balanceados y se rompe al primer anidamiento."""
+    def _decidir(m: re.Match) -> str:
+        return m.group(2) if planilla in m.group(1).split() else ""
+    return re.sub(r"<!--SOLO:([a-z ]+)-->(.*?)<!--/SOLO-->", _decidir, html, flags=re.DOTALL)
+
+
+def preparar_html(planilla: str = "ambas") -> tuple[str, str | None]:
+    """(html_para_email, logo_base64|None): quita la barra de preview, recorta
+    los bloques que no son de esta planilla y cambia el logo base64 por
+    `cid:logogcp` para adjuntarlo inline."""
     with open(HTML_PATH, encoding="utf-8") as fh:
         html = fh.read()
     html = re.sub(r"<!--PREVIEW-->.*?<!--/PREVIEW-->", "", html, flags=re.DOTALL)
+    html = filtrar_secciones(html, planilla)
     # Inyectar la planilla CONECTADA hoy (dinámico, robusto al cambio de mes). Si
     # la resolución falla, se deja el nombre literal que trae el HTML.
     try:
@@ -61,11 +88,12 @@ def preparar_html() -> tuple[str, str | None]:
     return html, logo_b64
 
 
-def enviar(dry: bool = False, destinatarios: list[str] | None = None) -> bool:
+def enviar(dry: bool = False, destinatarios: list[str] | None = None,
+           planilla: str = "ambas") -> bool:
     dests = destinatarios or DESTINATARIOS
-    html, logo_b64 = preparar_html()
-    log.info("correo listo (%d chars, logo=%s) → %d destinatario(s): %s",
-             len(html), "sí" if logo_b64 else "no", len(dests), ", ".join(dests))
+    html, logo_b64 = preparar_html(planilla)
+    log.info("correo listo · planilla=%s (%d chars, logo=%s) → %d destinatario(s): %s",
+             planilla, len(html), "sí" if logo_b64 else "no", len(dests), ", ".join(dests))
     if dry:
         print("DRY: correo armado, NO enviado.")
         return True
@@ -76,7 +104,7 @@ def enviar(dry: bool = False, destinatarios: list[str] | None = None) -> bool:
     payload = {
         "personalizations": [{"to": [{"email": e} for e in dests]}],
         "from": {"email": REMITENTE, "name": "Equipo AuditAI"},
-        "subject": ASUNTO,
+        "subject": ASUNTOS.get(planilla, ASUNTOS["ambas"]),
         "content": [{"type": "text/html", "value": html}],
     }
     if logo_b64:
@@ -105,9 +133,11 @@ def main():
     ap = argparse.ArgumentParser(description="Envía el instructivo de cambio de mes.")
     ap.add_argument("--dry", action="store_true", help="Arma el correo pero NO envía.")
     ap.add_argument("--to", help="Destinatario(s) coma-separados (override; p. ej. prueba a dev@).")
+    ap.add_argument("--planilla", choices=PLANILLAS, default="ambas",
+                    help="Qué planilla rota hoy: contable (día 1), rrhh (día 13) o ambas.")
     args = ap.parse_args()
     dests = [e.strip() for e in args.to.split(",")] if args.to else None
-    enviar(dry=args.dry, destinatarios=dests)
+    enviar(dry=args.dry, destinatarios=dests, planilla=args.planilla)
 
 
 if __name__ == "__main__":
