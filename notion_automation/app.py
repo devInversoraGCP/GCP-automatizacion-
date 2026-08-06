@@ -969,7 +969,7 @@ def health():
     return {
         "ok": True,
         "service": "auditai-f29",
-        "version": "2026-07-31.1-rrhh-mes-vigente",
+        "version": "2026-08-06.1-identificacion-unificada",
         "webhook_secret_configurado": bool(os.environ.get("WEBHOOK_SECRET")),
         "admin_alerts_configurados": len(es.admin_emails()),
         "sendgrid_webhook_token_configurado": bool(os.environ.get("SENDGRID_WEBHOOK_TOKEN")),
