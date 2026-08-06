@@ -685,11 +685,23 @@ cuerpo del aviso en `tests/test_alertas.py`, contexto de la request en
 - **`body JSON de N bytes`** con estructura pero sin identificador ⇒ ahí sí hay
   un botón real mal configurado: revisar qué propiedades tiene seleccionadas.
 
-### Lo que sigue siendo manual
+### El respaldo puede quedarse con su botón (07-ago-2026)
 
-El guard evita el correo equivocado, pero **no borra el botón del respaldo**. Al
-duplicar una planilla como backup, borrarle la columna botón (`Enviar Correo F29`)
-o archivarla. Si no, cada clic ahí es un 403 y un correo al admin: ruido evitable.
+La primera versión del guard obligaba a borrarle la columna botón a cada respaldo,
+porque si no cada clic ahí generaba un correo al admin. Notion **no permite borrar
+ni reconfigurar la acción de un botón por API** (§13.c), así que eso era un paso
+manual perpetuo, una vez por mes, fácil de olvidar. Se cerró por los dos lados:
+
+| Qué | Cómo |
+|---|---|
+| **La autorización dejó de ser una lista estática** | `DS_CONTABLES` ya **no** es allowlist. Autorizada = solo la vigente resuelta en runtime. Antes, `09b12147…` quedaba permitida para siempre: el día que se trabaje sobre una copia nueva en vez de resetear en sitio, esa misma base pasa a ser el respaldo y habría seguido enviando correos con datos viejos. `DS_CONTABLES` sigue siendo el fallback **dentro** de `_ds_contable_vigente()`, que es donde corresponde: solo si el search de Notion se cae. |
+| **El 403 dejó de spamear** | `_THROTTLE_POR_CODIGO_S = {403: 86400}`. Es un rechazo *esperado y ya resuelto*: un aviso por día alcanza para enterarse de que alguien insiste en el respaldo. Los demás códigos siguen con la ventana de 10 min. |
+| **El error se explica solo** | El 403 nombra la planilla equivocada **y la vigente** (`reconciliar.nombre_base_actual`): "esta fila esta en 'Contable Junio (1)' … La vigente es 'Contable Agosto'". El asesor se corrige sin escribirle a nadie. |
+| **La vigente se cachea 5 min** | El guard la consulta en cada clic. TTL corto: el cambio de mes se nota solo, sin reiniciar el servicio. |
+
+**Resultado:** duplicar como respaldo ya no exige ningún paso manual extra. La copia
+puede conservar su botón; apretarlo no manda nada, le dice al asesor a dónde ir, y
+al admin le llega a lo sumo un aviso por día.
 
 ---
 

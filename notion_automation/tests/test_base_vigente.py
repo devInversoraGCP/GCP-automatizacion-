@@ -11,6 +11,7 @@ tenían Email habrían mandado un correo real al cliente con datos del mes viejo
 con 200 OK y sin que nadie se enterara. Ahora `_procesar_page` valida la base de
 origen antes de componer nada.
 """
+import time
 from unittest.mock import patch
 import pytest
 from werkzeug.exceptions import Forbidden
@@ -70,12 +71,36 @@ class TestValidacionDeBase:
         with patch.object(A, "_ds_contable_vigente", return_value=DS_OPERATIVA.replace("-", "")):
             A._validar_contable_vigente(_page(ds=DS_OPERATIVA))
 
-    def test_la_lista_configurada_es_el_cinturon(self):
-        """Si el search de Notion resolviera mal la vigente, la planilla operativa
-        de DS_CONTABLES tiene que seguir pasando: un search caprichoso no puede
-        dejar a los asesores sin poder enviar."""
-        with patch.object(A, "_ds_contable_vigente", return_value="otra-base-cualquiera"):
+    def test_la_planilla_de_ayer_deja_de_estar_autorizada(self):
+        """DS_CONTABLES NO es allowlist. El día que se trabaje sobre una copia
+        nueva en vez de resetear en sitio, la base de esa lista pasa a ser el
+        respaldo: si siguiera autorizada, volveríamos al correo con datos
+        viejos, que es justo lo que este guard existe para evitar."""
+        with patch.object(A, "_ds_contable_vigente", return_value="ds-septiembre-nuevo"), \
+             patch.object(nc, "get_database_title", return_value="Contable Agosto"), \
+             pytest.raises(Forbidden):
             A._validar_contable_vigente(_page(ds=DS_OPERATIVA))
+
+    def test_si_el_search_falla_la_planilla_conocida_sigue_enviando(self, monkeypatch):
+        """El cinturón vive dentro de _ds_contable_vigente: si el search de Notion
+        se cae, cae al DS conocido y los asesores siguen pudiendo enviar."""
+        import reconciliar
+        monkeypatch.setattr(A, "_ds_vigente_cache", (0.0, ""))
+        monkeypatch.setattr(reconciliar, "resolver_ds_actual",
+                            lambda *a, **k: (_ for _ in ()).throw(RuntimeError("api caida")))
+        A._validar_contable_vigente(_page(ds=DS_OPERATIVA))   # no debe lanzar
+
+    def test_el_mensaje_nombra_la_planilla_correcta(self):
+        """El error que ve el asesor tiene que decirle a dónde ir, no solo que
+        se equivocó."""
+        import reconciliar
+        with patch.object(A, "_ds_contable_vigente", return_value=DS_OPERATIVA), \
+             patch.object(nc, "get_database_title", return_value="Contable Junio (1)"), \
+             patch.object(reconciliar, "nombre_base_actual", return_value="Contable Agosto"), \
+             pytest.raises(Forbidden) as exc:
+            A._validar_contable_vigente(_page(ds=DS_RESPALDO))
+        assert "Contable Junio (1)" in exc.value.description
+        assert "Contable Agosto" in exc.value.description
 
     def test_sin_data_source_resuelve_por_database_id(self):
         with patch.object(A, "_ds_contable_vigente", return_value=DS_OPERATIVA), \
@@ -88,6 +113,37 @@ class TestValidacionDeBase:
         cortar TODOS los envíos sería peor que el riesgo que cubre el guard."""
         with patch.object(A, "_ds_contable_vigente", return_value=DS_OPERATIVA):
             A._validar_contable_vigente({"id": PID, "parent": {}})
+
+
+class TestCacheDeLaVigente:
+    """El guard consulta la vigente en CADA clic; sin caché, cada clic paga un
+    search a Notion. El TTL corto (5 min) hace que un cambio de mes se note solo,
+    sin reiniciar el servicio."""
+
+    @pytest.fixture(autouse=True)
+    def _limpiar(self, monkeypatch):
+        monkeypatch.setattr(A, "_ds_vigente_cache", (0.0, ""))
+
+    def test_el_segundo_clic_no_vuelve_a_consultar(self, monkeypatch):
+        import reconciliar
+        llamadas = []
+        monkeypatch.setattr(reconciliar, "resolver_ds_actual",
+                            lambda *a, **k: (llamadas.append(1), "ds-vigente")[1])
+        assert A._ds_contable_vigente() == "ds-vigente"
+        assert A._ds_contable_vigente() == "ds-vigente"
+        assert len(llamadas) == 1
+
+    def test_vencido_el_ttl_vuelve_a_consultar(self, monkeypatch):
+        import reconciliar
+        llamadas = []
+        monkeypatch.setattr(reconciliar, "resolver_ds_actual",
+                            lambda *a, **k: (llamadas.append(1), "ds-vigente")[1])
+        A._ds_contable_vigente()
+        # simula que pasó el TTL: el cambio de mes tiene que verse sin reiniciar
+        monkeypatch.setattr(A, "_ds_vigente_cache",
+                            (time.time() - A._DS_VIGENTE_TTL_S - 1, "ds-viejo"))
+        assert A._ds_contable_vigente() == "ds-vigente"
+        assert len(llamadas) == 2
 
 
 class TestGuardEnElFlujoCompleto:

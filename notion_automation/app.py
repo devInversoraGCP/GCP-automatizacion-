@@ -361,17 +361,32 @@ def _es_uuid(s: str) -> bool:
     )
 
 
+_DS_VIGENTE_TTL_S = 300
+_ds_vigente_cache: tuple[float, str] = (0.0, "")
+
+
 def _ds_contable_vigente() -> str:
     """Data source del Contable del mes vigente, resuelto por título en runtime.
     Contable se RENOMBRA en sitio ('Contable Junio' -> 'Contable Julio'), así que
     el id no cambia, pero la lista estática DS_CONTABLES queda con el nombre viejo.
-    Si el search falla, cae al conocido. Mismo patrón que rrhh.ds_vigente()."""
+    Si el search falla, cae al conocido. Mismo patrón que rrhh.ds_vigente().
+
+    Cachea 5 min: desde que el guard R4 valida la base, esto corre en CADA clic,
+    y la planilla vigente cambia una vez al mes. El TTL corto hace que un cambio
+    de mes se note solo, sin reiniciar el servicio."""
+    global _ds_vigente_cache
+    ahora = time.time()
+    ts, val = _ds_vigente_cache
+    if val and ahora - ts < _DS_VIGENTE_TTL_S:
+        return val
     try:
         import reconciliar
-        return reconciliar.resolver_ds_actual("Contable", nc.DS_CONTABLE_JUNIO)
+        val = reconciliar.resolver_ds_actual("Contable", nc.DS_CONTABLE_JUNIO)
     except Exception as exc:
         log.warning("no se pudo resolver el Contable vigente, uso el conocido: %s", exc)
-        return nc.DS_CONTABLE_JUNIO
+        val = nc.DS_CONTABLE_JUNIO
+    _ds_vigente_cache = (ahora, val)
+    return val
 
 
 def _ds_de_la_fila(page: dict) -> str:
@@ -410,12 +425,12 @@ def _validar_contable_vigente(page: dict) -> None:
         log.warning("no se pudo determinar la base de la fila; R4 no aplicada")
         return
 
-    # La lista estática primero: es el camino normal (la planilla operativa se
-    # renombra en sitio, así que su ds no cambia) y así un clic corriente no
-    # paga un search extra a Notion. También es el cinturón: si el search
-    # resolviera mal la vigente, la planilla de siempre sigue enviando.
-    if ds_fila in {ds.replace("-", "") for _n, ds in nc.DS_CONTABLES}:
-        return
+    # Autorizada = SOLO la vigente resuelta en runtime. DS_CONTABLES no se usa
+    # como allowlist a propósito: es una lista estática, y el día que se trabaje
+    # sobre una copia nueva en vez de resetear en sitio, la base de esa lista
+    # pasa a ser el respaldo — seguiría autorizada y volveríamos al correo con
+    # datos viejos. DS_CONTABLES sigue siendo el fallback DENTRO de
+    # _ds_contable_vigente(), que es donde corresponde: solo si el search falla.
     vigente = (_ds_contable_vigente() or "").replace("-", "")
     if not vigente or ds_fila == vigente:
         return
@@ -425,10 +440,20 @@ def _validar_contable_vigente(page: dict) -> None:
         titulo = nc.get_database_title((page.get("parent") or {}).get("database_id", "")) or ""
     except Exception:
         pass
+    # Nombrar la planilla correcta convierte el error en una instrucción: el
+    # asesor se resuelve solo, sin escribirle a nadie.
+    vigente_nombre = ""
+    try:
+        import reconciliar
+        vigente_nombre = reconciliar.nombre_base_actual("Contable", "")
+    except Exception:
+        pass
     log.warning("fila fuera del Contable vigente · base=%r ds=%s", titulo, ds_fila[:8])
-    abort(403, (f"la fila esta en {titulo or 'una planilla desconocida'!r}, que no es el "
-                "Contable del mes vigente. Apreta el boton en la planilla del mes en curso "
-                "(las copias de respaldo no envian correos)."))
+    abort(403, (f"esta fila esta en {titulo or 'una planilla desconocida'!r}, que no es la "
+                "planilla del mes vigente"
+                + (f". La vigente es {vigente_nombre!r}" if vigente_nombre else "")
+                + ". Los respaldos y los meses ya cerrados no envian correos: "
+                "apreta el boton en la planilla del mes en curso."))
 
 
 def _buscar_identificador_base(data: dict) -> tuple[str, str]:
@@ -1056,7 +1081,7 @@ def health():
     return {
         "ok": True,
         "service": "auditai-f29",
-        "version": "2026-08-06.2-guard-base-y-aviso-detallado",
+        "version": "2026-08-06.3-respaldo-con-boton-tolerado",
         "webhook_secret_configurado": bool(os.environ.get("WEBHOOK_SECRET")),
         "admin_alerts_configurados": len(es.admin_emails()),
         "sendgrid_webhook_token_configurado": bool(os.environ.get("SENDGRID_WEBHOOK_TOKEN")),

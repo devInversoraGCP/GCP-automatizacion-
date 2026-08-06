@@ -130,6 +130,26 @@ class TestAvisarBotonRechazado:
         cuerpo = m.call_args.kwargs["json"]["content"][0]["value"]
         assert estructura in cuerpo
 
+    def test_el_403_del_guard_no_spamea(self, monkeypatch):
+        """El respaldo del mes anterior conserva su boton (Notion no deja
+        borrarlo por API) y alguien lo va a apretar. El guard ya evito el correo
+        equivocado: con un aviso por dia alcanza, y asi NO hay que borrarle el
+        boton a cada respaldo a mano."""
+        monkeypatch.setenv("ADMIN_ALERT_EMAIL", "a@x.com")
+        monkeypatch.setenv("SENDGRID_API_KEY", "fake")
+        with patch("alertas.requests.post") as m:
+            m.return_value = MagicMock(status_code=202)
+            for _ in range(5):
+                alertas.avisar_boton_rechazado("F29", 403, "planilla de respaldo")
+        assert m.call_count == 1
+
+    def test_el_throttle_largo_es_solo_para_el_403(self, monkeypatch):
+        """Un 400 sigue con la ventana corta: ahi si hay algo que investigar."""
+        monkeypatch.setenv("ADMIN_ALERT_EMAIL", "a@x.com")
+        monkeypatch.setenv("SENDGRID_API_KEY", "fake")
+        assert alertas._THROTTLE_POR_CODIGO_S.get(400) is None
+        assert alertas._THROTTLE_POR_CODIGO_S[403] > alertas._THROTTLE_AVISO_S
+
     def test_lleva_el_origen_de_la_request(self, monkeypatch):
         """Sin esto no se distingue un asesor apretando el boton de alguien
         probando la configuracion del webhook en Notion."""

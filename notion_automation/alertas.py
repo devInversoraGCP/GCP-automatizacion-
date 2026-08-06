@@ -147,15 +147,22 @@ _CODIGOS_SIN_AVISO = frozenset({401, 503})
 # Un botón mal configurado puede repetir el mismo 4xx muchas veces seguidas; se
 # avisa uno por (flujo, código) cada 10 min para no repetir el bucle de correos.
 _THROTTLE_AVISO_S = 600
+# El 403 del guard de base vigente es un rechazo ESPERADO y ya resuelto: el
+# respaldo del mes anterior conserva su columna botón (Notion no permite borrarla
+# por API) y alguien lo va a apretar de vez en cuando. El guard ya evitó el correo
+# equivocado, así que un aviso por día alcanza para enterarse de que pasa; a 10
+# min sería spam por algo que el sistema maneja solo. Gracias a esto NO hace falta
+# borrarle el botón a cada respaldo a mano (07-ago-2026, doc 28 §18).
+_THROTTLE_POR_CODIGO_S = {403: 86400}
 _ultimo_aviso: dict[tuple[str, int], float] = {}
 _aviso_lock = threading.Lock()
 
 
-def _throttle_ok(clave: tuple[str, int]) -> bool:
+def _throttle_ok(clave: tuple[str, int], ventana: float = _THROTTLE_AVISO_S) -> bool:
     ahora = time.time()
     with _aviso_lock:
         prev = _ultimo_aviso.get(clave, 0.0)
-        if ahora - prev < _THROTTLE_AVISO_S:
+        if ahora - prev < ventana:
             return False
         _ultimo_aviso[clave] = ahora
         return True
@@ -177,7 +184,7 @@ def avisar_boton_rechazado(flujo: str, codigo: int, detalle: str, page_id: str =
     configuración del webhook. Con estas dos líneas el aviso se basta solo."""
     if codigo in _CODIGOS_SIN_AVISO:
         return
-    if not _throttle_ok((flujo, codigo)):
+    if not _throttle_ok((flujo, codigo), _THROTTLE_POR_CODIGO_S.get(codigo, _THROTTLE_AVISO_S)):
         log.info("aviso de boton rechazado omitido por throttle · flujo=%s codigo=%s", flujo, codigo)
         return
     log.warning("boton rechazado · flujo=%s codigo=%s page_id=%s · %s",
