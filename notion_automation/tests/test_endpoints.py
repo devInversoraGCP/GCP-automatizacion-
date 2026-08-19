@@ -87,6 +87,17 @@ class TestParidadDeIdentificacion:
             r = client.post("/enviar-f29", json={"data": {"id": PID}}, headers=H)
         assert r.status_code == 200 and m.call_args[0][0] == PID
 
+    def test_f29_busca_el_rut_en_la_planilla_vigente(self, client):
+        """El fallback por RUT buscaba solo en la lista estática DS_CONTABLES:
+        el día que aparece una planilla nueva encontraba la fila del mes anterior
+        (doc 28 §19). Ahora la vigente va primero."""
+        with patch.object(nc, "find_page_by_rut", return_value=PID) as f, \
+             patch.object(A, "_ds_contable_vigente", return_value="ds-vigente"), \
+             patch.object(A, "_procesar_page", return_value={"ok": True}):
+            r = client.post("/enviar-f29", json={"Rut": "76.123.456-7"}, headers=H)
+        assert r.status_code == 200
+        assert f.call_args[0][1] == "ds-vigente"
+
     def test_f29_identifica_por_customers_si_no_hay_rut(self, client):
         with patch.object(nc, "find_page_by_title_generico", return_value=PID) as f, \
              patch.object(A, "_ds_contable_vigente", return_value="ds-contable"), \

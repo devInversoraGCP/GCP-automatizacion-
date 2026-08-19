@@ -84,3 +84,46 @@ class TestFindPageByRutItera:
         assert nc.DS_CONTABLE_JUNIO == nc.DS_CONTABLES[0][1]
         assert isinstance(nc.DS_CONTABLES, list)
         assert all(isinstance(t, tuple) and len(t) == 2 for t in nc.DS_CONTABLES)
+
+class TestLaVigenteVaPrimero:
+    """19-ago-2026 (doc 28 §19). La lista estática es el histórico, no la verdad:
+    el día que aparece una planilla nueva (o alguien trabaja sobre una copia en
+    vez de renombrar), buscar solo en la lista devuelve la fila del mes ANTERIOR
+    — el correo sale con el monto y el mes viejos y marca como enviada la fila
+    equivocada. Es el bug que RRHH tuvo el 31-jul; Contable lo arrastraba igual."""
+
+    def test_la_vigente_gana_aunque_el_rut_este_en_las_dos(self):
+        contables = [("Contable Julio", "ds-viejo")]
+        fake = lambda ds, body=None: _result(f"page-en-{ds}")
+        with patch.object(nc, "query_data_source", side_effect=fake), \
+             patch.object(nc, "DS_CONTABLES", contables):
+            assert nc.find_page_by_rut("12.345.678-9", "ds-agosto") == "page-en-ds-agosto"
+
+    def test_si_no_esta_en_la_vigente_cae_al_historico(self):
+        """Un clic en una fila de un mes cerrado sigue resolviendo (el guard R4
+        decide después si se manda o no)."""
+        contables = [("Contable Julio", "ds-viejo")]
+        fake = lambda ds, body=None: _result("page-vieja") if ds == "ds-viejo" else []
+        with patch.object(nc, "query_data_source", side_effect=fake), \
+             patch.object(nc, "DS_CONTABLES", contables):
+            assert nc.find_page_by_rut("12.345.678-9", "ds-agosto") == "page-vieja"
+
+    def test_no_consulta_dos_veces_el_mismo_ds(self):
+        """Cuando la vigente ya está en la lista (el caso normal: la planilla se
+        renombra en sitio y el id no cambia) no se paga la query dos veces."""
+        contables = [("Contable Julio", "ds-mismo")]
+        vistos = []
+        def fake(ds, body=None):
+            vistos.append(ds)
+            return []
+        with patch.object(nc, "query_data_source", side_effect=fake), \
+             patch.object(nc, "DS_CONTABLES", contables):
+            nc.find_page_by_rut("12.345.678-9", "ds-mismo")
+        assert vistos == ["ds-mismo"]
+
+    def test_sin_vigente_se_comporta_como_antes(self):
+        contables = [("Contable Julio", "ds-julio")]
+        fake = lambda ds, body=None: _result("page-julio") if ds == "ds-julio" else []
+        with patch.object(nc, "query_data_source", side_effect=fake), \
+             patch.object(nc, "DS_CONTABLES", contables):
+            assert nc.find_page_by_rut("12.345.678-9") == "page-julio"

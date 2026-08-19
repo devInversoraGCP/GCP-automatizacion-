@@ -114,6 +114,17 @@ _procesar_page:
 - `Fecha Envío` (date) — fecha de envío del correo
 - `Adjuntos` (files) — PDFs que se adjuntan al correo **de ese mes**
 - `Mensaje Adjuntos` (rich_text) — nota del asesor sobre esos PDFs
+- `Entrega Correo` (rich_text) — "✅ Entregado · fecha" del envío **de ese mes** (doc 30)
+
+> 🛡️ **Cómo no volver a perder una columna (19-ago-2026).** `Adjuntos` y
+> `Entrega Correo` estuvieron meses sin resetearse porque nadie miraba qué
+> columnas quedaban fuera. Ahora `app.py` declara también `ESTATICAS_CONTABLE` /
+> `ESTATICAS_RRHH` — lo que se preserva **a propósito** — y cada reset reporta en
+> el log y en la respuesta (`columnas_sin_clasificar`) toda columna que no esté en
+> ninguna de las dos listas. Al agregar una columna a la planilla, el próximo
+> reset la nombra: o va al `RESET_*` (dato del mes) o a `ESTATICAS_*` (dato del
+> cliente). Los tipos que Notion no deja escribir (button, formula, rollup,
+> unique_id, created/last_edited) se ignoran.
 
 **Especial:**
 - `Enviar Correo F29` (button) — botón que dispara el webhook

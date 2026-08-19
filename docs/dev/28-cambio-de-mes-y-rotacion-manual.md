@@ -787,6 +787,25 @@ por lo contrario: por estrenar base cada mes.
 | 5 | **El año del correo sale del título si el título lo trae.** `derivar_month_desde_base` tomaba el año de `last_edited_time`: una planilla `RRHH ENERO 2027` preparada en dic-2026 habría mandado correos diciendo "Enero 2026". Los títulos de RRHH llevan el año — ahora manda ese. | `notion_client.derivar_month_desde_base` |
 | 6 | **El reset de Contable limpia los adjuntos.** `Adjuntos` y `Mensaje Adjuntos` estaban clasificados como estáticos en el doc 29, así que Contable nunca los limpió: en la planilla operativa había **archivos de junio conviviendo con los de julio** (30 de 133 archivos llevan un mes en el nombre, de dos meses distintos). Son los PDFs del correo DE ESE MES, igual que en RRHH, donde siempre estuvo bien. El respaldo `(1)` los conserva. | `RESET_CONTABLE` |
 
+### Paridad de Contable con RRHH (19-ago-2026, misma tanda)
+
+Al pasarle a Contable la misma lupa que a RRHH aparecieron tres cosas más:
+
+| # | Cambio | Dónde |
+|---|---|---|
+| 7 | **`Entrega Correo` se resetea.** La escribe el webhook de SendGrid con la fecha de entrega DE ESE envío (doc 30) y nadie la limpiaba: **102 filas** la tenían cargada, con fechas de julio (`14-07`, `20-07`) mezcladas con las de agosto. En la planilla del mes nuevo el asesor veía "✅ Entregado" de un correo del mes pasado. Es el mismo bug que los adjuntos, en otra columna. | `RESET_CONTABLE` |
+| 8 | **Radar de columnas sin clasificar.** Los dos bugs anteriores vivieron meses porque *nadie miraba qué columnas quedaban fuera del reset*. Ahora existe `ESTATICAS_*` — la lista de lo que se preserva **a propósito** — y cada reset reporta, en el log y en la respuesta, toda columna que no esté ni en `RESET_*` ni ahí. Una columna nueva se ve el mes siguiente, en vez de dentro de un año. | `app._columnas_sin_clasificar`, `ESTATICAS_CONTABLE`, `ESTATICAS_RRHH` |
+| 9 | **El fallback por RUT busca primero en la planilla vigente.** Buscaba solo en la lista estática `DS_CONTABLES`: el día que aparezca una planilla nueva (o que alguien trabaje sobre una copia en vez de renombrar), encontraría la fila del mes ANTERIOR y mandaría el correo con el monto y el mes viejos, marcando como enviada la fila equivocada. **Es exactamente el bug que RRHH tuvo el 31-jul y que Contable seguía teniendo.** La lista queda como histórico. | `notion_client.find_page_by_rut(rut, ds_primero)` |
+
+De paso se eliminó `handlers.rrhh.ds_vigente()`: era una segunda implementación, sin
+caché, de lo mismo que hace `app._ds_rrhh_vigente()` — dos copias que podían divergir.
+Queda una sola, cacheada 5 min, usada por el guard y por el fallback.
+
+**Verificado contra las planillas reales:** `Contable Julio` (31 columnas) y
+`RRHH AGOSTO 2026` (21 columnas) no dejan ninguna columna sin clasificar, y los dos
+esquemas quedaron congelados como fixture en `tests/test_reset_mes.py` para que un
+cambio futuro en los `RESET_*` se contraste contra la planilla de verdad.
+
 Tests: `tests/test_reset_mes.py::TestPlanillaDelClic` (7), guard RRHH en
 `tests/test_base_vigente.py` (3 + caché por prefijo), derivación del mes en
 `tests/test_mes_titulo_prioridad.py::TestDerivacionDelMesDesdeElTitulo` (7).

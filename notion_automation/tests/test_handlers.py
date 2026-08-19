@@ -1,6 +1,7 @@
 """Tests de los handlers RRHH y Tickets: que ahora SÍ avisan al asesor en todo
 fallo conocido (antes fallaban en silencio) — Fase 1.1."""
 from unittest.mock import patch
+import pytest
 import notion_client as nc
 import email_sender as es
 import alertas
@@ -61,18 +62,28 @@ class TestRRHHAvisa:
 
 class TestRRHHCambioDeMes:
     """Regresión del 31-jul-2026: al aparecer RRHH JULIO, el handler seguía
-    apuntando a JUNIO y mandaba el correo con el monto y el mes del mes anterior."""
+    apuntando a JUNIO y mandaba el correo con el monto y el mes del mes anterior.
 
-    def test_ds_vigente_resuelve_la_base_del_mes_nuevo(self):
+    La resolución vive en `app._ds_rrhh_vigente()` desde el 19-ago-2026: es la
+    misma que usa el guard R4, y antes había dos copias que podían divergir."""
+
+    @pytest.fixture(autouse=True)
+    def _sin_cache(self, monkeypatch):
+        import app as A
+        monkeypatch.setattr(A, "_ds_vigente_cache", {})
+
+    def test_resuelve_la_base_del_mes_nuevo(self):
+        import app as A
         import reconciliar
         with patch.object(reconciliar, "resolver_ds_actual", return_value="ds-agosto") as m:
-            assert rrhh.ds_vigente() == "ds-agosto"
+            assert A._ds_rrhh_vigente() == "ds-agosto"
         assert m.call_args[0][0] == "RRHH"
 
-    def test_ds_vigente_cae_al_mas_reciente_si_falla_el_search(self):
+    def test_cae_al_mas_reciente_si_falla_el_search(self):
+        import app as A
         import reconciliar
         with patch.object(reconciliar, "resolver_ds_actual", side_effect=RuntimeError("api caída")):
-            assert rrhh.ds_vigente() == rrhh.DS_RRHH[0][1]
+            assert A._ds_rrhh_vigente() == rrhh.DS_RRHH[0][1]
 
     def test_el_fallback_estatico_esta_ordenado_mas_reciente_primero(self):
         assert rrhh.DS_ID == rrhh.DS_RRHH[0][1]

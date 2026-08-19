@@ -185,8 +185,9 @@ def query_data_source(ds_id: str, body: dict | None = None) -> list[dict]:
 # El flujo PRINCIPAL usa source.page_id (Notion lo envia solo); este fallback solo
 # se activa en edge cases donde el webhook llega sin page_id. Ver doc 28 §4.
 DS_CONTABLES: list[tuple[str, str]] = [
-    # ("Contable Julio",  "<nuevo_data_source_id>"),   # descomentar cuando exista
-    ("Contable Junio", "09b12147-b3ea-8337-a218-87538eab23fc"),
+    # Misma base renombrada mes a mes: el id NO cambia, el nombre sí. Es solo el
+    # historico/fallback; la vigente se resuelve por titulo en runtime.
+    ("Contable Julio", "09b12147-b3ea-8337-a218-87538eab23fc"),
 ]
 
 # Alias legacy: compatibilidad con imports viejos que referencien la constante
@@ -194,13 +195,26 @@ DS_CONTABLES: list[tuple[str, str]] = [
 DS_CONTABLE_JUNIO = DS_CONTABLES[0][1]
 
 
-def find_page_by_rut(rut: str) -> str | None:
-    """Busca el page_id por RUT en los Contables conocidos, en orden (mas
-    reciente primero). Devuelve None si no hay match en ninguno. No loguea el
-    RUT (PII). Asume RUT unico por cliente (un cliente no aparece en dos
-    Contables a la vez, salvo que se aprete el boton en un mes historico).
-    Ver doc 28 §4."""
-    for _nombre, ds_id in DS_CONTABLES:
+def find_page_by_rut(rut: str, ds_primero: str = "") -> str | None:
+    """Busca el page_id por RUT: primero en `ds_primero` (la planilla VIGENTE,
+    resuelta por titulo en runtime por el caller) y despues en los Contables
+    conocidos. Devuelve None si no hay match. No loguea el RUT (PII).
+
+    `ds_primero` existe por el bug que RRHH tuvo el 31-jul-2026: con una lista
+    estatica, el dia que aparece una planilla nueva el fallback sigue
+    encontrando la fila del mes ANTERIOR y el correo sale con el monto y el mes
+    equivocados, ademas de marcar como enviada la fila vieja. Contable arrastraba
+    el mismo hueco. Ver doc 28 §4 y §19.
+
+    Asume RUT unico por cliente (un cliente no aparece en dos Contables a la vez,
+    salvo que se aprete el boton en un mes historico)."""
+    vistos = set()
+    candidatos = [("vigente", ds_primero)] if ds_primero else []
+    candidatos += list(DS_CONTABLES)
+    for _nombre, ds_id in candidatos:
+        if not ds_id or ds_id in vistos:
+            continue
+        vistos.add(ds_id)
         body = {
             "filter": {
                 "property": "Rut",

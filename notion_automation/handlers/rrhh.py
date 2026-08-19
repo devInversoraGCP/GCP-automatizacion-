@@ -29,23 +29,10 @@ DS_RRHH: list[tuple[str, str]] = [
 DS_ID = DS_RRHH[0][1]   # alias legacy: el más reciente conocido
 
 
-def ds_vigente() -> str:
-    """Data source de la base `RRHH <Mes>` del período MÁS NUEVO.
-
-    Solo se usa en el fallback de identificación por RUT (cuando el webhook del
-    botón llega sin `page_id`). Esto era una constante fija apuntando a JUNIO:
-    al aparecer `RRHH JULIO 2026` ese fallback seguía encontrando la fila del mes
-    ANTERIOR, y el correo salía con el **monto y el mes equivocados**, además de
-    marcar como enviada la fila del mes viejo (detectado el 31-jul-2026).
-
-    Se resuelve por título en runtime; si el search falla, cae al más reciente
-    de `DS_RRHH`."""
-    try:
-        import reconciliar
-        return reconciliar.resolver_ds_actual("RRHH", DS_ID)
-    except Exception as exc:
-        log.warning("no se pudo resolver la base RRHH vigente, uso %s: %s", DS_RRHH[0][0], exc)
-        return DS_ID
+# La resolución de la planilla vigente vive en `app._ds_rrhh_vigente()` (con
+# caché de 5 min), que es la misma que usa el guard R4. Acá había una copia sin
+# caché: dos implementaciones de lo mismo que podían divergir con el tiempo.
+# `DS_ID` sigue siendo el fallback estático que esa función recibe.
 
 CLIENTE = "CLIENTE"
 ASISTENTE = "ASISTENTE"

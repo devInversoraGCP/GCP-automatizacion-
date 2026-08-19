@@ -551,10 +551,9 @@ def _procesar_webhook_generico(handler, nombre_handler: str):
             log.info("usando page_id directo · %s", nombre_handler)
         else:
             if nombre_handler == "RRHH":
-                # Base del mes VIGENTE resuelta en runtime: RRHH estrena base cada
-                # mes y un DS fijo mandaba el correo con los datos del mes anterior.
-                from handlers.rrhh import ds_vigente
-                page_id = nc.find_page_by_rut_generico(ident, ds_vigente(), prop_busqueda)
+                # Base del mes VIGENTE resuelta en runtime: un DS fijo mandaba el
+                # correo con los datos del mes anterior (31-jul-2026).
+                page_id = nc.find_page_by_rut_generico(ident, _ds_rrhh_vigente(), prop_busqueda)
             elif nombre_handler == "TICKETS":
                 from handlers.tickets import DS_ID as DS
                 page_id = nc.find_page_by_rut_generico(ident, DS, prop_busqueda)
@@ -563,7 +562,7 @@ def _procesar_webhook_generico(handler, nombre_handler: str):
                 # 'Sw' es title -> filtro title (no rich_text). Ver doc 32.
                 page_id = nc.find_page_by_title_generico(ident, DS, prop_busqueda)
             else:
-                page_id = nc.find_page_by_rut(ident)
+                page_id = nc.find_page_by_rut(ident, _ds_contable_vigente())
             if not page_id:
                 log.warning("%s no encontrado · %s", prop_busqueda, nombre_handler)
                 abort(404, f"no se encontro fila con ese {prop_busqueda} en {nombre_handler}")
@@ -673,7 +672,11 @@ def enviar_f29():
                 log.warning("Customers no encontrado en el Contable vigente")
                 abort(404, "no se encontro fila con ese Customers")
         else:
-            page_id = nc.find_page_by_rut(ident) or ""
+            # La planilla VIGENTE primero (resuelta por título en runtime): con
+            # solo la lista estática, el día que aparece una planilla nueva este
+            # fallback encuentra la fila del mes ANTERIOR — el bug que RRHH tuvo
+            # el 31-jul y que Contable arrastraba igual. Ver doc 28 §19.
+            page_id = nc.find_page_by_rut(ident, _ds_contable_vigente()) or ""
             if not page_id:
                 log.warning("RUT no encontrado en el Contable (RUT no se loguea)")
                 abort(404, "no se encontro fila con ese Rut")
@@ -746,6 +749,7 @@ RESET_CONTABLE = {
     "Fecha Envío": {"date": None},
     "Adjuntos": {"files": []},              # PDFs del mes → se adjuntan al correo
     "Mensaje Adjuntos": {"rich_text": []},  # nota del asesor sobre esos PDFs
+    "Entrega Correo": {"rich_text": []},    # "✅ Entregado · fecha" del envío del mes (doc 30)
     "Confirmar Reset": {"checkbox": False},
 }
 # RRHH JUNIO 2026 — nombres y opciones de status verificados contra el esquema
@@ -770,6 +774,50 @@ RESET_TICKETS: dict = {}   # Fase 3 (doc 29) — PENDIENTE: Tickets no rota por 
                            # por el usuario (15-jul); el tipo "tickets" da 400 hasta
                            # definir el alcance (solo Estado Correo vs correo+montos).
 RESET_POR_TIPO = {"contable": RESET_CONTABLE, "rrhh": RESET_RRHH, "tickets": RESET_TICKETS}
+
+# Columnas que se PRESERVAN a propósito: son del cliente, no del mes.
+#
+# No las usa el reset para decidir nada — para eso está el RESET_* de arriba.
+# Existen para poder distinguir "esto no se toca" de "nadie lo clasificó todavía":
+# al resetear, toda columna que no esté ni en el RESET_* ni acá se reporta en el
+# log y en la respuesta. Los dos bugs de esta familia vivieron meses sin que nadie
+# los viera — `Adjuntos` (PDFs de junio saliendo en correos de julio) y
+# `Entrega Correo` (la confirmación de entrega del mes pasado, 102 filas) — y los
+# dos habrían salido en el primer reset con esta lista puesta. Cuando aparezca una
+# columna nueva, el mes que viene alguien la ve y decide: o al RESET_* o acá.
+ESTATICAS_CONTABLE = {
+    "Customers", "Rut", "Clave SII", "Email", "Email (1)", "CRM",
+    "Adviser Accounting", "Actividad Econ", "Reportabilidad", "datos socio",
+    "Place", "ID Central", "asignacion", "Seleccionar",
+    "Archivos y multimedia",
+    "Fecha",   # fechas sueltas de 2025/2026 cargadas a mano; no es del mes
+}
+ESTATICAS_RRHH = {
+    "RUT", "CLIENTE", "Email", "ASISTENTE", "USUARIO", "CLAVE", "DTGO",
+    "Nº. Trab.", "ID Central",
+}
+ESTATICAS_POR_TIPO = {"contable": ESTATICAS_CONTABLE, "rrhh": ESTATICAS_RRHH,
+                      "tickets": set()}
+
+# Tipos que Notion no deja escribir por API: no pueden resetearse ni aunque se
+# quisiera, así que no tiene sentido reportarlos como "sin clasificar".
+_TIPOS_NO_ESCRIBIBLES = frozenset({
+    "button", "formula", "rollup", "unique_id", "created_time", "created_by",
+    "last_edited_time", "last_edited_by",
+})
+
+
+def _columnas_sin_clasificar(props: dict, campos_reset: dict, estaticas: set) -> list[str]:
+    """Columnas de la planilla que ni se resetean ni están declaradas estáticas.
+    Mismo matching tolerante que `_clave_prop` (mayúsculas y espacios al borde:
+    en Contable la columna real es `'asignacion '`, con espacio final)."""
+    conocidas = {c.strip().lower() for c in campos_reset} | {e.strip().lower() for e in estaticas}
+    return sorted(
+        nombre for nombre, prop in props.items()
+        if isinstance(prop, dict)
+        and prop.get("type") not in _TIPOS_NO_ESCRIBIBLES
+        and nombre.strip().lower() not in conocidas
+    )
 
 P_CONFIRMAR_RESET = "Confirmar Reset"   # checkbox — safety switch OBLIGATORIO
 FILA_CONTROL_RESET = "RESET_MES"        # la confirmación se marca en esta fila de
@@ -1021,6 +1069,15 @@ def reset_mes():
         if not confirmado:
             abort(400, f"Marcá el checkbox {P_CONFIRMAR_RESET!r} en la fila {FILA_CONTROL_RESET} primero")
 
+        # Columnas nuevas que nadie clasificó: se avisa, no se toca nada. Es el
+        # radar de la familia de bugs "columna del mes que el reset no limpia".
+        sin_clasificar = _columnas_sin_clasificar(
+            (filas[0].get("properties") if filas else {}) or {},
+            campos_reset, ESTATICAS_POR_TIPO.get(tipo, set()))
+        if sin_clasificar:
+            log.warning("reset-mes: columnas SIN CLASIFICAR en %r (ni se resetean ni están "
+                        "declaradas estáticas): %s", titulo, sin_clasificar)
+
         with _resets_lock:
             if ds_id in _resets_activos:
                 log.info("reset-mes duplicado ignorado (ya hay un reset en curso) · tipo=%s", tipo)
@@ -1038,7 +1095,7 @@ def reset_mes():
     log.info("reset-mes lanzado en fondo · tipo=%s · planilla=%r · filas_totales=%d",
              tipo, titulo, len(filas))
     return {"ok": True, "en_proceso": True, "tipo": tipo, "planilla": titulo,
-            "filas_totales": len(filas)}, 202
+            "filas_totales": len(filas), "columnas_sin_clasificar": sin_clasificar}, 202
 
 
 # --- Confirmación de entrega real via SendGrid Event Webhook (doc 30) ------
@@ -1248,7 +1305,7 @@ def health():
     return {
         "ok": True,
         "service": "auditai-f29",
-        "version": "2026-08-19.1-reset-sin-config-manual",
+        "version": "2026-08-19.2-contable-paridad-y-radar",
         "webhook_secret_configurado": bool(os.environ.get("WEBHOOK_SECRET")),
         "admin_alerts_configurados": len(es.admin_emails()),
         "sendgrid_webhook_token_configurado": bool(os.environ.get("SENDGRID_WEBHOOK_TOKEN")),

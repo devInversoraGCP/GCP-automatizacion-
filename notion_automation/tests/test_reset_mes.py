@@ -410,3 +410,86 @@ class TestPlanillaDelClic:
              patch.object(A.alertas, "avisar_boton_rechazado") as m_aviso:
             client.post("/reset-mes", json={"source": {"page_id": PID_ZZ}}, headers=H)
         assert m_aviso.call_args[0][0] == "RESET" and m_aviso.call_args[0][1] == 403
+
+
+# --- Radar de columnas nuevas (19-ago-2026) ---------------------------------
+# Esquemas REALES verificados por API el 19-ago-2026. Viven acá para que
+# cualquier cambio en los RESET_* / ESTATICAS_* se contraste contra la planilla
+# de verdad, no contra una idea de la planilla.
+PROPS_CONTABLE_REAL = {n: {"type": t} for n, t in [
+    ("ARec", "status"), ("Actividad Econ", "select"), ("Adjuntos", "files"),
+    ("Adviser Accounting", "people"), ("Archivos y multimedia", "files"),
+    ("CRM", "select"), ("Clave SII", "rich_text"), ("Confirmar reset", "checkbox"),
+    ("Customers", "title"), ("Email", "email"), ("Email (1)", "email"),
+    ("Entrega Correo", "rich_text"), ("Enviar Correo F29", "button"),
+    ("Fecha", "date"), ("Fecha Envío", "date"), ("Honorarios Pendientes", "number"),
+    ("ID Central", "number"), ("Impuestos", "number"), ("Mensaje Adjuntos", "rich_text"),
+    ("Month", "rich_text"), ("Motivo-Info adicional", "rich_text"),
+    ("Pre-Imptos", "checkbox"), ("PreImp", "checkbox"), ("Reset mes", "button"),
+    ("Rut", "rich_text"), ("Seleccionar", "select"), ("Status", "status"),
+    ("Valor-Info adicional", "number"), ("asignacion ", "select"),
+    ("emision de boletas ", "status"), ("⚠️ Falta monto", "formula"),
+]}
+PROPS_RRHH_REAL = {n: {"type": t} for n, t in [
+    ("ASISTENTE", "select"), ("Adjuntos", "files"), ("CLAVE", "rich_text"),
+    ("CLIENTE", "rich_text"), ("Comentario-Adjuntos", "rich_text"),
+    ("Confirmar reset", "checkbox"), ("DTGO", "rich_text"), ("Email", "rich_text"),
+    ("Enviar Correo", "button"), ("Estado Correo", "status"), ("Fecha envío", "date"),
+    ("ID Central", "number"), ("IMPUESTO ÚNICO", "number"), ("Liquidaciones", "status"),
+    ("MONTO IMPOSICIONES|", "number"), ("Nº. Trab.", "number"), ("Previred", "status"),
+    ("RESET MES", "button"), ("RUT", "title"), ("USUARIO", "rich_text"),
+    ("⚠️ Falta monto", "formula"),
+]}
+
+
+class TestColumnasSinClasificar:
+    """Los dos bugs de esta familia (`Adjuntos` con PDFs de junio en correos de
+    julio, `Entrega Correo` con la entrega del mes pasado en 102 filas) vivieron
+    meses porque nadie miraba qué columnas quedaban fuera del reset. Ahora cada
+    reset las reporta."""
+
+    def test_contable_real_no_deja_nada_sin_clasificar(self):
+        assert A._columnas_sin_clasificar(
+            PROPS_CONTABLE_REAL, A.RESET_CONTABLE, A.ESTATICAS_CONTABLE) == []
+
+    def test_rrhh_real_no_deja_nada_sin_clasificar(self):
+        assert A._columnas_sin_clasificar(
+            PROPS_RRHH_REAL, A.RESET_RRHH, A.ESTATICAS_RRHH) == []
+
+    def test_una_columna_nueva_se_reporta(self):
+        props = dict(PROPS_CONTABLE_REAL, **{"Cobranza del mes": {"type": "number"}})
+        assert A._columnas_sin_clasificar(
+            props, A.RESET_CONTABLE, A.ESTATICAS_CONTABLE) == ["Cobranza del mes"]
+
+    def test_botones_formulas_y_calculadas_no_se_reportan(self):
+        """Notion no deja escribirlas por API: reportarlas sería ruido eterno."""
+        props = {"Nueva formula": {"type": "formula"}, "Nuevo boton": {"type": "button"},
+                 "Creada": {"type": "created_time"}, "Nro": {"type": "unique_id"}}
+        assert A._columnas_sin_clasificar(props, A.RESET_CONTABLE, A.ESTATICAS_CONTABLE) == []
+
+    def test_el_matching_tolera_espacios_y_mayusculas(self):
+        """En Contable la columna real es 'asignacion ' (con espacio final) y
+        'Confirmar reset' con r minúscula: un match exacto las reportaría siempre."""
+        props = {"ASIGNACION": {"type": "select"}, "  confirmar RESET ": {"type": "checkbox"}}
+        assert A._columnas_sin_clasificar(props, A.RESET_CONTABLE, A.ESTATICAS_CONTABLE) == []
+
+    def test_el_endpoint_las_devuelve_en_la_respuesta(self, client):
+        fila = _fila(PID_ZZ, "RESET_MES", confirmar=True)
+        fila["properties"]["Cobranza del mes"] = {"type": "number", "number": 1}
+        with patch.object(nc, "get_data_source_id", return_value=DS_ID), \
+             patch.object(nc, "query_data_source", return_value=[fila]), \
+             patch.object(A, "_lanzar_reset"):
+            r = client.post("/reset-mes", json=BODY, headers=H)
+        assert r.status_code == 202
+        assert r.get_json()["columnas_sin_clasificar"] == ["Cobranza del mes"]
+
+    def test_reset_limpia_la_confirmacion_de_entrega(self):
+        """`Entrega Correo` la escribe el webhook de SendGrid con la fecha de
+        entrega DE ESE envío (doc 30). Sin resetear, en la planilla nueva el
+        asesor ve '✅ Entregado' de un correo del mes pasado."""
+        fila = _fila(PID_1, "Cliente Uno")
+        fila["properties"]["Entrega Correo"] = {
+            "type": "rich_text", "rich_text": [{"plain_text": "✅ Entregado · 14-07-2026"}]}
+        with patch.object(nc, "update_props") as m:
+            A._reset_aplicar("contable", DS_ID, A.RESET_CONTABLE, [fila])
+        assert m.call_args[0][1]["Entrega Correo"] == {"rich_text": []}
