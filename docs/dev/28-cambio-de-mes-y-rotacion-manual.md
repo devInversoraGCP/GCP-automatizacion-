@@ -740,6 +740,79 @@ sobrescribirla con un valor vacío.
 
 ---
 
+## §19 · El botón dejó de decidir qué planilla se resetea (incidente 18-ago-2026)
+
+### Qué pasó
+
+El 18-ago tocaba el cambio de mes de RRHH y Sebastián hizo —por primera vez en
+RRHH— la rotación de Contable: duplicar como respaldo (`RRHH JULIO 2026 (1)`) y
+renombrar la original a `RRHH AGOSTO 2026`. **Eso estuvo bien**: es exactamente
+el flujo del §15, y es lo que mantiene viva la integración. Lo que no funcionó
+fue el botón **RESET MES**: la planilla se quedó con los datos de julio.
+
+### Diagnóstico (19-ago, sondas de solo lectura con el token del backend)
+
+| Base | `GET /databases` | `POST /query` | Veredicto |
+|---|---|---|---|
+| `RRHH AGOSTO 2026` (operativa, db `39e12147…`) | 200 · `in_trash=False` | 200 · 50 filas | **sana**: conexión intacta tras el rename, fila `RESET_MES` presente, checkbox marcado, las 9 columnas de `RESET_RRHH` con el nombre exacto |
+| `RRHH JUNIO 2026` (db `38712147…`) | 200 · **`in_trash=True`** | **404** | la papelera no la oculta al GET, pero el query muere |
+| `RRHH JULIO 2026 (1)` (respaldo) | 404 | 404 | no está compartida con la integración |
+
+O sea: **si el clic hubiera llegado a la planilla de agosto, el reset habría
+corrido**. No llegó, porque el botón manda la base en el header `X-Reset-DB` y
+ese header venía de junio.
+
+**La cadena:** hasta este mes RRHH estrenaba una base NUEVA cada mes, y
+`RRHH JULIO 2026` nació como duplicado de `RRHH JUNIO 2026` (lo confirman los ids
+internos de las opciones de `ASISTENTE`, idénticos entre ambas). Notion copia la
+configuración del botón al duplicar, así que la planilla de julio —y después la
+de agosto, que es la misma renombrada— arrastró `X-Reset-DB` apuntando a junio.
+Cuando junio se fue a la papelera, `get_data_source_id()` siguió devolviendo 200
+(la papelera no lo oculta) y el reset reventó recién en el query: **500 "error
+leyendo la base"**.
+
+**Por qué Contable nunca lo sufrió:** se renombra en sitio desde el principio, así
+que su `database_id` sigue siendo el mismo que se configuró en el botón en
+julio-2026 (`39612147…`, verificado). El header nunca quedó viejo. RRHH rompió
+por lo contrario: por estrenar base cada mes.
+
+### Qué se implementó
+
+| # | Cambio | Dónde |
+|---|---|---|
+| 1 | **La planilla sale del clic, no de la config.** `/reset-mes` resuelve la base desde el `page_id` de la fila donde se apretó el botón (`parent.data_source_id`) y el **tipo** desde el título de esa base (`RRHH …` → `rrhh`). Los headers `X-Reset-DB` / `X-Reset-Tipo` quedan como fallback (curl, tests, botones que no manden la fila). Un botón duplicado ya no puede apuntar a otra base: apunta siempre a donde vive. | `app._base_del_clic`, `_tipo_desde_titulo`, `reset_mes` |
+| 2 | **El reset se niega a borrar lo que no debe.** 403 si la planilla es un respaldo (`(n)`, `reconciliar.es_copia`) — es la única copia del mes cerrado — y 403 si no es la vigente del período. Fail-open si no se puede determinar: con el checkbox de por medio, bloquear un reset legítimo por no leer un título sería peor. | `app._validar_planilla_reseteable` |
+| 3 | **Un reset rechazado deja de ser invisible.** El 18-ago falló y se supo al día siguiente: los 4xx de `/reset-mes` no avisaban a nadie (solo el 500 mandaba correo). Ahora todo rechazo va a `avisar_boton_rechazado` con la estructura del payload y el origen de la request, y la request loguea `estructura payload RESET`. | `app.reset_mes` |
+| 4 | **Guard R4 para RRHH.** RRHH no tenía la validación de planilla vigente del §18 (cuando se hizo, RRHH no tenía respaldos). Hoy el respaldo existe, con su botón `Enviar Correo` clicable. Está a salvo solo porque no está compartido con la integración — casualidad, no diseño. | `app._validar_base_vigente` + `_validar_rrhh_vigente`, llamado en `_procesar_webhook_generico` |
+| 5 | **El año del correo sale del título si el título lo trae.** `derivar_month_desde_base` tomaba el año de `last_edited_time`: una planilla `RRHH ENERO 2027` preparada en dic-2026 habría mandado correos diciendo "Enero 2026". Los títulos de RRHH llevan el año — ahora manda ese. | `notion_client.derivar_month_desde_base` |
+| 6 | **El reset de Contable limpia los adjuntos.** `Adjuntos` y `Mensaje Adjuntos` estaban clasificados como estáticos en el doc 29, así que Contable nunca los limpió: en la planilla operativa había **archivos de junio conviviendo con los de julio** (30 de 133 archivos llevan un mes en el nombre, de dos meses distintos). Son los PDFs del correo DE ESE MES, igual que en RRHH, donde siempre estuvo bien. El respaldo `(1)` los conserva. | `RESET_CONTABLE` |
+
+Tests: `tests/test_reset_mes.py::TestPlanillaDelClic` (7), guard RRHH en
+`tests/test_base_vigente.py` (3 + caché por prefijo), derivación del mes en
+`tests/test_mes_titulo_prioridad.py::TestDerivacionDelMesDesdeElTitulo` (7).
+Verificable en `/health` → `2026-08-19.1-reset-sin-config-manual`.
+
+### El cambio de mes, de acá en adelante (Contable y RRHH, igual)
+
+1. **Duplicar** la planilla → la copia `(1)` queda como respaldo. No se le toca nada:
+   su botón puede quedarse ahí, no manda correos ni se resetea.
+2. **Renombrar** la original al mes nuevo (`RRHH AGOSTO 2026`, `Contable Agosto`).
+   ⚠️ Es lo único que define el mes de los correos: el asunto, el período y el
+   plazo salen del título. No hay plantilla que editar.
+3. **Marcar** `Confirmar reset` en la fila `RESET_MES` y **apretar RESET MES una
+   sola vez** (tarda ~1 min cada 50 filas; el guard de concurrencia ignora los
+   clics repetidos).
+
+Nada de esto necesita tocar el backend ni la configuración del botón. Si algo se
+rechaza, el correo al admin dice qué planilla se apretó y cuál es la vigente.
+
+> ⚠️ **Por qué el reset es urgente y no cosmético:** entre el rename y el reset, la
+> planilla se llama agosto pero tiene los montos de julio. Un clic en *Enviar
+> Correo* ahí manda "Imposiciones Agosto 2026" con el monto de julio, con 200 OK
+> y sin que nadie se entere. Es el error caro: el ruidoso lo ves, este no.
+
+---
+
 ## §17 · Referencias
 
 - [`../../AGENTS.md`](../../AGENTS.md) — reglas no negociables (Notion en lectura por defecto,

@@ -2,9 +2,11 @@
 Sigue el patrón del handler F29 (en app.py) pero con su propia lógica de
 composición y fecha límite (13 del mes siguiente, no 20).
 
-⚠️ RRHH estrena una base NUEVA cada mes (a diferencia de Contable, que se
-renombra en sitio). Por eso ni el data source ni el mes pueden estar fijos en
-el código: se resuelven en runtime. Ver `ds_vigente()` y doc 28."""
+⚠️ Ni el data source ni el mes pueden estar fijos en el código: se resuelven en
+runtime desde el título de la planilla vigente. Hasta julio-2026 RRHH estrenaba
+una base NUEVA cada mes; desde el cambio de mes del 18-ago rota como Contable
+(duplicar respaldo + renombrar la original en sitio, doc 28 §19), así que el id
+se mantiene. Las dos formas funcionan: `ds_vigente()` resuelve por título."""
 from __future__ import annotations
 import os
 import sys
@@ -20,8 +22,9 @@ log = logging.getLogger("auditai")
 # DS_CONTABLES en notion_client.py — doc 28). Normalmente NO hay que editar esto:
 # ds_vigente() resuelve la base del mes por su título.
 DS_RRHH: list[tuple[str, str]] = [
-    ("RRHH JULIO 2026", "89a12147-b3ea-830e-adee-07cbca823fb6"),
-    ("RRHH JUNIO 2026", "9c512147-b3ea-8256-a570-871254c13b3d"),
+    # Misma base renombrada mes a mes desde ago-2026: el id NO cambia, el nombre sí.
+    ("RRHH AGOSTO 2026", "89a12147-b3ea-830e-adee-07cbca823fb6"),
+    ("RRHH JUNIO 2026", "9c512147-b3ea-8256-a570-871254c13b3d"),   # en la papelera
 ]
 DS_ID = DS_RRHH[0][1]   # alias legacy: el más reciente conocido
 

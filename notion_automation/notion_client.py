@@ -2,6 +2,7 @@
 Credenciales solo en memoria (R3): nunca imprime Clave SII, Rut ni Email."""
 from __future__ import annotations
 import os
+import re
 import logging
 import requests
 from http_util import request_con_reintentos
@@ -327,15 +328,19 @@ def get_data_source_id(database_id: str) -> str:
 
 
 def derivar_month_desde_base(page: dict) -> str:
-    """Fallback C: si una fila llega con Month vacio, deriva el periodo del F29
-    desde el titulo de la base parent. 'Contable Junio' + ultima_edicion en
-    jul-2026 -> 'Junio 2026'. Logica de anio: mes del titulo + anio de
-    last_edited_time, con correccion si mes=diciembre y edicion en enero
-    (el F29 de diciembre se hace en enero del anio siguiente).
+    """Periodo del correo derivado del TITULO de la base parent — la fuente
+    PRINCIPAL del mes desde el doc 28 §4.a. 'RRHH AGOSTO 2026' -> 'Agosto 2026';
+    'Contable Junio' + ultima_edicion en jul-2026 -> 'Junio 2026'.
 
-    Limitacion conocida: si se edita mucho tiempo despues del periodo, el anio
-    podria desfasarse. Es un fallback de emergencia; el bulk-set (Opcion A)
-    fija Month correctamente en la mayoria de los casos."""
+    Por eso el cambio de mes no necesita tocar codigo ni plantillas: renombrar
+    la planilla cambia el mes de TODOS los correos que salgan de ella.
+
+    Anio, en orden: (1) el que trae el titulo, si lo trae; (2) el de
+    last_edited_time, con correccion si mes=diciembre y edicion en enero (el F29
+    de diciembre se hace en enero del anio siguiente).
+
+    Limitacion conocida del caso (2): si la planilla no lleva el anio en el
+    titulo y se edita mucho despues del periodo, el anio podria desfasarse."""
     parent = page.get("parent") or {}
     db_id = parent.get("database_id")
     if not db_id:
@@ -353,6 +358,14 @@ def derivar_month_desde_base(page: dict) -> str:
     mes_lc = nombre_mes.lower()
     if mes_lc not in _MESES_ES:
         return ""
+    mes_cap = nombre_mes[0].upper() + nombre_mes[1:].lower()
+    # Anio EXPLICITO en el titulo ('RRHH AGOSTO 2026') -> manda ese. Es un dato,
+    # no una inferencia: no depende de cuando se edito la fila. Sin esto, una
+    # planilla 'RRHH ENERO 2027' preparada en diciembre-2026 mandaba correos
+    # diciendo "Enero 2026" (el anio salia de last_edited_time).
+    m_anio = re.search(r"(20\d{2})", titulo)
+    if m_anio:
+        return f"{mes_cap} {int(m_anio.group(1))}"
     # Anio desde last_edited_time (formato '2026-07-07T19:39:00.000Z')
     anio = 0
     le = page.get("last_edited_time", "")
@@ -365,6 +378,4 @@ def derivar_month_desde_base(page: dict) -> str:
         mes_ed = (le[5:7] if len(le) >= 7 else "")
         if mes_ed == "01":
             anio -= 1
-    # Capitalizar mes
-    mes_cap = nombre_mes[0].upper() + nombre_mes[1:].lower()
     return f"{mes_cap} {anio}"

@@ -109,14 +109,20 @@ def _periodo_de_titulo(titulo: str, last_edited: str = "") -> tuple[int, int] | 
     return (anio, mes)
 
 
-def _es_copia(titulo: str) -> bool:
+def es_copia(titulo: str) -> bool:
     """True si el título parece un duplicado de Notion ('Contable Julio (1)').
 
     Al cambiar de mes la planilla se duplica como respaldo, y la copia queda con
     el MISMO período que la operativa. Sin este desempate, cuál de las dos gana
     dependía del orden en que las devolviera el search. Manda la que NO tiene
-    sufijo. Incidente 06-ago-2026 (doc 23 §5.4)."""
+    sufijo. Incidente 06-ago-2026 (doc 23 §5.4).
+
+    Pública porque el reset la usa como guard: un respaldo JAMÁS se resetea (es
+    la única copia de los datos del mes cerrado)."""
     return bool(re.search(r"\(\s*\d+\s*\)\s*$", titulo.strip()))
+
+
+_es_copia = es_copia   # alias legacy (doc 28 §18 la nombra con guion bajo)
 
 
 def resolver_ds_actual(prefijo: str, fallback_id: str) -> str:
@@ -137,7 +143,7 @@ def resolver_ds_actual(prefijo: str, fallback_id: str) -> str:
         per = _periodo_de_titulo(titulo, it.get("last_edited_time", ""))
         if not per:
             continue
-        cand = (per[0], per[1], 0 if _es_copia(titulo) else 1, it["id"], titulo)
+        cand = (per[0], per[1], 0 if es_copia(titulo) else 1, it["id"], titulo)
         if mejor is None or cand[:3] > mejor[:3]:
             mejor = cand
     if mejor:
@@ -163,7 +169,7 @@ def nombre_base_actual(prefijo: str, fallback: str = "") -> str:
         per = _periodo_de_titulo(titulo, it.get("last_edited_time", ""))
         if not per:
             continue
-        cand = (per[0], per[1], 0 if _es_copia(titulo) else 1, titulo.strip())
+        cand = (per[0], per[1], 0 if es_copia(titulo) else 1, titulo.strip())
         if mejor is None or cand[:3] > mejor[:3]:
             mejor = cand
     return mejor[3] if mejor else fallback

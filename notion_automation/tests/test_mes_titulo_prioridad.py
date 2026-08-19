@@ -113,3 +113,48 @@ class TestPrioridadTituloBase:
                 f"el correo debe usar el mes del título ({mes_titulo}), "
                 f"no el Month de la fila ('Junio 2026')"
             )
+
+class TestDerivacionDelMesDesdeElTitulo:
+    """La función real (los tests de arriba la mockean). Es la pieza que hace que
+    el cambio de mes NO necesite tocar plantillas: renombrar la planilla cambia
+    el mes de todos los correos que salen de ella."""
+
+    @staticmethod
+    def _fila(last_edited="2026-08-19T12:00:00.000Z"):
+        return {"parent": {"database_id": DB_ID}, "last_edited_time": last_edited}
+
+    def test_rrhh_con_anio_en_el_titulo(self):
+        with patch.object(nc, "get_database_title", return_value="RRHH AGOSTO 2026"):
+            assert nc.derivar_month_desde_base(self._fila()) == "Agosto 2026"
+
+    def test_contable_sin_anio_lo_toma_de_la_ultima_edicion(self):
+        with patch.object(nc, "get_database_title", return_value="Contable Julio"):
+            assert nc.derivar_month_desde_base(self._fila()) == "Julio 2026"
+
+    def test_el_anio_del_titulo_le_gana_a_la_ultima_edicion(self):
+        """Una planilla del año pasado que alguien abre hoy no debe cambiar de
+        año: si el título lo dice, el título manda."""
+        with patch.object(nc, "get_database_title", return_value="RRHH DICIEMBRE 2025"):
+            assert nc.derivar_month_desde_base(
+                self._fila(last_edited="2026-08-19T12:00:00.000Z")) == "Diciembre 2025"
+
+    def test_planilla_de_enero_preparada_en_diciembre(self):
+        """Sin leer el año del título, 'RRHH ENERO 2027' abierta en dic-2026
+        mandaba correos diciendo 'Enero 2026': un año entero de diferencia."""
+        with patch.object(nc, "get_database_title", return_value="RRHH ENERO 2027"):
+            assert nc.derivar_month_desde_base(
+                self._fila(last_edited="2026-12-28T12:00:00.000Z")) == "Enero 2027"
+
+    def test_diciembre_sin_anio_se_corrige_al_editarse_en_enero(self):
+        """El F29 de diciembre se trabaja en enero del año siguiente."""
+        with patch.object(nc, "get_database_title", return_value="Contable Diciembre"):
+            assert nc.derivar_month_desde_base(
+                self._fila(last_edited="2027-01-15T12:00:00.000Z")) == "Diciembre 2026"
+
+    def test_el_respaldo_conserva_el_mes_del_titulo(self):
+        with patch.object(nc, "get_database_title", return_value="RRHH JULIO 2026 (1)"):
+            assert nc.derivar_month_desde_base(self._fila()) == "Julio 2026"
+
+    def test_titulo_sin_mes_no_inventa(self):
+        with patch.object(nc, "get_database_title", return_value="RRHH sin mes"):
+            assert nc.derivar_month_desde_base(self._fila()) == ""

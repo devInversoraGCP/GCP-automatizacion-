@@ -362,31 +362,41 @@ def _es_uuid(s: str) -> bool:
 
 
 _DS_VIGENTE_TTL_S = 300
-_ds_vigente_cache: tuple[float, str] = (0.0, "")
+_ds_vigente_cache: dict[str, tuple[float, str]] = {}
 
 
-def _ds_contable_vigente() -> str:
-    """Data source del Contable del mes vigente, resuelto por título en runtime.
-    Contable se RENOMBRA en sitio ('Contable Junio' -> 'Contable Julio'), así que
-    el id no cambia, pero la lista estática DS_CONTABLES queda con el nombre viejo.
-    Si el search falla, cae al conocido. Mismo patrón que rrhh.ds_vigente().
+def _ds_vigente(prefijo: str, conocido: str) -> str:
+    """Data source de la planilla '<prefijo> <mes>' vigente, resuelta por TÍTULO
+    en runtime. Las planillas se renombran en sitio ('Contable Junio' ->
+    'Contable Julio'), así que el id no cambia pero la lista estática del código
+    queda con el nombre viejo; y el día que se estrene una base nueva, el search
+    la encuentra sola. Si el search falla, cae a `conocido`.
 
-    Cachea 5 min: desde que el guard R4 valida la base, esto corre en CADA clic,
-    y la planilla vigente cambia una vez al mes. El TTL corto hace que un cambio
-    de mes se note solo, sin reiniciar el servicio."""
-    global _ds_vigente_cache
+    Cachea 5 min POR PREFIJO: desde que el guard R4 valida la base, esto corre en
+    CADA clic, y la planilla vigente cambia una vez al mes. El TTL corto hace que
+    un cambio de mes se note solo, sin reiniciar el servicio."""
     ahora = time.time()
-    ts, val = _ds_vigente_cache
+    ts, val = _ds_vigente_cache.get(prefijo, (0.0, ""))
     if val and ahora - ts < _DS_VIGENTE_TTL_S:
         return val
     try:
         import reconciliar
-        val = reconciliar.resolver_ds_actual("Contable", nc.DS_CONTABLE_JUNIO)
+        val = reconciliar.resolver_ds_actual(prefijo, conocido)
     except Exception as exc:
-        log.warning("no se pudo resolver el Contable vigente, uso el conocido: %s", exc)
-        val = nc.DS_CONTABLE_JUNIO
-    _ds_vigente_cache = (ahora, val)
+        log.warning("no se pudo resolver la planilla vigente de %s, uso la conocida: %s", prefijo, exc)
+        val = conocido
+    _ds_vigente_cache[prefijo] = (ahora, val)
     return val
+
+
+def _ds_contable_vigente() -> str:
+    """Data source del Contable del mes vigente."""
+    return _ds_vigente("Contable", nc.DS_CONTABLE_JUNIO)
+
+
+def _ds_rrhh_vigente() -> str:
+    """Data source de la planilla RRHH del mes vigente."""
+    return _ds_vigente("RRHH", rrhh_handler.DS_ID)
 
 
 def _ds_de_la_fila(page: dict) -> str:
@@ -407,8 +417,8 @@ def _ds_de_la_fila(page: dict) -> str:
         return ""
 
 
-def _validar_contable_vigente(page: dict) -> None:
-    """R4 (doc 23): la fila DEBE vivir en el Contable del mes vigente.
+def _validar_base_vigente(page: dict, prefijo: str, vigente: str) -> None:
+    """R4 (doc 23): la fila DEBE vivir en la planilla '<prefijo> <mes>' vigente.
 
     Incidente 06-ago-2026: al cambiar de mes se duplica la planilla como
     respaldo ('Contable Junio (1)'). El duplicado se lleva la columna botón,
@@ -416,6 +426,13 @@ def _validar_contable_vigente(page: dict) -> None:
     el backend mandaba el correo igual — 200 OK y un cliente recibiendo el F29
     de un mes viejo. El 400 que se vio fue la versión ruidosa del problema; la
     silenciosa (99 filas con Email en ese duplicado) era la peligrosa.
+
+    Autorizada = SOLO la vigente resuelta en runtime. Las listas estáticas
+    (DS_CONTABLES, DS_RRHH) no se usan como allowlist a propósito: el día que se
+    trabaje sobre una copia nueva en vez de resetear en sitio, la base de esa
+    lista pasa a ser el respaldo — seguiría autorizada y volveríamos al correo
+    con datos viejos. Siguen siendo el fallback DENTRO de `_ds_vigente()`, que es
+    donde corresponde: solo si el search de Notion se cae.
 
     Fail-closed SOLO cuando sabemos que la base es otra. Si no se puede
     determinar (Notion cambia la forma del page object), se deja pasar con un
@@ -425,13 +442,7 @@ def _validar_contable_vigente(page: dict) -> None:
         log.warning("no se pudo determinar la base de la fila; R4 no aplicada")
         return
 
-    # Autorizada = SOLO la vigente resuelta en runtime. DS_CONTABLES no se usa
-    # como allowlist a propósito: es una lista estática, y el día que se trabaje
-    # sobre una copia nueva en vez de resetear en sitio, la base de esa lista
-    # pasa a ser el respaldo — seguiría autorizada y volveríamos al correo con
-    # datos viejos. DS_CONTABLES sigue siendo el fallback DENTRO de
-    # _ds_contable_vigente(), que es donde corresponde: solo si el search falla.
-    vigente = (_ds_contable_vigente() or "").replace("-", "")
+    vigente = (vigente or "").replace("-", "")
     if not vigente or ds_fila == vigente:
         return
 
@@ -445,15 +456,31 @@ def _validar_contable_vigente(page: dict) -> None:
     vigente_nombre = ""
     try:
         import reconciliar
-        vigente_nombre = reconciliar.nombre_base_actual("Contable", "")
+        vigente_nombre = reconciliar.nombre_base_actual(prefijo, "")
     except Exception:
         pass
-    log.warning("fila fuera del Contable vigente · base=%r ds=%s", titulo, ds_fila[:8])
+    log.warning("fila fuera de la planilla %s vigente · base=%r ds=%s", prefijo, titulo, ds_fila[:8])
     abort(403, (f"esta fila esta en {titulo or 'una planilla desconocida'!r}, que no es la "
                 "planilla del mes vigente"
                 + (f". La vigente es {vigente_nombre!r}" if vigente_nombre else "")
                 + ". Los respaldos y los meses ya cerrados no envian correos: "
                 "apreta el boton en la planilla del mes en curso."))
+
+
+def _validar_contable_vigente(page: dict) -> None:
+    """R4 para el flujo F29 (planillas 'Contable <Mes>')."""
+    _validar_base_vigente(page, "Contable", _ds_contable_vigente())
+
+
+def _validar_rrhh_vigente(page: dict) -> None:
+    """R4 para el flujo RRHH (planillas 'RRHH <MES> <AÑO>').
+
+    No existía hasta el 19-ago-2026: cuando se implementó el de Contable
+    (06-ago), RRHH estrenaba una base nueva cada mes y el respaldo con botón
+    clicable no existía como concepto. Desde el cambio de mes del 18-ago RRHH
+    rota igual que Contable (duplicar respaldo + renombrar la original), así que
+    el mismo riesgo aplica acá. Ver doc 28 §19."""
+    _validar_base_vigente(page, "RRHH", _ds_rrhh_vigente())
 
 
 def _buscar_identificador_base(data: dict) -> tuple[str, str]:
@@ -540,6 +567,14 @@ def _procesar_webhook_generico(handler, nombre_handler: str):
             if not page_id:
                 log.warning("%s no encontrado · %s", prop_busqueda, nombre_handler)
                 abort(404, f"no se encontro fila con ese {prop_busqueda} en {nombre_handler}")
+
+        # R4 para los flujos que rotan de mes. Cuesta un GET extra por clic (el
+        # handler vuelve a leer la fila), y a cambio un clic en el respaldo del
+        # mes cerrado no manda el correo con los datos viejos. Va ANTES del
+        # dedupe: un rechazo no debe consumir la reserva del page_id.
+        # Tickets y CRM no rotan (backlog permanente), así que no aplican.
+        if nombre_handler == "RRHH":
+            _validar_rrhh_vigente(nc.get_page(page_id))
 
         if not _dedupe_reservar(page_id):
             log.info("duplicado ignorado (dedupe <%ds) · %s", DEDUPE_VENTANA_S, nombre_handler)
@@ -675,7 +710,15 @@ def enviar_f29():
 # Al rotar el mes (doc 28 §15: duplicar respaldo + renombrar la base original),
 # las filas conservan los valores operativos del mes anterior. El botón
 # "Reset Mes" limpia SOLO los campos dinámicos; los estáticos (Customers, Rut,
-# Clave SII, Email, asesor, adjuntos, ...) NUNCA se tocan.
+# Clave SII, Email, asesor, ...) NUNCA se tocan.
+#
+# Los ADJUNTOS son dinámicos en las dos planillas (corregido el 19-ago-2026):
+# son los PDFs que se mandan en el correo DE ESE MES (doc 23 y doc 25 §77), no
+# documentos permanentes del cliente. El doc 29 los había clasificado como
+# estáticos y por eso Contable nunca los limpiaba: al revisar la planilla
+# operativa había archivos de junio conviviendo con los de julio, es decir,
+# clientes recibiendo el PDF de un mes que no era el suyo. El respaldo '(1)'
+# del mes cerrado los conserva, que es justo para lo que existe.
 #
 # Limpiar una propiedad via PATCH requiere el payload vacío del TIPO correcto
 # (rich_text -> lista vacía, number/date -> null); un null "crudo" a nivel de
@@ -701,6 +744,8 @@ RESET_CONTABLE = {
     "Valor-Info adicional": {"number": None},
     "Motivo-Info adicional": {"rich_text": []},
     "Fecha Envío": {"date": None},
+    "Adjuntos": {"files": []},              # PDFs del mes → se adjuntan al correo
+    "Mensaje Adjuntos": {"rich_text": []},  # nota del asesor sobre esos PDFs
     "Confirmar Reset": {"checkbox": False},
 }
 # RRHH JUNIO 2026 — nombres y opciones de status verificados contra el esquema
@@ -759,6 +804,99 @@ def _clave_prop(props: dict, nombre: str) -> str | None:
     return None
 
 
+# --- De qué planilla hablamos: el botón NO tiene que saberlo ----------------
+# El header X-Reset-DB fue la causa del incidente del 18-ago-2026 (doc 28 §19).
+# RRHH estrenaba una base NUEVA cada mes: el botón se duplicaba con ella y su
+# header seguía apuntando a la base de junio. Cuando esa base se fue a la
+# papelera, el reset empezó a fallar (500 'error leyendo la base') y no había
+# forma de saber por qué sin leer los logs. Notion manda el page_id de la fila
+# donde se apretó el botón: desde ahí se resuelve la planilla REAL, y el botón
+# se queda sin configuración que pueda quedar vieja. Los headers siguen valiendo
+# como fallback (curl, tests, y botones viejos que no manden datos de la fila).
+def _base_del_clic(data: dict) -> tuple[str, str, str]:
+    """(data_source_id, título, page_id) de la planilla donde se apretó el botón.
+    ('', '', '') si el payload no trae una fila legible."""
+    ident, _ruta = _buscar_identificador_base(data)
+    page_id = ident if _es_uuid(ident) else ""
+    if not page_id:
+        return "", "", ""
+    try:
+        page = nc.get_page(page_id)
+    except Exception as exc:
+        log.warning("reset-mes: no se pudo leer la fila del clic · page_id=%s · %s", page_id, exc)
+        return "", "", page_id
+    parent = page.get("parent") or {}
+    ds_id = parent.get("data_source_id") or ""
+    db_id = parent.get("database_id") or ""
+    if not ds_id and db_id:
+        try:
+            ds_id = nc.get_data_source_id(db_id)
+        except Exception as exc:
+            log.warning("reset-mes: no se pudo resolver el data source de la fila · %s", exc)
+    titulo = ""
+    if db_id:
+        try:
+            titulo = nc.get_database_title(db_id) or ""
+        except Exception as exc:
+            log.warning("reset-mes: no se pudo leer el titulo de la base · %s", exc)
+    log.info("reset-mes: planilla del clic · titulo=%r ds=%s", titulo, (ds_id or "")[:8])
+    return ds_id, titulo, page_id
+
+
+_PREFIJO_A_TIPO = {"contable": "contable", "rrhh": "rrhh"}
+
+
+def _tipo_desde_titulo(titulo: str) -> str:
+    """'RRHH AGOSTO 2026' -> 'rrhh'; 'Contable Julio' -> 'contable'; '' si no se
+    reconoce. Así el botón tampoco necesita el header X-Reset-Tipo: el tipo de
+    planilla ya está en su nombre."""
+    partes = (titulo or "").strip().split()
+    return _PREFIJO_A_TIPO.get(partes[0].lower(), "") if partes else ""
+
+
+def _vigente_del_tipo(tipo: str) -> tuple[str, str]:
+    """(prefijo, data source vigente) para un tipo de planilla; ('', '') si el
+    tipo no rota por mes (tickets) o no se reconoce."""
+    if tipo == "contable":
+        return "Contable", _ds_contable_vigente()
+    if tipo == "rrhh":
+        return "RRHH", _ds_rrhh_vigente()
+    return "", ""
+
+
+def _validar_planilla_reseteable(ds_id: str, titulo: str, tipo: str) -> None:
+    """El reset es IRREVERSIBLE: borra los datos operativos de todas las filas.
+    Por eso se niega a correr sobre las dos planillas donde sería un desastre:
+
+    - un respaldo ('RRHH JULIO 2026 (1)'): es la única copia del mes cerrado;
+    - un mes ya cerrado que no es el vigente.
+
+    Fail-open si no se puede determinar (sin título o sin vigente resuelta): con
+    el checkbox 'Confirmar reset' de por medio, bloquear un reset legítimo por no
+    poder leer un título sería peor que el riesgo que cubre."""
+    import reconciliar
+    if titulo and reconciliar.es_copia(titulo):
+        log.warning("reset-mes rechazado: %r es un respaldo", titulo)
+        abort(403, (f"{titulo!r} es un respaldo (la copia '(n)' del mes cerrado) y el reset "
+                    "la dejaria vacia: es la unica copia de esos datos. Apreta el boton en la "
+                    "planilla del mes vigente."))
+    prefijo, vigente = _vigente_del_tipo(tipo)
+    if not vigente or not ds_id:
+        return
+    if ds_id.replace("-", "") == vigente.replace("-", ""):
+        return
+    vigente_nombre = ""
+    try:
+        vigente_nombre = reconciliar.nombre_base_actual(prefijo, "")
+    except Exception:
+        pass
+    log.warning("reset-mes rechazado: %r no es la planilla vigente de %s", titulo, prefijo)
+    abort(403, (f"{titulo or 'esta planilla'!r} no es la planilla del mes vigente"
+                + (f" (la vigente es {vigente_nombre!r})" if vigente_nombre else "")
+                + ". El reset solo corre sobre la planilla en curso, para no borrar "
+                "el historico de un mes ya cerrado."))
+
+
 def _reset_aplicar(tipo: str, ds_id: str, campos_reset: dict, filas: list[dict]) -> dict:
     """Aplica el reset fila por fila (corre en un hilo de fondo). Tolerante:
     escribe solo las columnas que existen en cada fila (doc 24 §5.1) y un fallo
@@ -811,67 +949,96 @@ def _lanzar_reset(tipo: str, ds_id: str, campos_reset: dict, filas: list[dict]) 
 
 @app.post("/reset-mes")
 def reset_mes():
-    """Webhook del botón 'Reset Mes' (doc 29). Valida el checkbox 'Confirmar
-    Reset' en la fila ZZ_TEST y resetea los campos dinámicos de TODAS las filas
-    de la base, en un hilo de fondo. Responde 202 con el total de filas."""
+    """Webhook del botón 'Reset Mes' (doc 29). La planilla y el tipo salen de la
+    FILA donde se apretó el botón (los headers X-Reset-DB / X-Reset-Tipo son solo
+    fallback, ver `_base_del_clic`). Valida que no sea un respaldo ni un mes
+    cerrado, exige el checkbox 'Confirmar reset' en la fila RESET_MES, y resetea
+    los campos dinámicos de TODAS las filas en un hilo de fondo. Responde 202."""
     tiene_secreto = bool(request.headers.get("X-AuditAI-Secret"))
     log.info("request recibida · path=/reset-mes · tiene_secreto=%s", tiene_secreto)
 
     _validar_secreto()
 
-    # El botón "Send webhook" de Notion NO permite configurar el body (manda
-    # los datos de la fila automáticamente); tipo y database_id viajan en
-    # HEADERS custom. El body queda como fallback (curl / tests / futuro).
     data = request.get_json(force=True, silent=True) or {}
-    tipo = (request.headers.get("X-Reset-Tipo") or data.get("tipo") or "").strip().lower()
-    db_id = (
-        request.headers.get("X-Reset-DB")
-        or data.get("database_id")
-        or data.get("data_source_id")
-        or ""
-    ).strip()
-
-    if tipo not in RESET_POR_TIPO:
-        abort(400, f"tipo desconocido: {tipo!r} (esperado: contable, rrhh o tickets)")
-    if not db_id:
-        abort(400, "database_id requerido en el body del botón")
-    campos_reset = RESET_POR_TIPO[tipo]
-    if not campos_reset:
-        abort(400, f"reset de tipo {tipo!r} aún no implementado (doc 29, Fase 3)")
-
+    log.info("estructura payload RESET: %s", _estructura(data))
+    page_id_clic = ""
     try:
-        ds_id = nc.get_data_source_id(db_id)
-        filas = nc.query_data_source(ds_id, {"page_size": 100})
-    except HTTPException:
+        # Fuente principal: la fila donde se apretó el botón. Fallback: headers.
+        ds_id, titulo, page_id_clic = _base_del_clic(data)
+        db_header = (
+            request.headers.get("X-Reset-DB")
+            or data.get("database_id")
+            or data.get("data_source_id")
+            or ""
+        ).strip()
+        tipo_header = (request.headers.get("X-Reset-Tipo") or data.get("tipo") or "").strip().lower()
+
+        if not ds_id:
+            if not db_header:
+                abort(400, "no pude identificar la planilla a resetear: el boton no mando la fila "
+                           "donde se apreto (page_id) y tampoco llego el header X-Reset-DB. "
+                           "Revisar la accion 'Send webhook' del boton: tiene que incluir la fila.")
+            log.info("reset-mes: sin fila en el payload, uso el header X-Reset-DB")
+            ds_id = nc.get_data_source_id(db_header)
+            try:
+                titulo = nc.get_database_title(db_header) or ""
+            except Exception as exc:
+                log.warning("reset-mes: no se pudo leer el titulo de la base del header · %s", exc)
+
+        tipo = _tipo_desde_titulo(titulo) or tipo_header
+        if tipo_header and tipo != tipo_header:
+            # El título es el dato vivo; el header es config que puede quedar vieja.
+            log.warning("reset-mes: el tipo del titulo (%r) manda sobre el header (%r)", tipo, tipo_header)
+        if tipo not in RESET_POR_TIPO:
+            abort(400, f"tipo desconocido: {tipo!r} (esperado: contable, rrhh o tickets)")
+        campos_reset = RESET_POR_TIPO[tipo]
+        if not campos_reset:
+            abort(400, f"reset de tipo {tipo!r} aún no implementado (doc 29, Fase 3)")
+
+        _validar_planilla_reseteable(ds_id, titulo, tipo)
+
+        try:
+            filas = nc.query_data_source(ds_id, {"page_size": 100})
+        except Exception as exc:
+            # El 18-ago este 500 decía solo "error leyendo la base" y no había
+            # forma de saber cuál era "la base" sin ir a los logs de Render.
+            alertas.avisar_excepcion_admin("RESET", ds_id or db_header, exc)
+            return {"ok": False, "motivo": f"error leyendo la planilla {titulo or ds_id[:8]!r}; "
+                                           "administrador notificado"}, 500
+
+        # Safety switch OBLIGATORIO (doc 29): checkbox en la fila RESET_MES.
+        fila_control = next(
+            (f for f in filas if FILA_CONTROL_RESET in _titulo_fila(f.get("properties", {}) or {})),
+            None,
+        )
+        if fila_control is None:
+            abort(400, f"no se encontró la fila de control {FILA_CONTROL_RESET!r} en la base; el reset la requiere")
+        props_control = fila_control.get("properties", {}) or {}
+        clave_confirmar = _clave_prop(props_control, P_CONFIRMAR_RESET)
+        if not clave_confirmar:
+            abort(400, f"la base no tiene la columna checkbox {P_CONFIRMAR_RESET!r}; creala primero")
+        confirmado = (props_control.get(clave_confirmar) or {}).get("checkbox", False)
+        if not confirmado:
+            abort(400, f"Marcá el checkbox {P_CONFIRMAR_RESET!r} en la fila {FILA_CONTROL_RESET} primero")
+
+        with _resets_lock:
+            if ds_id in _resets_activos:
+                log.info("reset-mes duplicado ignorado (ya hay un reset en curso) · tipo=%s", tipo)
+                return {"ok": True, "duplicado": True, "motivo": "ya hay un reset en curso para esta base"}, 200
+            _resets_activos.add(ds_id)
+    except HTTPException as exc:
+        # Un reset rechazado era invisible: el asesor veía "error" en Notion y no
+        # se enteraba nadie más (18-ago-2026: el reset falló y se descubrió al
+        # día siguiente). Ahora el rechazo llega al admin con payload y origen.
+        alertas.avisar_boton_rechazado("RESET", exc.code or 0, exc.description or "",
+                                       page_id_clic, str(_estructura(data)), _contexto_request())
         raise
-    except Exception as exc:
-        alertas.avisar_excepcion_admin("RESET", db_id, exc)
-        return {"ok": False, "motivo": "error leyendo la base; administrador notificado"}, 500
-
-    # Safety switch OBLIGATORIO (doc 29): checkbox en la fila de control ZZ_TEST.
-    fila_control = next(
-        (f for f in filas if FILA_CONTROL_RESET in _titulo_fila(f.get("properties", {}) or {})),
-        None,
-    )
-    if fila_control is None:
-        abort(400, f"no se encontró la fila de control {FILA_CONTROL_RESET!r} en la base; el reset la requiere")
-    props_control = fila_control.get("properties", {}) or {}
-    clave_confirmar = _clave_prop(props_control, P_CONFIRMAR_RESET)
-    if not clave_confirmar:
-        abort(400, f"la base no tiene la columna checkbox {P_CONFIRMAR_RESET!r}; creala primero")
-    confirmado = (props_control.get(clave_confirmar) or {}).get("checkbox", False)
-    if not confirmado:
-        abort(400, f"Marcá el checkbox {P_CONFIRMAR_RESET!r} en la fila {FILA_CONTROL_RESET} primero")
-
-    with _resets_lock:
-        if ds_id in _resets_activos:
-            log.info("reset-mes duplicado ignorado (ya hay un reset en curso) · tipo=%s", tipo)
-            return {"ok": True, "duplicado": True, "motivo": "ya hay un reset en curso para esta base"}, 200
-        _resets_activos.add(ds_id)
 
     _lanzar_reset(tipo, ds_id, campos_reset, filas)
-    log.info("reset-mes lanzado en fondo · tipo=%s · filas_totales=%d", tipo, len(filas))
-    return {"ok": True, "en_proceso": True, "tipo": tipo, "filas_totales": len(filas)}, 202
+    log.info("reset-mes lanzado en fondo · tipo=%s · planilla=%r · filas_totales=%d",
+             tipo, titulo, len(filas))
+    return {"ok": True, "en_proceso": True, "tipo": tipo, "planilla": titulo,
+            "filas_totales": len(filas)}, 202
 
 
 # --- Confirmación de entrega real via SendGrid Event Webhook (doc 30) ------
@@ -1081,7 +1248,7 @@ def health():
     return {
         "ok": True,
         "service": "auditai-f29",
-        "version": "2026-08-06.3-respaldo-con-boton-tolerado",
+        "version": "2026-08-19.1-reset-sin-config-manual",
         "webhook_secret_configurado": bool(os.environ.get("WEBHOOK_SECRET")),
         "admin_alerts_configurados": len(es.admin_emails()),
         "sendgrid_webhook_token_configurado": bool(os.environ.get("SENDGRID_WEBHOOK_TOKEN")),

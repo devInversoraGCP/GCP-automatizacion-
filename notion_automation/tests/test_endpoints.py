@@ -97,7 +97,10 @@ class TestParidadDeIdentificacion:
         assert f.call_args[0][2] == A.P_NOMBRE
 
     def test_rrhh_sigue_aceptando_lo_mismo(self, client):
-        with patch.object(A.rrhh_handler, "procesar", return_value={"ok": True}) as m:
+        # el guard de planilla vigente (que lee la fila) no es lo que se prueba acá
+        with patch.object(A, "_validar_rrhh_vigente"), \
+             patch.object(nc, "get_page", return_value={"id": PID, "parent": {}}), \
+             patch.object(A.rrhh_handler, "procesar", return_value={"ok": True}) as m:
             r = client.post("/webhook/rrhh", json={"entity": {"id": PID}}, headers=H)
         assert r.status_code == 200 and m.call_args[0][0] == PID
 

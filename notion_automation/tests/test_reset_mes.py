@@ -32,6 +32,8 @@ def _fila(page_id: str, titulo: str, confirmar: bool = False) -> dict:
             "Status": {"type": "status", "status": {"name": "1) Enviado y Pendiente"}},
             "Ventas": {"type": "checkbox", "checkbox": True},
             "Fecha Envío": {"type": "date", "date": {"start": "2026-06-15"}},
+            "Adjuntos": {"type": "files", "files": [{"name": "F29 junio.pdf", "type": "file"}]},
+            "Mensaje Adjuntos": {"type": "rich_text", "rich_text": [{"plain_text": "adjunto el F29"}]},
             "Confirmar Reset": {"type": "checkbox", "checkbox": confirmar},
         },
     }
@@ -47,6 +49,23 @@ def client():
     A._dedupe.clear()
     A._resets_activos.clear()
     return A.app.test_client()
+
+
+@pytest.fixture(autouse=True)
+def _sin_api_real(monkeypatch):
+    """Ningún test de este módulo puede salir a la API de Notion.
+
+    Por defecto: el título de la base no se puede leer ('') — así el tipo cae al
+    header, que es como llegan los tests de payload — y la planilla vigente de
+    cada flujo es la operativa. Los tests que prueban la resolución por la fila
+    del clic sobrescriben `get_page` / `get_database_title` con lo suyo."""
+    def _sin_fila(*a, **k):
+        raise RuntimeError("un test leyó una fila real; parchea nc.get_page")
+
+    monkeypatch.setattr(nc, "get_page", _sin_fila)
+    monkeypatch.setattr(nc, "get_database_title", lambda db_id: "")
+    monkeypatch.setattr(A, "_ds_contable_vigente", lambda: DS_ID)
+    monkeypatch.setattr(A, "_ds_rrhh_vigente", lambda: RRHH_DS)
 
 
 class TestGuardsPayload:
@@ -127,6 +146,19 @@ class TestResetAplicar:
         assert updates["Status"] == {"status": {"name": "Not started"}}
         assert updates["Ventas"] == {"checkbox": False}
         assert updates["Fecha Envío"] == {"date": None}
+
+    def test_reset_limpia_los_adjuntos_del_mes(self):
+        """Los adjuntos son los PDFs de ESE mes, no documentos permanentes del
+        cliente. Contable no los limpiaba (doc 29 los listaba como estáticos):
+        en la planilla operativa había archivos de junio conviviendo con los de
+        julio, o sea clientes recibiendo el PDF de otro mes. El respaldo '(1)'
+        los conserva."""
+        filas = [_fila(PID_1, "Cliente Uno")]
+        with patch.object(nc, "update_props") as m:
+            A._reset_aplicar("contable", DS_ID, A.RESET_CONTABLE, filas)
+        updates = m.call_args[0][1]
+        assert updates["Adjuntos"] == {"files": []}
+        assert updates["Mensaje Adjuntos"] == {"rich_text": []}
 
     def test_reset_preserva_campos_estaticos(self):
         filas = [_fila(PID_1, "Cliente Uno")]
@@ -221,8 +253,12 @@ class TestConcurrencia:
 
 
 # --- Fase 3: RRHH (doc 29) --------------------------------------------------
-RRHH_DB = "38712147-b3ea-80f9-9484-e0ad99c94a26"
-RRHH_DS = "9c512147-b3ea-8256-a570-871254c13b3d"
+RRHH_DB = "39e12147-b3ea-807d-b238-fbac8bd2e4c6"    # 'RRHH AGOSTO 2026' (operativa)
+RRHH_DS = "89a12147-b3ea-830e-adee-07cbca823fb6"
+# La base de junio, de la que se duplicó la de julio: es el id que quedó pegado
+# en el header del botón y que el 18-ago-2026 ya estaba en la papelera (§19).
+RRHH_DB_PAPELERA = "38712147-b3ea-80f9-9484-e0ad99c94a26"
+RRHH_DS_RESPALDO = "d0d12147-b3ea-820b-bae1-07e0b679699a"   # 'RRHH JULIO 2026 (1)'
 
 
 def _fila_rrhh(page_id: str, rut_titulo: str, confirmar: bool = False) -> dict:
@@ -287,3 +323,90 @@ class TestResetRRHH:
             r = client.post("/reset-mes", json={"tipo": "rrhh", "database_id": RRHH_DB}, headers=H)
         assert r.status_code == 400  # checkbox sin marcar
         assert not m.called
+
+
+# --- La planilla sale del clic, no de la configuración del botón (§19) ------
+def _page_del_clic(ds: str, db: str = "db-cualquiera") -> dict:
+    """Page object como lo devuelve Notion para la fila donde se apretó el botón."""
+    return {"id": PID_ZZ,
+            "parent": {"type": "data_source_id", "data_source_id": ds, "database_id": db}}
+
+
+class TestPlanillaDelClic:
+    """Incidente 18-ago-2026 (doc 28 §19). El botón mandaba la base a resetear en
+    un header; al duplicar la planilla, el header se copió con ella y quedó
+    apuntando a la base del mes viejo, que después se fue a la papelera. Desde
+    ahora la planilla y el tipo salen de la FILA donde se apretó el botón: no hay
+    configuración manual que pueda quedar vieja."""
+
+    def test_la_planilla_sale_de_la_fila_sin_ningun_header(self, client):
+        filas = [_fila_rrhh(PID_ZZ, "RESET_MES", confirmar=True)]
+        with patch.object(nc, "get_page", return_value=_page_del_clic(RRHH_DS)), \
+             patch.object(nc, "get_database_title", return_value="RRHH AGOSTO 2026"), \
+             patch.object(nc, "query_data_source", return_value=filas), \
+             patch.object(A, "_lanzar_reset") as m:
+            r = client.post("/reset-mes", json={"source": {"page_id": PID_ZZ}}, headers=H)
+        assert r.status_code == 202
+        tipo, ds_id, campos, _ = m.call_args[0]
+        # el tipo salió del título de la base, no de X-Reset-Tipo
+        assert tipo == "rrhh" and ds_id == RRHH_DS and campos is A.RESET_RRHH
+
+    def test_la_fila_del_clic_manda_sobre_un_header_viejo(self, client):
+        """El caso exacto del incidente: el header apunta a la base de junio (hoy
+        en la papelera) y el clic ocurrió en la planilla de agosto."""
+        filas = [_fila_rrhh(PID_ZZ, "RESET_MES", confirmar=True)]
+        headers = {**H, "X-Reset-Tipo": "rrhh", "X-Reset-DB": RRHH_DB_PAPELERA}
+        with patch.object(nc, "get_page", return_value=_page_del_clic(RRHH_DS)), \
+             patch.object(nc, "get_database_title", return_value="RRHH AGOSTO 2026"), \
+             patch.object(nc, "query_data_source", return_value=filas), \
+             patch.object(nc, "get_data_source_id") as m_ds, \
+             patch.object(A, "_lanzar_reset") as m:
+            r = client.post("/reset-mes", json={"source": {"page_id": PID_ZZ}}, headers=headers)
+        assert r.status_code == 202
+        assert m.call_args[0][1] == RRHH_DS
+        assert not m_ds.called   # ni se miró el id del header
+
+    def test_si_la_fila_no_se_puede_leer_el_header_sigue_sirviendo(self, client):
+        """Fallback: curl, tests, o un botón que no mande los datos de la fila."""
+        filas = [_fila_rrhh(PID_ZZ, "RESET_MES", confirmar=True)]
+        with patch.object(nc, "get_data_source_id", return_value=RRHH_DS), \
+             patch.object(nc, "query_data_source", return_value=filas), \
+             patch.object(A, "_lanzar_reset") as m:
+            r = client.post("/reset-mes", json={"tipo": "rrhh", "database_id": RRHH_DB}, headers=H)
+        assert r.status_code == 202 and m.call_args[0][1] == RRHH_DS
+
+    def test_sin_fila_y_sin_header_da_400_que_se_entiende(self, client):
+        with patch.object(A, "_lanzar_reset") as m:
+            r = client.post("/reset-mes", json={}, headers=H)
+        assert r.status_code == 400 and not m.called
+        assert "page_id" in r.get_data(as_text=True)
+
+    def test_el_respaldo_no_se_resetea(self, client):
+        """El respaldo es la ÚNICA copia del mes cerrado: resetearlo es
+        irreversible. El botón viaja en la copia y sigue clicable."""
+        with patch.object(nc, "get_page", return_value=_page_del_clic(RRHH_DS_RESPALDO)), \
+             patch.object(nc, "get_database_title", return_value="RRHH JULIO 2026 (1)"), \
+             patch.object(nc, "query_data_source") as m_query, \
+             patch.object(A, "_lanzar_reset") as m:
+            r = client.post("/reset-mes", json={"source": {"page_id": PID_ZZ}}, headers=H)
+        assert r.status_code == 403 and not m.called
+        assert not m_query.called          # ni se leyó la base
+        assert "respaldo" in r.get_data(as_text=True)
+
+    def test_una_planilla_de_un_mes_cerrado_no_se_resetea(self, client):
+        """Un respaldo renombrado a mano ya no tiene el sufijo '(1)', así que el
+        segundo cinturón es el período: solo se resetea la planilla vigente."""
+        with patch.object(nc, "get_page", return_value=_page_del_clic("ds-de-un-mes-viejo")), \
+             patch.object(nc, "get_database_title", return_value="RRHH JUNIO 2026"), \
+             patch.object(A, "_lanzar_reset") as m:
+            r = client.post("/reset-mes", json={"source": {"page_id": PID_ZZ}}, headers=H)
+        assert r.status_code == 403 and not m.called
+
+    def test_un_reset_rechazado_avisa_al_admin(self, client):
+        """El 18-ago el reset falló y se descubrió al día siguiente: el rechazo
+        era invisible salvo en los logs de Render."""
+        with patch.object(nc, "get_page", return_value=_page_del_clic(RRHH_DS_RESPALDO)), \
+             patch.object(nc, "get_database_title", return_value="RRHH JULIO 2026 (1)"), \
+             patch.object(A.alertas, "avisar_boton_rechazado") as m_aviso:
+            client.post("/reset-mes", json={"source": {"page_id": PID_ZZ}}, headers=H)
+        assert m_aviso.call_args[0][0] == "RESET" and m_aviso.call_args[0][1] == 403

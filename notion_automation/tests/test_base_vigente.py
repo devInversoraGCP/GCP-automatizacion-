@@ -24,6 +24,8 @@ PID = "12345678-1234-1234-1234-123456789012"
 DB_OPERATIVA = "39612147-b3ea-80e7-98e6-dbe3de45b76e"   # 'Contable Julio'
 DS_OPERATIVA = nc.DS_CONTABLE_JUNIO                      # 09b12147… (renombrada en sitio)
 DS_RESPALDO = "27a12147-b3ea-8293-b889-075f3542d11d"     # 'Contable Junio (1)'
+DS_RRHH_OPERATIVA = "89a12147-b3ea-830e-adee-07cbca823fb6"   # 'RRHH AGOSTO 2026'
+DS_RRHH_RESPALDO = "d0d12147-b3ea-820b-bae1-07e0b679699a"    # 'RRHH JULIO 2026 (1)'
 
 
 def _page(ds=DS_OPERATIVA, db=DB_OPERATIVA, con_email=True):
@@ -85,7 +87,7 @@ class TestValidacionDeBase:
         """El cinturón vive dentro de _ds_contable_vigente: si el search de Notion
         se cae, cae al DS conocido y los asesores siguen pudiendo enviar."""
         import reconciliar
-        monkeypatch.setattr(A, "_ds_vigente_cache", (0.0, ""))
+        monkeypatch.setattr(A, "_ds_vigente_cache", {})
         monkeypatch.setattr(reconciliar, "resolver_ds_actual",
                             lambda *a, **k: (_ for _ in ()).throw(RuntimeError("api caida")))
         A._validar_contable_vigente(_page(ds=DS_OPERATIVA))   # no debe lanzar
@@ -122,7 +124,7 @@ class TestCacheDeLaVigente:
 
     @pytest.fixture(autouse=True)
     def _limpiar(self, monkeypatch):
-        monkeypatch.setattr(A, "_ds_vigente_cache", (0.0, ""))
+        monkeypatch.setattr(A, "_ds_vigente_cache", {})
 
     def test_el_segundo_clic_no_vuelve_a_consultar(self, monkeypatch):
         import reconciliar
@@ -141,9 +143,20 @@ class TestCacheDeLaVigente:
         A._ds_contable_vigente()
         # simula que pasó el TTL: el cambio de mes tiene que verse sin reiniciar
         monkeypatch.setattr(A, "_ds_vigente_cache",
-                            (time.time() - A._DS_VIGENTE_TTL_S - 1, "ds-viejo"))
+                            {"Contable": (time.time() - A._DS_VIGENTE_TTL_S - 1, "ds-viejo")})
         assert A._ds_contable_vigente() == "ds-vigente"
         assert len(llamadas) == 2
+
+    def test_contable_y_rrhh_no_comparten_la_entrada_de_cache(self, monkeypatch):
+        """Un solo valor cacheado para las dos planillas haría que el guard de
+        RRHH validara contra el data source del Contable (y al revés): TODO clic
+        quedaría rechazado con un 403 incomprensible."""
+        import reconciliar
+        monkeypatch.setattr(reconciliar, "resolver_ds_actual",
+                            lambda prefijo, conocido: f"ds-{prefijo.lower()}")
+        assert A._ds_contable_vigente() == "ds-contable"
+        assert A._ds_rrhh_vigente() == "ds-rrhh"
+        assert A._ds_contable_vigente() == "ds-contable"   # sigue siendo el suyo
 
 
 class TestGuardEnElFlujoCompleto:
@@ -166,6 +179,45 @@ class TestGuardEnElFlujoCompleto:
              patch.object(A.alertas, "avisar_fallo_asesor"):
             r = A._procesar_page(PID)
         assert r["ok"] is True and m_enviar.called
+
+    def test_un_clic_en_la_operativa_si_manda_rrhh(self):
+        """RRHH quedó sin guard hasta el 19-ago-2026 (doc 28 §19): antes estrenaba
+        base nueva cada mes y el respaldo no existía. Desde que rota como Contable
+        (duplicar + renombrar), el respaldo con botón clicable también existe acá."""
+        A._dedupe.clear()
+        client = A.app.test_client()
+        with patch.object(nc, "get_page", return_value=_page(ds=DS_RRHH_OPERATIVA)), \
+             patch.object(A, "_ds_rrhh_vigente", return_value=DS_RRHH_OPERATIVA), \
+             patch.object(A.rrhh_handler, "procesar", return_value={"ok": True}) as m:
+            r = client.post("/webhook/rrhh", json={"data": {"id": PID}},
+                            headers={"X-AuditAI-Secret": "test-secret"})
+        assert r.status_code == 200 and m.called
+
+    def test_un_clic_en_el_respaldo_de_rrhh_no_manda_correo(self):
+        A._dedupe.clear()
+        client = A.app.test_client()
+        with patch.object(nc, "get_page", return_value=_page(ds=DS_RRHH_RESPALDO)), \
+             patch.object(A, "_ds_rrhh_vigente", return_value=DS_RRHH_OPERATIVA), \
+             patch.object(nc, "get_database_title", return_value="RRHH JULIO 2026 (1)"), \
+             patch.object(A.rrhh_handler, "procesar") as m, \
+             patch.object(A.alertas, "avisar_boton_rechazado") as m_aviso:
+            r = client.post("/webhook/rrhh", json={"data": {"id": PID}},
+                            headers={"X-AuditAI-Secret": "test-secret"})
+        assert r.status_code == 403 and not m.called
+        assert "RRHH JULIO 2026 (1)" in m_aviso.call_args[0][2]
+
+    def test_el_rechazo_de_rrhh_no_consume_la_reserva_del_dedupe(self):
+        """El 403 va antes del dedupe: si consumiera la reserva, el clic bueno
+        en la planilla correcta dentro de los 60s siguientes se ignoraría."""
+        A._dedupe.clear()
+        client = A.app.test_client()
+        with patch.object(nc, "get_page", return_value=_page(ds=DS_RRHH_RESPALDO)), \
+             patch.object(A, "_ds_rrhh_vigente", return_value=DS_RRHH_OPERATIVA), \
+             patch.object(nc, "get_database_title", return_value="RRHH JULIO 2026 (1)"), \
+             patch.object(A.alertas, "avisar_boton_rechazado"):
+            client.post("/webhook/rrhh", json={"data": {"id": PID}},
+                        headers={"X-AuditAI-Secret": "test-secret"})
+        assert PID not in A._dedupe
 
     def test_el_403_avisa_al_admin_por_el_endpoint(self):
         """El asesor ve el error en Notion; el admin tiene que enterarse de que

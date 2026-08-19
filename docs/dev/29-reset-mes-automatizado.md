@@ -88,8 +88,13 @@ _procesar_page:
 - `Reportabilidad` (select) — reportabilidad
 - `datos socio` (rich_text) — datos del socio
 - `Place` (unknown) — lugar
-- `Adjuntos` (files) — PDFs adjuntos
-- `Mensaje Adjuntos` (rich_text) — nota sobre adjuntos
+
+> ⚠️ **Corregido el 19-ago-2026:** `Adjuntos` y `Mensaje Adjuntos` estaban acá,
+> entre los estáticos. **Son dinámicos** — los PDFs que se mandan en el correo
+> DE ESE MES (doc 23; en RRHH siempre estuvieron bien clasificados, doc 25 §77).
+> Por eso Contable nunca los limpiaba: al revisar la planilla operativa había
+> archivos de junio conviviendo con los de julio, o sea clientes recibiendo el
+> PDF de un mes que no era el suyo. El respaldo `(1)` los conserva.
 
 **Dinámicos (se resetean cada mes):**
 - `Month` (rich_text) — mes actual (ej: "Junio 2026")
@@ -107,6 +112,8 @@ _procesar_page:
 - `Valor-Info adicional` (number) — valor info adicional
 - `Motivo-Info adicional` (rich_text) — motivo info adicional
 - `Fecha Envío` (date) — fecha de envío del correo
+- `Adjuntos` (files) — PDFs que se adjuntan al correo **de ese mes**
+- `Mensaje Adjuntos` (rich_text) — nota del asesor sobre esos PDFs
 
 **Especial:**
 - `Enviar Correo F29` (button) — botón que dispara el webhook
@@ -260,6 +267,12 @@ Los botones se crean **manualmente** en la UI de Notion (la API no permite crear
 > **NO permite configurar el body** (Notion manda automáticamente los datos de la fila).
 > `tipo` y `database_id` viajan en **headers custom** (`X-Reset-Tipo`, `X-Reset-DB`);
 > el backend también los acepta por body como fallback (curl/tests).
+>
+> 🔄 **SUPERADO el 19-ago-2026 (doc 28 §19).** Los headers ya **no son la fuente
+> principal**: la planilla y el tipo se resuelven desde la **fila donde se apretó
+> el botón**. Los headers siguen aceptándose como fallback, pero un botón sin
+> ellos funciona igual — y un botón duplicado ya no puede apuntar a otra base.
+> La tabla de abajo queda como referencia histórica de cómo se configuró.
 
 **Configuración del botón (3 headers custom):**
 
@@ -410,6 +423,31 @@ base original no se tocó.
 > Requisito previo confirmado: la integración "Conexion opencode y notion" debe
 > estar conectada a la base (una base duplicada nace SIN la conexión → 404 hasta
 > agregarla manualmente; es la misma paradoja del doc 28 §13.d).
+
+---
+
+## Contrato actual del endpoint (19-ago-2026)
+
+Tras el incidente del 18-ago (doc 28 §19), `/reset-mes` resuelve **solo** por lo
+que ve, no por lo que le configuraron:
+
+| Dato | De dónde sale | Fallback |
+|---|---|---|
+| **Planilla** (data source) | `parent.data_source_id` de la fila donde se apretó el botón (`page_id` del payload) | header `X-Reset-DB` / body `database_id` |
+| **Tipo** (`contable`/`rrhh`) | primera palabra del título de esa base (`RRHH AGOSTO 2026` → `rrhh`) | header `X-Reset-Tipo` / body `tipo` |
+
+Guards, en orden:
+
+1. `X-AuditAI-Secret` (401 / 503 si el server no tiene secreto).
+2. Se pudo identificar la planilla (400 con instrucción si no).
+3. **No es un respaldo** `(n)` → 403. Es la única copia del mes cerrado.
+4. **Es la planilla vigente** del período → 403 si no. No se borra el histórico.
+5. Existe la fila `RESET_MES` y su checkbox `Confirmar reset` está marcado → 400.
+6. No hay otro reset corriendo sobre esa base → 200 `{"duplicado": true}`.
+
+Todo rechazo (4xx) avisa al admin con la estructura del payload y el origen de la
+request; el resultado final del reset queda en el log y, si fallan filas, también
+va por correo.
 
 ---
 
