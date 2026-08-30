@@ -1305,7 +1305,7 @@ def health():
     return {
         "ok": True,
         "service": "auditai-f29",
-        "version": "2026-08-19.2-contable-paridad-y-radar",
+        "version": "2026-08-30-rrhh-redaccion-imposiciones",
         "webhook_secret_configurado": bool(os.environ.get("WEBHOOK_SECRET")),
         "admin_alerts_configurados": len(es.admin_emails()),
         "sendgrid_webhook_token_configurado": bool(os.environ.get("SENDGRID_WEBHOOK_TOKEN")),
