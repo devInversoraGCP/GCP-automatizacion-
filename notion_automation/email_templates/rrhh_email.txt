@@ -2,7 +2,7 @@ Asunto: Imposiciones {{periodo}}- {{nombre_cliente}}
 
 Estimado/a {{nombre_cliente}}:
 
-Por medio de la presente informo el monto a pagar por concepto de
+Le escribimos para informarle el monto a pagar por concepto de
 imposiciones del mes de {{periodo}}.
 
 Total a pagar {{monto}}.-
